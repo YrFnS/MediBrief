@@ -12,9 +12,97 @@ import { FILE_ANALYSIS_PROMPT, FILE_TEXT_ANALYSIS_PROMPT, BRIEFING_TRIGGERS, SHI
 declare global {
     interface Window {
         pdfjsLib: any;
-        webkitAudioContext: typeof AudioContext
+        webkitAudioContext: typeof AudioContext;
+        jspdf: any;
     }
 }
+
+// --- PDF & Briefing Helpers ---
+interface ParsedSection {
+    title: string;
+    items: string[];
+}
+
+interface ParsedBriefing {
+    briefingTitle: string;
+    sections: ParsedSection[];
+}
+
+const isJsonBriefing = (content: string): boolean => {
+    try {
+        const data = JSON.parse(content);
+        return typeof data === 'object' && data !== null && 'briefingTitle' in data && 'sections' in data;
+    } catch (e) {
+        return false;
+    }
+};
+
+const exportBriefingToPdf = async (briefing: ParsedBriefing): Promise<void> => {
+    try {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
+
+        const pageW = doc.internal.pageSize.getWidth();
+        const margin = 40;
+        const maxW = pageW - margin * 2;
+        let y = margin;
+        
+        const checkPageBreak = (requiredHeight: number) => {
+            if (y + requiredHeight > doc.internal.pageSize.getHeight() - margin) {
+                doc.addPage();
+                y = margin;
+                return true;
+            }
+            return false;
+        };
+
+        // Title
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(18);
+        doc.text(briefing.briefingTitle, pageW / 2, y, { align: 'center' });
+        y += 40;
+
+        // Sections
+        for (const section of briefing.sections) {
+            if (!section.items || section.items.length === 0) continue;
+
+            checkPageBreak(40);
+            
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(14);
+            doc.text(section.title, margin, y);
+            y += 20;
+
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(10);
+            
+            for (const item of section.items) {
+                const lines = doc.splitTextToSize(`• ${item}`, maxW - 15);
+                const requiredHeight = lines.length * 12;
+
+                if (checkPageBreak(requiredHeight)) {
+                    doc.setFont('helvetica', 'bold');
+                    doc.setFontSize(12);
+                    doc.text(`${section.title} (continued)`, margin, y);
+                    y += 20;
+                    doc.setFont('helvetica', 'normal');
+                    doc.setFontSize(10);
+                }
+                
+                doc.text(lines, margin + 15, y);
+                y += requiredHeight + 4;
+            }
+            y += 20;
+        }
+        
+        doc.save(`MediBrief-Shift-Briefing-${new Date().toISOString().split('T')[0]}.pdf`);
+
+    } catch (error) {
+        console.error("Error exporting PDF:", error);
+        throw new Error("Failed to generate PDF document.");
+    }
+};
+
 
 // --- Audio & Live Session Utilities ---
 const encode = (bytes: Uint8Array) => {
@@ -198,16 +286,6 @@ const appReducer = (state: AppState, action: AppAction): AppState => {
     }
 };
 
-// --- Helper Functions for handleSend Logic ---
-const handleLocalCommand = (prompt: string): { isHandled: boolean; response?: ChatMessage } => {
-    // ... (rest of the function is unchanged)
-    return { isHandled: false };
-};
-const determineRequestDetails = (prompt: string, chatMode: ChatMode): { finalPrompt: string, modeForRequest: ChatMode, responseType: 'json' | 'text' } => {
-    // ... (rest of the function is unchanged)
-    return { finalPrompt: prompt, modeForRequest: chatMode, responseType: 'text' };
-};
-
 // --- Main App Component ---
 const App: React.FC = () => {
     const [state, dispatch] = useReducer(appReducer, initialState);
@@ -242,13 +320,125 @@ const App: React.FC = () => {
     }, []);
 
     const handleFileUpload = useCallback(async (file: UploadedFile) => {
-        // ... (this function remains unchanged)
-    }, [messages]);
+        try {
+            let analysisPrompt: string;
+            let displayMessage = `Analyzing file: ${file.file.name}`;
+            const userMessage: ChatMessage = { role: 'user', content: '', displayContent: displayMessage, filePreview: { name: file.file.name, type: file.type, url: file.url }};
 
-    const handleSend = useCallback(async (prompt: string) => {
-       // ... (this function remains unchanged)
+            if (file.type === 'application/pdf') {
+                const pdfResult = await processPdf(file.file);
+                if (pdfResult.strategy === PdfProcessingStrategy.TEXT_EXTRACTION && pdfResult.extractedText) {
+                    analysisPrompt = FILE_TEXT_ANALYSIS_PROMPT(file.file.name, pdfResult.extractedText);
+                } else {
+                    analysisPrompt = FILE_ANALYSIS_PROMPT(file.file.name); // Fallback to OCR
+                }
+            } else {
+                analysisPrompt = FILE_ANALYSIS_PROMPT(file.file.name);
+            }
+            userMessage.content = analysisPrompt;
+            await handleSend(analysisPrompt, file, displayMessage);
+
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : "An unknown error occurred during file processing.";
+            dispatch({ type: 'REQUEST_FAILED', payload: errorMessage });
+        }
+    }, []);
+
+    const handleSend = useCallback(async (prompt: string, fileOverride?: UploadedFile, displayOverride?: string) => {
+        const trimmedPrompt = prompt.trim();
+        const currentFile = fileOverride || uploadedFile;
+
+        if (!trimmedPrompt && !currentFile) return;
+        
+        // Command to directly export the briefing as a PDF
+        if (trimmedPrompt.toLowerCase() === '/export') {
+            dispatch({ type: 'ADD_INTERIM_MESSAGE', payload: { role: 'model', content: '📥 Generating your briefing for PDF export. This may take a moment...' } });
+            try {
+                const history = messages.filter(m => !isJsonBriefing(m.content));
+                const modeForRequest = ChatModeEnum.Deep;
+                const briefingPrompt = SHIFT_BRIEFING_PROMPT();
+
+                const stream = generateResponseStream(briefingPrompt, history, modeForRequest, { responseType: 'json' });
+                let fullResponseText = '';
+                for await (const chunk of stream) {
+                    fullResponseText += chunk.text;
+                }
+
+                if (!fullResponseText.trim().startsWith('{')) {
+                    throw new Error("The model did not return a valid briefing. Ensure there is enough context in the chat to generate a report.");
+                }
+                
+                const parsedBriefing = JSON.parse(fullResponseText);
+                await exportBriefingToPdf(parsedBriefing);
+
+                dispatch({ type: 'UPDATE_LAST_MESSAGE_CONTENT', payload: '✅ Your shift briefing PDF has been downloaded successfully.' });
+            } catch (e) {
+                const errorMessage = e instanceof Error ? e.message : 'An unknown error occurred during PDF export.';
+                const finalMessage = `Sorry, I couldn't generate the PDF. Please try again.\n\n**Error:** ${errorMessage}`;
+                dispatch({ type: 'UPDATE_LAST_MESSAGE_CONTENT', payload: finalMessage });
+            }
+            return;
+        }
+
+        if (trimmedPrompt.toLowerCase() === '/help') {
+             dispatch({ type: 'ADD_FULL_RESPONSE', payload: { message: { role: 'user', content: '/help' } }});
+             dispatch({ type: 'ADD_FULL_RESPONSE', payload: { message: { role: 'model', content: HELP_COMMAND_RESPONSE } } });
+             return;
+        }
+
+        let finalPrompt = trimmedPrompt;
+        let modeForRequest = chatMode;
+        let responseType: 'json' | 'text' = 'text';
+
+        // Command & trigger-based mode/prompt adjustments
+        if (BRIEFING_TRIGGERS.some(trigger => trimmedPrompt.toLowerCase().includes(trigger)) || trimmedPrompt.toLowerCase() === '/brief') {
+            finalPrompt = SHIFT_BRIEFING_PROMPT();
+            modeForRequest = ChatModeEnum.Deep;
+            responseType = 'json';
+        } else if (trimmedPrompt.toLowerCase().startsWith('/drugs')) {
+            modeForRequest = ChatModeEnum.Web;
+        } else if (trimmedPrompt.toLowerCase().startsWith('/patient')) {
+            modeForRequest = ChatModeEnum.Deep;
+        }
+
+        if (chatMode !== ChatModeEnum.Auto) {
+           // If a command forced a mode, it will be used. Otherwise, respect the user's manual selection.
+           modeForRequest = (modeForRequest !== chatMode) ? modeForRequest : chatMode;
+        }
+
+        const userMessage: ChatMessage = { role: 'user', content: finalPrompt };
+        if(displayOverride) {
+            userMessage.displayContent = displayOverride;
+        }
+        
+        if (currentFile) {
+            userMessage.filePreview = { name: currentFile.file.name, type: currentFile.type, url: currentFile.url };
+        }
+        
+        dispatch({ type: 'START_REQUEST', payload: { userMessage } });
+        dispatch({ type: 'ADD_RESPONSE_PLACEHOLDER' });
+        if(!fileOverride) setUploadedFile(null);
+
+        try {
+            const history = [...messages];
+            const stream = generateResponseStream(finalPrompt, history, modeForRequest, { file: currentFile, responseType });
+            
+            for await (const chunk of stream) {
+                const sources = chunk.candidates?.[0]?.groundingMetadata?.groundingChunks;
+                dispatch({ type: 'APPEND_TO_LAST_MESSAGE', payload: { chunk: chunk.text, sources } });
+            }
+        } catch (e) {
+            const errorMessage = e instanceof Error ? e.message : 'An unknown error occurred.';
+            dispatch({ type: 'REQUEST_FAILED', payload: errorMessage });
+        } finally {
+            dispatch({ type: 'REQUEST_FINISH' });
+        }
     }, [chatMode, messages, uploadedFile]);
     
+    const handleExportChat = useCallback(() => {
+        handleSend('/export');
+    }, [handleSend]);
+
     const stopLiveSession = useCallback(() => {
         liveSessionRef.current?.close();
         liveSessionRef.current = null;
@@ -411,7 +601,12 @@ const App: React.FC = () => {
 
     return (
         <div className="flex flex-col h-screen font-sans">
-            <Header currentMode={chatMode} onModeChange={(mode) => dispatch({ type: 'SET_CHAT_MODE', payload: mode })} onClearChat={handleClearChat} />
+            <Header
+                currentMode={chatMode}
+                onModeChange={(mode) => dispatch({ type: 'SET_CHAT_MODE', payload: mode })}
+                onClearChat={handleClearChat}
+                onExportChat={handleExportChat}
+            />
             <MessageList messages={messages} isLoading={isLoading} isLive={isLiveSessionActive} liveTranscript={liveTranscript} />
             <InputBar
                 onSend={handleSend}

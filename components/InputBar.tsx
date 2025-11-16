@@ -2,7 +2,7 @@
 import React, { useState, useRef, useCallback, ChangeEvent, KeyboardEvent, useEffect } from 'react';
 import type { UploadedFile, ChatMode } from '../types';
 import { ChatMode as ChatModeEnum } from '../types';
-import { PaperclipIcon, SendIcon, XCircleIcon, BriefingIcon, UserIcon, DrugsIcon, ExportIcon, HelpIcon, DocumentTextIcon, MicrophoneIcon } from './icons';
+import { PaperclipIcon, SendIcon, XCircleIcon, BriefingIcon, UserIcon, DrugsIcon, DownloadIcon, HelpIcon, DocumentTextIcon, MicrophoneIcon } from './icons';
 
 interface InputBarProps {
     onSend: (prompt: string) => void;
@@ -27,7 +27,7 @@ const QUICK_COMMANDS = [
   { command: '/brief', description: 'Generate your shift briefing', icon: BriefingIcon },
   { command: '/patient ', description: 'Get patient summary (e.g., /patient 123)', icon: UserIcon },
   { command: '/drugs ', description: 'Look up medication info (e.g., /drugs Aspirin)', icon: DrugsIcon },
-  { command: '/export', description: 'Export briefing as text', icon: ExportIcon },
+  { command: '/export', description: 'Download briefing as PDF', icon: DownloadIcon },
   { command: '/help', description: 'Show all commands', icon: HelpIcon },
 ];
 

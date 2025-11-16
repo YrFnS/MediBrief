@@ -1,16 +1,16 @@
-
 import React from 'react';
 import type { ChatMode } from '../types';
 import ModeSelector from './ModeSelector';
-import { LogoIcon, NewChatIcon } from './icons';
+import { LogoIcon, NewChatIcon, DownloadIcon } from './icons';
 
 interface HeaderProps {
     currentMode: ChatMode;
     onModeChange: (mode: ChatMode) => void;
     onClearChat: () => void;
+    onExportChat: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ currentMode, onModeChange, onClearChat }) => {
+const Header: React.FC<HeaderProps> = ({ currentMode, onModeChange, onClearChat, onExportChat }) => {
     return (
         <header className="flex-shrink-0 bg-white dark:bg-slate-800 shadow-md p-2 md:p-3 z-20">
             <div className="max-w-5xl mx-auto flex justify-between items-center">
@@ -21,6 +21,14 @@ const Header: React.FC<HeaderProps> = ({ currentMode, onModeChange, onClearChat 
                     <h1 className="text-xl md:text-2xl font-bold text-slate-700 dark:text-slate-200">Medi<span className="text-blue-500">Brief</span></h1>
                 </div>
                 <div className="flex items-center gap-2">
+                    <button 
+                        onClick={onExportChat}
+                        className="p-2 rounded-full text-slate-500 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                        title="Export briefing as PDF"
+                        aria-label="Export briefing as PDF"
+                    >
+                        <DownloadIcon className="w-5 h-5" />
+                    </button>
                     <button 
                         onClick={onClearChat}
                         className="p-2 rounded-full text-slate-500 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"

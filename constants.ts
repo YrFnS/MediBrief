@@ -24,7 +24,7 @@ Here’s a quick guide to getting the most out of your AI assistant.
 - \`/brief\` - Generates a comprehensive shift briefing from all documents and conversation history. (Uses Deep Analysis mode).
 - \`/patient [ID]\` - Gets a detailed summary for a specific patient.
 - \`/drugs [name]\` - Looks up medication information using up-to-date web search. (Uses Web Search mode).
-- \`/export\` - Provides the briefing in a simple, copy-paste friendly text format within the chat. For a professional PDF, use the 'Export PDF' button on the briefing report.
+- \`/export\` - Generates a comprehensive shift briefing and downloads it as a PDF file.
 - \`/help\` - Displays this help message.
 
 **Chat Modes:**
