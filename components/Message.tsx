@@ -1,42 +1,37 @@
 import React, { useMemo } from 'react';
 import type { ChatMessage } from '../types';
-import { UserIcon, BotIcon, LinkIcon } from './icons';
+import { UserIcon, BotIcon, LinkIcon, DocumentTextIcon } from './icons';
+import BriefingReport from './BriefingReport';
 
-interface MessageProps {
-    message: ChatMessage;
-}
+// TypeScript declaration for the 'marked' library loaded from CDN
+declare const marked: any;
 
-// Basic markdown-to-HTML converter
-const parseMarkdown = (text: string) => {
-    let html = text
-        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-        .replace(/\*(.*?)\*/g, '<em>$1</em>')
-        .replace(/`([^`]+)`/g, '<code class="bg-slate-200 dark:bg-slate-700 rounded px-1 py-0.5 font-mono text-sm">$1</code>')
-        .replace(/(\r\n|\r|\n){2,}/g, '<br><br>') 
-        .replace(/(\r\n|\r|\n)/g, '<br>'); 
-        
-    // Handle lists
-    html = html.replace(/<br>\s*-\s/g, '<li>');
-    html = html.replace(/(<li>.*?)<br><br>/g, '$1</li></ul><ul>');
-    html = `<ul>${html}</ul>`.replace(/<ul><br>/g, '<ul>');
-    if (html.endsWith('</li></ul>')) {
-      // no closing br
-    } else {
-       html = html.replace(/<li>(.*?)<br>/g, '<li>$1</li>');
+// Helper to check if a message content is a valid JSON briefing
+const isJsonBriefing = (content: string): boolean => {
+    try {
+        const data = JSON.parse(content);
+        return typeof data === 'object' && data !== null && 'briefingTitle' in data && 'sections' in data;
+    } catch (e) {
+        return false;
     }
-
-    html = html.replace(/<\/li><ul>/g, '</li></ul>').replace(/<\/ul><ul>/g, '');
-
-
-    return html;
 };
 
-
-const Message: React.FC<MessageProps> = ({ message }) => {
+const Message: React.FC<{ message: ChatMessage }> = ({ message }) => {
     const isModel = message.role === 'model';
 
     const contentToDisplay = (message.role === 'user' && message.displayContent) ? message.displayContent : message.content;
-    const parsedContent = useMemo(() => parseMarkdown(contentToDisplay), [contentToDisplay]);
+    
+    const isBriefing = isModel && isJsonBriefing(message.content);
+
+    // Use the 'marked' library for robust markdown parsing
+    const parsedContent = useMemo(() => {
+        if (typeof marked === 'undefined') {
+            // Fallback for when marked is not loaded yet
+            return contentToDisplay.replace(/\n/g, '<br>');
+        }
+        // Configure marked to treat newlines as <br> tags
+        return marked.parse(contentToDisplay, { breaks: true, gfm: true });
+    }, [contentToDisplay]);
 
     return (
         <div className={`flex items-start gap-4 ${isModel ? '' : 'flex-row-reverse'}`}>
@@ -46,10 +41,25 @@ const Message: React.FC<MessageProps> = ({ message }) => {
             <div className={`w-full max-w-full rounded-xl p-4 ${isModel ? 'bg-white dark:bg-slate-800 shadow' : 'bg-blue-100 dark:bg-blue-900/50'}`}>
                 {message.filePreview && (
                     <div className="mb-3">
-                        <img src={message.filePreview.url} alt="Uploaded content" className="max-w-xs max-h-48 rounded-lg border border-slate-200 dark:border-slate-700" />
+                        {message.filePreview.type.startsWith('image/') && message.filePreview.url ? (
+                            <img src={message.filePreview.url} alt={message.filePreview.name} className="max-w-xs max-h-48 rounded-lg border border-slate-200 dark:border-slate-700" />
+                        ) : (
+                             <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-100 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-700 max-w-xs">
+                                <DocumentTextIcon className="w-8 h-8 text-slate-500 dark:text-slate-400 flex-shrink-0" />
+                                <div className="overflow-hidden">
+                                    <p className="font-semibold text-sm truncate text-slate-700 dark:text-slate-200">{message.filePreview.name}</p>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">{message.filePreview.type}</p>
+                                 </div>
+                            </div>
+                        )}
                     </div>
                 )}
-                <div className="prose prose-sm dark:prose-invert max-w-none text-slate-800 dark:text-slate-200 whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: parsedContent }}></div>
+
+                {isBriefing ? (
+                    <BriefingReport content={message.content} />
+                ) : (
+                    <div className="prose prose-sm dark:prose-invert max-w-none text-slate-800 dark:text-slate-200" dangerouslySetInnerHTML={{ __html: parsedContent }}></div>
+                )}
                 
                 {message.sources && message.sources.length > 0 && (
                     <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-700">

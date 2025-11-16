@@ -103,3 +103,70 @@ export const HelpIcon: React.FC<{className?: string}> = (props) => (
         <path fillRule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zm-1.72 13.85a.75.75 0 101.06-1.06L10.06 12l1.28-1.28a.75.75 0 00-1.06-1.06L9 10.94l-1.28-1.28a.75.75 0 00-1.06 1.06L7.94 12l-1.28 1.28a.75.75 0 101.06 1.06L9 13.06l1.28 1.28z" clipRule="evenodd" />
     </svg>
 );
+
+export const DocumentTextIcon: React.FC<{className?: string}> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
+        <path fillRule="evenodd" d="M5.625 1.5c-1.036 0-1.875.84-1.875 1.875v17.25c0 1.035.84 1.875 1.875 1.875h12.75c1.035 0 1.875-.84 1.875-1.875V12.75A3.75 3.75 0 0016.5 9h-1.875a.375.375 0 01-.375-.375V6.75A3.75 3.75 0 0010.5 3h-4.875zM15 4.875c0-.621.504-1.125 1.125-1.125a.375.375 0 01.375.375v4.5c0 .621-.504 1.125-1.125 1.125a.375.375 0 01-.375-.375v-4.5z" clipRule="evenodd" />
+        <path d="M7.5 10.5a.75.75 0 00-1.5 0v.75a.75.75 0 001.5 0v-.75zM9 10.5a.75.75 0 01.75-.75h3a.75.75 0 010 1.5h-3a.75.75 0 01-.75-.75zm-1.5 3a.75.75 0 00-1.5 0v.75a.75.75 0 001.5 0v-.75zM9 13.5a.75.75 0 01.75-.75h3a.75.75 0 010 1.5h-3a.75.75 0 01-.75-.75zm-1.5 3a.75.75 0 00-1.5 0v.75a.75.75 0 001.5 0v-.75zM9 16.5a.75.75 0 01.75-.75h3a.75.75 0 010 1.5h-3a.75.75 0 01-.75-.75z" />
+    </svg>
+);
+
+
+// Icons for Briefing Report
+export const AlertTriangleIcon: React.FC<{className?: string}> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
+        <path fillRule="evenodd" d="M11.99 2.25c-.74 0-1.44.27-1.99.73L1.66 14.23a2.25 2.25 0 001.99 3.52h16.7a2.25 2.25 0 001.99-3.52L13.98 2.98A2.25 2.25 0 0012 2.25zm.9 9a.9.9 0 00-1.8 0v2.7a.9.9 0 001.8 0v-2.7zm-1.8 5.4a.9.9 0 101.8 0 .9.9 0 00-1.8 0z" clipRule="evenodd" />
+    </svg>
+);
+
+export const UsersIcon: React.FC<{className?: string}> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
+        <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>
+    </svg>
+);
+
+export const PillIcon: React.FC<{className?: string}> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
+        <path d="M12.94 4.06a8.5 8.5 0 00-10.88 2.02 8.5 8.5 0 002.02 10.88l6.94-6.94-2.02-2.02 4.9-4.9c1.2-1.2 3.14-1.2 4.34 0s1.2 3.14 0 4.34l-4.9 4.9 2.02 2.02L20 12.02A8.5 8.5 0 0012.94 4.06z"/>
+    </svg>
+);
+
+export const ClipboardIcon: React.FC<{className?: string}> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+        <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+        <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+    </svg>
+);
+
+export const ClipboardCheckIcon: React.FC<{className?: string}> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+        <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+        <path d="m9 14 2 2 4-4"/>
+        <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+    </svg>
+);
+
+export const ListChecksIcon: React.FC<{className?: string}> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
+        <path d="M3 14h4v-4H3v4zm0 5h4v-4H3v4zM3 9h4V5H3v4zm5 5h13v-4H8v4zm0 5h13v-4H8v4zM8 5v4h13V5H8z"/>
+    </svg>
+);
+
+export const PhoneForwardedIcon: React.FC<{className?: string}> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
+        <path d="m18 11 5-5-5-5v3h-1c-4.97 0-9 4.03-9 9v1h2v-1c0-3.86 3.14-7 7-7h1v3zM20 15.5c-1.25 0-2.45-.2-3.57-.57-.35-.11-.74-.03-1.02.24l-2.2 2.2c-2.83-1.44-5.15-3.75-6.59-6.59l2.2-2.21c.28-.26.36-.65.25-1C8.7 6.45 8.5 5.25 8.5 4c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1 0 9.39 7.61 17 17 17 .55 0 1-.45 1-1v-3.5c0-.55-.45-1-1-1z"/>
+    </svg>
+);
+
+export const ClockIcon: React.FC<{className?: string}> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm4.25-3.75-1.42 1.42L16.2 9.05l1.42-1.42L15.25 5.25zM6.38 7.63l1.42 1.42L9.17 7.63 7.76 6.22 6.38 7.63z"/>
+    </svg>
+);
+
+export const DownloadIcon: React.FC<{className?: string}> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
+        <path fillRule="evenodd" d="M12 2.25a.75.75 0 01.75.75v11.69l3.22-3.22a.75.75 0 111.06 1.06l-4.5 4.5a.75.75 0 01-1.06 0l-4.5-4.5a.75.75 0 111.06-1.06l3.22 3.22V3a.75.75 0 01.75-.75z" clipRule="evenodd" />
+        <path fillRule="evenodd" d="M3 18.75a.75.75 0 01.75-.75h16.5a.75.75 0 010 1.5H3.75a.75.75 0 01-.75-.75z" clipRule="evenodd" />
+    </svg>
+);

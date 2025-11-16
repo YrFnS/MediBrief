@@ -1,4 +1,4 @@
-import { GoogleGenAI, GenerateContentResponse, Content, Part } from "@google/genai";
+import { GoogleGenAI, GenerateContentResponse, Content, Part, GenerateContentRequest } from "@google/genai";
 import type { ChatMessage, ChatMode, UploadedFile } from '../types';
 import { MODEL_CONFIGS, SYSTEM_INSTRUCTION } from '../constants';
 
@@ -10,15 +10,21 @@ const messageToContent = (message: ChatMessage): Content => {
     return { role: message.role, parts };
 };
 
+interface GenerateResponseOptions {
+  file?: UploadedFile;
+  responseType?: 'json' | 'text';
+}
+
 export const generateResponse = async (
   prompt: string,
   history: ChatMessage[],
   mode: ChatMode,
-  file?: UploadedFile
+  options?: GenerateResponseOptions
 ): Promise<GenerateContentResponse> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   const modelConfig = MODEL_CONFIGS[mode];
+  const file = options?.file;
   
   // Convert previous messages into Gemini's format.
   const contents: Content[] = history.map(messageToContent);
@@ -26,8 +32,8 @@ export const generateResponse = async (
   // Construct the parts for the CURRENT user message.
   const currentMessageParts: Part[] = [];
 
-  // Add the image first if it exists, as per Gemini best practices.
-  if (file && file.type.startsWith('image/')) {
+  // Add the file first if it exists.
+  if (file) {
     currentMessageParts.push({
       inlineData: {
         mimeType: file.type,
@@ -42,13 +48,13 @@ export const generateResponse = async (
   }
 
   if (currentMessageParts.length === 0) {
-      throw new Error("Cannot send an empty message. Please provide a prompt or an image.");
+      throw new Error("Cannot send an empty message. Please provide a prompt or a file.");
   }
 
   // Add the current user message to the contents array.
   contents.push({ role: 'user', parts: currentMessageParts });
 
-  const request = {
+  const request: GenerateContentRequest = {
     model: modelConfig.model,
     contents: contents, // Pass the full conversation
     config: {
@@ -56,6 +62,13 @@ export const generateResponse = async (
       systemInstruction: SYSTEM_INSTRUCTION,
     },
   };
+
+  // Explicitly set the response MIME type if requested.
+  if (options?.responseType === 'json') {
+    if (request.config) {
+        request.config.responseMimeType = "application/json";
+    }
+  }
   
   const response = await ai.models.generateContent(request);
 

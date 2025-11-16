@@ -277,6 +277,37 @@ Provide your analysis in this exact format:
 
 After providing your analysis in the correct format, add this concluding sentence: "This information has been added to your shift knowledge base. You can now ask me questions about this document."`;
 
+
+export const FILE_TEXT_ANALYSIS_PROMPT = (filename: string, text: string) => `The following text has been extracted from a document named "${filename}". Please perform a comprehensive medical analysis of this content.
+
+--- BEGIN DOCUMENT TEXT ---
+${text}
+--- END DOCUMENT TEXT ---
+
+**Analysis Instructions:**
+
+1.  **Summarize Key Information:** Identify and list the most critical findings. This includes patient details, chief complaints, vital signs, primary diagnosis, treatment plan, and any flagged lab values.
+2.  **Identify Document Type:** Based on the content, state what kind of document this is (e.g., Patient Discharge Summary, Lab Report, Nurse's Handoff Notes).
+3.  **Flag Alerts & Urgent Items:** Create a list of any urgent action items, critical values, or potential safety concerns (like drug allergies or contraindications). If none are found, state "No critical alerts detected."
+
+**Response Format:**
+
+Please structure your response in this exact format:
+
+"**✅ Processed Text from:** ${filename}
+
+**📋 Document Type:** [Identified type]
+
+**🔍 Key Findings:**
+- [Extract and list key information.]
+- [Finding 2]
+- ...
+
+**⚠️ Alerts:** [List any critical values, urgent items, or concerns. If none, state "No critical alerts detected."]"
+
+After providing your analysis, conclude with: "This information has been added to your shift knowledge base."`;
+
+
 export const BRIEFING_TRIGGERS = [
     'generate briefing',
     'create my shift briefing',
@@ -284,39 +315,69 @@ export const BRIEFING_TRIGGERS = [
     'shift briefing',
 ];
 
-export const SHIFT_BRIEFING_PROMPT = () => `Based on all the documents and conversation history so far, generate a comprehensive shift briefing. Use the current conversation as the source of truth. Follow this exact format:
+export const SHIFT_BRIEFING_PROMPT = () => `Based on all the documents and conversation history so far, generate a comprehensive shift briefing. Use the current conversation as the source of truth.
 
----
-📋 **SHIFT BRIEFING - ${new Date().toLocaleString()}**
+**IMPORTANT**: You MUST respond with ONLY a valid JSON object that adheres to the following schema. Do not include any other text or markdown formatting outside of the JSON.
 
-🚨 **PRIORITY CASES** (Handle First)
-- Patient [ID]: [Issue] - Action: [What needs to be done]
+**JSON Schema:**
+\`\`\`json
+{
+  "briefingTitle": "SHIFT BRIEFING - [Date and Time]",
+  "sections": [
+    {
+      "title": "PRIORITY CASES",
+      "items": [
+        "Patient [ID]: [Issue] - Action: [What needs to be done]",
+        "... more items"
+      ]
+    },
+    {
+      "title": "CRITICAL ALERTS",
+      "items": [
+        "Abnormal lab values: [List with patient IDs]",
+        "Medication due: [List time-sensitive medications]",
+        "Pending procedures: [List with times]"
+      ]
+    },
+    {
+      "title": "PATIENT OVERVIEW",
+      "items": [
+        "Patient [ID]: [Condition] | [Current status] | [Next action]",
+        "... more items"
+      ]
+    },
+    {
+      "title": "MEDICATIONS & TREATMENTS",
+      "items": [
+        "[Time]: [Patient] - [Medication/Treatment]",
+        "... more items"
+      ]
+    },
+    {
+      "title": "FOLLOW-UP REQUIRED",
+      "items": [
+        "[List of patients needing follow-up]",
+        "[Pending test results to check]"
+      ]
+    },
+    {
+      "title": "HANDOFF NOTES",
+      "items": [
+        "[Key information for next shift]"
+      ]
+    },
+    {
+      "title": "SHIFT TIMELINE",
+      "items": [
+        "[Hour-by-hour breakdown if applicable, otherwise state 'No specific timeline provided.']"
+      ]
+    }
+  ]
+}
+\`\`\`
 
-⚠️ **CRITICAL ALERTS**
-- Abnormal lab values: [List with patient IDs]
-- Medication due: [List time-sensitive medications]
-- Pending procedures: [List with times]
-
-👥 **PATIENT OVERVIEW**
-- Patient [ID]: [Condition] | [Current status] | [Next action]
-
-💊 **MEDICATIONS & TREATMENTS**
-- [Time]: [Patient] - [Medication/Treatment]
-
-📝 **FOLLOW-UP REQUIRED**
-- [List of patients needing follow-up]
-- [Pending test results to check]
-
-📞 **HANDOFF NOTES**
-[Key information for next shift]
-
-⏰ **SHIFT TIMELINE**
-[Hour-by-hour breakdown if applicable, otherwise state "No specific timeline provided."]
-
----
-
-**💡 Quick Actions:**
-- Ask me about any specific patient
-- Request drug information
-- Upload new lab results
-- Get procedure guidelines`;
+**Instructions for Populating JSON:**
+- The \`briefingTitle\` should include the current date and time.
+- Each section's \`items\` array should contain strings with the relevant information.
+- If a section has no items, you can either omit it or provide an empty \`items\` array.
+- Do NOT include markdown (like \`**\`) inside the JSON string values. The frontend will handle formatting.`;

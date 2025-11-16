@@ -1,6 +1,7 @@
+
 import React, { useState, useRef, useCallback, ChangeEvent, KeyboardEvent } from 'react';
 import type { UploadedFile, ChatMode } from '../types';
-import { PaperclipIcon, SendIcon, XCircleIcon, BriefingIcon, UserIcon, DrugsIcon, ExportIcon, HelpIcon } from './icons';
+import { PaperclipIcon, SendIcon, XCircleIcon, BriefingIcon, UserIcon, DrugsIcon, ExportIcon, HelpIcon, DocumentTextIcon } from './icons';
 
 interface InputBarProps {
     onSend: (prompt: string) => void;
@@ -33,17 +34,16 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onFileUpload, onClearFile, 
                 alert("File is too large. Please select a file smaller than 4MB.");
                 return;
             }
-            if (file.type.startsWith('image/')) {
-                 const reader = new FileReader();
-                reader.onloadend = () => {
-                    const base64 = (reader.result as string).split(',')[1];
-                    const url = URL.createObjectURL(file);
-                    onFileUpload({ file, base64, type: file.type, url });
-                };
-                reader.readAsDataURL(file);
-            } else {
-                alert("Only image files are supported for analysis.");
-            }
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const base64 = (reader.result as string).split(',')[1];
+                const uploadPayload: UploadedFile = { file, base64, type: file.type };
+                if (file.type.startsWith('image/')) {
+                    uploadPayload.url = URL.createObjectURL(file);
+                }
+                onFileUpload(uploadPayload);
+            };
+            reader.readAsDataURL(file);
         }
         // Reset the file input so the user can select the same file again
         if (event.target) {
@@ -124,8 +124,16 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onFileUpload, onClearFile, 
                     </div>
                 )}
                  {uploadedFile && (
-                    <div className="relative w-24 h-24 mb-2 p-1 border rounded-lg bg-slate-100 dark:bg-slate-700">
-                        <img src={uploadedFile.url} alt="File preview" className="w-full h-full object-cover rounded" />
+                    <div className="relative w-24 h-24 mb-2 p-1 border border-slate-200 dark:border-slate-600 rounded-lg bg-slate-100 dark:bg-slate-700">
+                        {uploadedFile.url && uploadedFile.type.startsWith('image/') ? (
+                             <img src={uploadedFile.url} alt={uploadedFile.file.name} className="w-full h-full object-cover rounded" />
+                        ) : (
+                            <div className="w-full h-full flex flex-col items-center justify-center bg-slate-200 dark:bg-slate-800 rounded p-1">
+                                <DocumentTextIcon className="w-8 h-8 text-slate-500 dark:text-slate-400" />
+                                <p className="text-xs text-center text-slate-600 dark:text-slate-300 mt-1 break-all line-clamp-2">{uploadedFile.file.name}</p>
+                            </div>
+                        )}
+                       
                         <button 
                             onClick={onClearFile}
                             className="absolute -top-2 -right-2 bg-slate-600 text-white rounded-full p-0.5 hover:bg-slate-800 transition-colors"
@@ -140,12 +148,12 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onFileUpload, onClearFile, 
                         onClick={() => fileInputRef.current?.click()}
                         disabled={isLoading}
                         className="p-2 rounded-full text-slate-500 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
-                        title="Attach Image (will use Standard mode for analysis)"
+                        title="Attach file (image, PDF, .txt)"
                         aria-label="Attach file"
                     >
                         <PaperclipIcon className="w-6 h-6" />
                     </button>
-                    <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
+                    <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*,application/pdf,.txt,.md" className="hidden" />
                     
                     <textarea
                         ref={textareaRef}
