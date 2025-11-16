@@ -1,0 +1,5 @@
+{
+  "name": "MediBrief - AI Shift Briefing for Healthcare Workers",
+  "description": "An AI assistant that helps doctors, nurses, and healthcare workers stay organized during their shifts. It processes medical documents, patient notes, lab results, and medical images to generate clear, actionable briefings.",
+  "requestFramePermissions": []
+}
