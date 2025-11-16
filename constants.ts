@@ -16,27 +16,37 @@ I help healthcare workers stay organized by:
 
 What would you like to do today?`;
 
-export const HELP_COMMAND_RESPONSE = `🔧 **MediBrief Quick Commands**
+export const HELP_COMMAND_RESPONSE = `🔧 **MediBrief Help & Commands**
 
-**Main Functions:**
-- \`/brief\` - Generate your shift briefing
-- \`/patient [ID]\` - Get patient summary
-- \`/drugs [name]\` - Look up medication info
-- \`/export\` - Export briefing as text
+Here’s a quick guide to getting the most out of your AI assistant.
 
-**Tips:**
-- Upload multiple documents before generating briefing
-- I remember everything in this conversation
-- Ask questions in plain language anytime
-- I can process images of lab results and prescriptions
+**Quick Commands:**
+- \`/brief\` - Generates a comprehensive shift briefing from all documents and conversation history. (Uses Deep Analysis mode).
+- \`/patient [ID]\` - Gets a detailed summary for a specific patient.
+- \`/drugs [name]\` - Looks up medication information using up-to-date web search. (Uses Web Search mode).
+- \`/export\` - Provides the briefing in a simple, copy-paste friendly text format within the chat. For a professional PDF, use the 'Export PDF' button on the briefing report.
+- \`/help\` - Displays this help message.
 
-**Examples:**
-- "What's urgent today?"
-- "Check interaction between aspirin and warfarin"
-- "Create handoff email"
-- "Find all patients with diabetes"
+**Chat Modes:**
+You can switch modes using the selector at the top right:
+- **Auto:** The AI automatically chooses the best mode for your query.
+- **Standard:** Balanced mode for general questions and file analysis.
+- **Quick Query:** Fastest responses for simple questions.
+- **Deep Analysis:** Maximum reasoning power for complex tasks like generating briefings.
+- **Web Search:** Accesses Google Search for the latest information.
 
-Type any command or just ask me naturally!`;
+**File Handling:**
+- You can upload **PDFs, images (JPG, PNG), and text files**.
+- The app automatically **extracts text** from digital PDFs for fast analysis.
+- For **scanned documents or images**, it uses advanced OCR to read the content.
+- Upload multiple files before running \`/brief\` to get a consolidated report.
+
+**Natural Language Examples:**
+- "What's the plan for today?"
+- "Check for interactions between aspirin and warfarin"
+- "Create a handoff email for the next shift"
+
+Remember, you can always ask questions naturally. I'm here to help!`;
 
 export const MODEL_CONFIGS = {
   [ChatMode.Auto]: {
