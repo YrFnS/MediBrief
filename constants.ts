@@ -34,6 +34,7 @@ You can switch modes using the selector at the top right:
 - **Quick Query:** Fastest responses for simple questions.
 - **Deep Analysis:** Maximum reasoning power for complex tasks like generating briefings.
 - **Web Search:** Accesses Google Search for the latest information.
+- **Live**: Engages in a real-time voice conversation.
 
 **File Handling:**
 - You can upload **PDFs, images (JPG, PNG), and text files**.
@@ -47,6 +48,34 @@ You can switch modes using the selector at the top right:
 - "Create a handoff email for the next shift"
 
 Remember, you can always ask questions naturally. I'm here to help!`;
+
+const scheduleAppointmentFunctionDeclaration = {
+  name: 'scheduleAppointment',
+  parameters: {
+    type: 'OBJECT',
+    description: 'Schedules a patient appointment for a follow-up.',
+    properties: {
+      patientId: {
+        type: 'STRING',
+        description: 'The unique identifier for the patient.',
+      },
+      date: {
+        type: 'STRING',
+        description: 'The date of the appointment, e.g., "2024-08-15".',
+      },
+      time: {
+        type: 'STRING',
+        description: 'The time of the appointment in 24-hour format, e.g., "14:30".',
+      },
+       notes: {
+        type: 'STRING',
+        description: 'Optional notes for the appointment, such as reason for visit.',
+      },
+    },
+    required: ['patientId', 'date', 'time'],
+  },
+};
+
 
 export const MODEL_CONFIGS = {
   [ChatMode.Auto]: {
@@ -77,6 +106,16 @@ export const MODEL_CONFIGS = {
       tools: [{ googleSearch: {} }],
     },
     description: "Accesses up-to-date information from Google Search."
+  },
+  [ChatMode.Live]: {
+    model: 'gemini-2.5-flash-native-audio-preview-09-2025',
+    config: {
+      responseModalities: ['AUDIO'],
+      outputAudioTranscription: {},
+      inputAudioTranscription: {},
+      tools: [{ functionDeclarations: [scheduleAppointmentFunctionDeclaration] }],
+    },
+    description: "Real-time voice conversation with the AI assistant."
   },
 };
 

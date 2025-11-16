@@ -2,14 +2,50 @@ import React, { useEffect, useRef } from 'react';
 import type { ChatMessage } from '../types';
 import Message from './Message';
 import WelcomeScreen from './WelcomeScreen';
-import { BotIcon } from './icons';
+import { BotIcon, UserIcon } from './icons';
+
+interface LiveTranscript {
+    userInput: string;
+    modelOutput: string;
+    isUserInputFinal: boolean;
+}
+
+interface LiveTranscriptDisplayProps {
+    transcript: LiveTranscript;
+}
+
+const LiveTranscriptDisplay: React.FC<LiveTranscriptDisplayProps> = ({ transcript }) => {
+    return (
+        <div className="max-w-3xl mx-auto space-y-4 p-4 rounded-lg bg-white dark:bg-slate-800 shadow-md border border-blue-500/50 animate-fade-in">
+            <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-slate-400">
+                    <UserIcon className="w-5 h-5 text-white" />
+                </div>
+                <p className={`pt-1.5 prose prose-sm dark:prose-invert max-w-none ${transcript.isUserInputFinal ? 'text-slate-800 dark:text-slate-200' : 'text-slate-500 dark:text-slate-400'}`}>
+                    {transcript.userInput || "Listening..."}
+                </p>
+            </div>
+             <div className="flex items-start gap-3 min-h-[2.5rem]">
+                 <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-blue-500">
+                    <BotIcon className="w-5 h-5 text-white" />
+                </div>
+                <p className="pt-1.5 prose prose-sm dark:prose-invert max-w-none text-slate-800 dark:text-slate-200">
+                    {transcript.modelOutput}
+                </p>
+            </div>
+        </div>
+    );
+};
+
 
 interface MessageListProps {
     messages: ChatMessage[];
     isLoading: boolean;
+    isLive?: boolean;
+    liveTranscript?: LiveTranscript;
 }
 
-const MessageList: React.FC<MessageListProps> = ({ messages, isLoading }) => {
+const MessageList: React.FC<MessageListProps> = ({ messages, isLoading, isLive, liveTranscript }) => {
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     const scrollToBottom = () => {
@@ -18,9 +54,9 @@ const MessageList: React.FC<MessageListProps> = ({ messages, isLoading }) => {
 
     useEffect(() => {
         scrollToBottom();
-    }, [messages, isLoading]);
+    }, [messages, isLoading, liveTranscript]);
 
-    if (messages.length === 0) {
+    if (messages.length === 0 && !isLive) {
         return <WelcomeScreen />;
     }
 
@@ -31,7 +67,7 @@ const MessageList: React.FC<MessageListProps> = ({ messages, isLoading }) => {
                     <Message key={index} message={msg} />
                 ))}
                 
-                {isLoading && messages.length > 0 && (
+                {isLoading && messages.length > 0 && !isLive && (
                     <div className="flex items-start gap-4 animate-pulse">
                         <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-blue-500">
                             <BotIcon className="w-5 h-5 text-white" />
@@ -43,6 +79,8 @@ const MessageList: React.FC<MessageListProps> = ({ messages, isLoading }) => {
                         </div>
                     </div>
                 )}
+                
+                {isLive && liveTranscript && <LiveTranscriptDisplay transcript={liveTranscript} />}
                 
                 <div ref={messagesEndRef} />
             </div>

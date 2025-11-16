@@ -1,6 +1,7 @@
 
 import React, { useState, useRef, useCallback, ChangeEvent, KeyboardEvent, useEffect } from 'react';
 import type { UploadedFile, ChatMode } from '../types';
+import { ChatMode as ChatModeEnum } from '../types';
 import { PaperclipIcon, SendIcon, XCircleIcon, BriefingIcon, UserIcon, DrugsIcon, ExportIcon, HelpIcon, DocumentTextIcon, MicrophoneIcon } from './icons';
 
 interface InputBarProps {
@@ -11,6 +12,8 @@ interface InputBarProps {
     isLoading: boolean;
     currentMode: ChatMode;
     uploadedFile: UploadedFile | null;
+    toggleLiveSession: () => void;
+    isLiveSessionActive: boolean;
 }
 
 declare global {
@@ -29,7 +32,7 @@ const QUICK_COMMANDS = [
 ];
 
 
-const InputBar: React.FC<InputBarProps> = ({ onSend, onFileUpload, onClearFile, setUploadedFile, isLoading, currentMode, uploadedFile }) => {
+const InputBar: React.FC<InputBarProps> = ({ onSend, onFileUpload, onClearFile, setUploadedFile, isLoading, currentMode, uploadedFile, toggleLiveSession, isLiveSessionActive }) => {
     const [prompt, setPrompt] = useState('');
     const [showCommands, setShowCommands] = useState(false);
     const [isListening, setIsListening] = useState(false);
@@ -113,7 +116,7 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onFileUpload, onClearFile, 
         resizeTextarea();
     };
 
-    const handleMicClick = useCallback(() => {
+    const handleSpeechToText = useCallback(() => {
         if (isListening) {
             recognitionRef.current?.stop();
             return;
@@ -159,6 +162,14 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onFileUpload, onClearFile, 
         recognition.start();
 
     }, [isListening, prompt]);
+    
+     const handleMicButtonClick = () => {
+        if (currentMode === ChatModeEnum.Live) {
+            toggleLiveSession();
+        } else {
+            handleSpeechToText();
+        }
+    };
 
     useEffect(() => {
         resizeTextarea();
@@ -167,6 +178,11 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onFileUpload, onClearFile, 
     const handleBlur = () => {
         setTimeout(() => setShowCommands(false), 150);
     };
+
+    const isInputDisabled = isLoading || isLiveSessionActive;
+    const placeholderText = isLiveSessionActive
+        ? 'Live session is active...'
+        : `Message MediBrief... (${currentMode} mode)`;
 
     return (
         <footer className="flex-shrink-0 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 p-2 md:p-4 z-10">
@@ -215,8 +231,8 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onFileUpload, onClearFile, 
                 <div className="flex items-end gap-2 p-2 rounded-xl bg-slate-100 dark:bg-slate-700 border border-transparent focus-within:border-blue-500 transition-colors">
                     <button
                         onClick={() => fileInputRef.current?.click()}
-                        disabled={isLoading}
-                        className="p-2 rounded-full text-slate-500 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                        disabled={isInputDisabled}
+                        className="p-2 rounded-full text-slate-500 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors disabled:opacity-50"
                         title="Attach file (image, PDF, .txt)"
                         aria-label="Attach file"
                     >
@@ -230,29 +246,30 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onFileUpload, onClearFile, 
                         onChange={handleTextareaInput}
                         onKeyDown={handleKeyDown}
                         onBlur={handleBlur}
-                        placeholder={`Message MediBrief... (${currentMode} mode)`}
+                        placeholder={placeholderText}
                         rows={1}
-                        className="flex-1 bg-transparent resize-none outline-none max-h-48 text-slate-800 dark:text-slate-200 placeholder-slate-500 dark:placeholder-slate-400"
-                        disabled={isLoading}
+                        className="flex-1 bg-transparent resize-none outline-none max-h-48 text-slate-800 dark:text-slate-200 placeholder-slate-500 dark:placeholder-slate-400 disabled:cursor-not-allowed"
+                        disabled={isInputDisabled}
                     />
 
                     <button
-                        onClick={handleMicClick}
-                        disabled={isLoading}
-                        className={`p-2 rounded-full transition-colors ${isListening ? 'text-red-500 bg-red-100 dark:bg-red-900/50' : 'text-slate-500 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'}`}
-                        title="Speak your query"
-                        aria-label="Speak your query"
+                        onClick={handleMicButtonClick}
+                        disabled={isLoading && !isLiveSessionActive}
+                        className={`p-2 rounded-full transition-colors relative ${isListening || isLiveSessionActive ? 'text-red-500 bg-red-100 dark:bg-red-900/50' : 'text-slate-500 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'}`}
+                        title={currentMode === ChatModeEnum.Live ? 'Start/Stop live session' : 'Speak your query'}
+                        aria-label={currentMode === ChatModeEnum.Live ? 'Start or stop live session' : 'Speak your query'}
                     >
                         <MicrophoneIcon className="w-6 h-6" />
+                        {isLiveSessionActive && <span className="absolute top-0 right-0 w-3 h-3 rounded-full bg-red-500 border-2 border-white dark:border-slate-800 animate-pulse"></span>}
                     </button>
                     
                     <button 
                         onClick={handleSendClick} 
-                        disabled={isLoading || (!prompt.trim() && !uploadedFile)}
+                        disabled={isInputDisabled || (!prompt.trim() && !uploadedFile)}
                         className="p-2 rounded-full bg-blue-500 text-white disabled:bg-slate-300 dark:disabled:bg-slate-600 disabled:cursor-not-allowed hover:bg-blue-600 transition-all duration-200"
                         aria-label="Send message"
                     >
-                        {isLoading ? (
+                        {isLoading && !isLiveSessionActive ? (
                              <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                         ) : (
                             <SendIcon className="w-6 h-6" />

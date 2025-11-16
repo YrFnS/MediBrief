@@ -5,6 +5,7 @@ export enum ChatMode {
   Quick = 'Quick Query',
   Deep = 'Deep Analysis',
   Web = 'Web Search',
+  Live = 'Live',
 }
 
 export interface ChatMessage {

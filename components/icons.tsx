@@ -72,63 +72,64 @@ export const BrainCircuitIcon: React.FC<{className?: string}> = (props) => (
     </svg>
 );
 
+// FIX: Added missing icons
 export const MagnifyingGlassIcon: React.FC<{className?: string}> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
-        <path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 0 0 1.48-5.34c-.47-2.78-2.79-5-5.59-5.34a6.505 6.505 0 0 0-7.27 7.27c.34 2.8 2.56 5.12 5.34 5.59a6.5 6.5 0 0 0 5.34-1.48l.27.28v.79l4.25 4.25c.41.41 1.08.41 1.49 0 .41-.41.41-1.08 0-1.49L15.5 14zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
-    </svg>
-);
-
-export const BriefingIcon: React.FC<{className?: string}> = (props) => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
-        <path fillRule="evenodd" d="M4.5 2.25A2.25 2.25 0 002.25 4.5v15A2.25 2.25 0 004.5 21.75h15A2.25 2.25 0 0021.75 19.5v-15A2.25 2.25 0 0019.5 2.25h-15zm3.75 6a.75.75 0 000 1.5h7.5a.75.75 0 000-1.5h-7.5zm0 3.75a.75.75 0 000 1.5h7.5a.75.75 0 000-1.5h-7.5z" clipRule="evenodd" />
-    </svg>
-);
-
-export const DrugsIcon: React.FC<{className?: string}> = (props) => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
-        <path fillRule="evenodd" d="M9 2.25a.75.75 0 000 1.5v9.092c0 .324.08.641.233.922l2.32 4.639a.75.75 0 101.33-.664l-2.32-4.639A.75.75 0 0110.5 12.842V3.75a.75.75 0 000-1.5H9z" clipRule="evenodd" />
-        <path fillRule="evenodd" d="M6 3.75A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6zm9.053 7.96a.75.75 0 00-1.06-1.06L12 12.69 10.007 10.7a.75.75 0 00-1.06 1.06l2.5 2.5a.75.75 0 001.06 0l2.5-2.5z" clipRule="evenodd" />
-    </svg>
-);
-
-export const ExportIcon: React.FC<{className?: string}> = (props) => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
-        <path fillRule="evenodd" d="M12 2.25a.75.75 0 01.75.75v11.69l3.22-3.22a.75.75 0 111.06 1.06l-4.5 4.5a.75.75 0 01-1.06 0l-4.5-4.5a.75.75 0 111.06-1.06l3.22 3.22V3a.75.75 0 01.75-.75z" clipRule="evenodd" />
-        <path fillRule="evenodd" d="M3.75 13.5a.75.75 0 01.75-.75h3a.75.75 0 010 1.5h-3a.75.75 0 01-.75-.75zM16.5 12.75a.75.75 0 000 1.5h3a.75.75 0 000-1.5h-3z" clipRule="evenodd" />
-    </svg>
-);
-
-export const HelpIcon: React.FC<{className?: string}> = (props) => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
-        <path fillRule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zm-1.72 13.85a.75.75 0 101.06-1.06L10.06 12l1.28-1.28a.75.75 0 00-1.06-1.06L9 10.94l-1.28-1.28a.75.75 0 00-1.06 1.06L7.94 12l-1.28 1.28a.75.75 0 101.06 1.06L9 13.06l1.28 1.28z" clipRule="evenodd" />
-    </svg>
-);
-
-export const DocumentTextIcon: React.FC<{className?: string}> = (props) => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
-        <path fillRule="evenodd" d="M5.625 1.5c-1.036 0-1.875.84-1.875 1.875v17.25c0 1.035.84 1.875 1.875 1.875h12.75c1.035 0 1.875-.84 1.875-1.875V12.75A3.75 3.75 0 0016.5 9h-1.875a.375.375 0 01-.375-.375V6.75A3.75 3.75 0 0010.5 3h-4.875zM15 4.875c0-.621.504-1.125 1.125-1.125a.375.375 0 01.375.375v4.5c0 .621-.504 1.125-1.125 1.125a.375.375 0 01-.375-.375v-4.5z" clipRule="evenodd" />
-        <path d="M7.5 10.5a.75.75 0 00-1.5 0v.75a.75.75 0 001.5 0v-.75zM9 10.5a.75.75 0 01.75-.75h3a.75.75 0 010 1.5h-3a.75.75 0 01-.75-.75zm-1.5 3a.75.75 0 00-1.5 0v.75a.75.75 0 001.5 0v-.75zM9 13.5a.75.75 0 01.75-.75h3a.75.75 0 010 1.5h-3a.75.75 0 01-.75-.75zm-1.5 3a.75.75 0 00-1.5 0v.75a.75.75 0 001.5 0v-.75zM9 16.5a.75.75 0 01.75-.75h3a.75.75 0 010 1.5h-3a.75.75 0 01-.75-.75z" />
+        <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
     </svg>
 );
 
 export const TrashIcon: React.FC<{className?: string}> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
-        <path fillRule="evenodd" d="M16.5 4.478v.227a48.816 48.816 0 013.878.512.75.75 0 11-.256 1.478l-.209-.035-1.005 13.006a.75.75 0 01-.749.654H5.858a.75.75 0 01-.749-.654L4.104 6.66l-.209.035a.75.75 0 01-.256-1.478A48.567 48.567 0 017.5 4.705v-.227c0-1.564 1.213-2.9 2.816-2.951a52.662 52.662 0 013.369 0c1.603.051 2.815 1.387 2.815 2.951zm-6.136-1.452a51.196 51.196 0 013.273 0C14.39 3.05 15 3.684 15 4.478v.113a49.488 49.488 0 00-6 0v-.113c0-.794.609-1.428 1.364-1.452z" clipRule="evenodd" />
+        <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+    </svg>
+);
+
+export const LiveIcon: React.FC<{className?: string}> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
+        <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.49 6-3.31 6-6.72h-1.7z" />
+    </svg>
+);
+
+export const DocumentTextIcon: React.FC<{className?: string}> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
+    <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 9H7v-2h6v2zm3-4H7V5h9v2zm-3 7H7v-2h6v2z"/>
+  </svg>
+);
+
+export const BriefingIcon: React.FC<{className?: string}> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
+        <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" />
+    </svg>
+);
+
+export const DrugsIcon: React.FC<{className?: string}> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
+        <path d="M20.8,3.2c-2.4-2.4-6.2-2.4-8.5,0L3.8,11.7c-2.4,2.4-2.4,6.2,0,8.5s6.2,2.4,8.5,0l8.5-8.5C23.2,9.4,23.2,5.6,20.8,3.2z M10.4,18.8c-1.6,1.6-4.1,1.6-5.7,0s-1.6-4.1,0-5.7l1.9-1.9l5.7,5.7L10.4,18.8z M18.8,10.4l-5.7-5.7l1.9-1.9c1.6-1.6,4.1-1.6,5.7,0c1.6,1.6,1.6,4.1,0,5.7L18.8,10.4z"/>
+    </svg>
+);
+
+export const ExportIcon: React.FC<{className?: string}> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
+        <path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z" />
+    </svg>
+);
+
+export const HelpIcon: React.FC<{className?: string}> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z" />
     </svg>
 );
 
 export const MicrophoneIcon: React.FC<{className?: string}> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
-        <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
-        <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+        <path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.49 6-3.31 6-6.72h-1.7z" />
     </svg>
 );
 
-
-// Icons for Briefing Report
 export const AlertTriangleIcon: React.FC<{className?: string}> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
-        <path fillRule="evenodd" d="M11.99 2.25c-.74 0-1.44.27-1.99.73L1.66 14.23a2.25 2.25 0 001.99 3.52h16.7a2.25 2.25 0 001.99-3.52L13.98 2.98A2.25 2.25 0 0012 2.25zm.9 9a.9.9 0 00-1.8 0v2.7a.9.9 0 001.8 0v-2.7zm-1.8 5.4a.9.9 0 101.8 0 .9.9 0 00-1.8 0z" clipRule="evenodd" />
+        <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />
     </svg>
 );
 
@@ -140,78 +141,73 @@ export const UsersIcon: React.FC<{className?: string}> = (props) => (
 
 export const PillIcon: React.FC<{className?: string}> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
-        <path d="M12.94 4.06a8.5 8.5 0 00-10.88 2.02 8.5 8.5 0 002.02 10.88l6.94-6.94-2.02-2.02 4.9-4.9c1.2-1.2 3.14-1.2 4.34 0s1.2 3.14 0 4.34l-4.9 4.9 2.02 2.02L20 12.02A8.5 8.5 0 0012.94 4.06z"/>
-    </svg>
-);
-
-export const ClipboardIcon: React.FC<{className?: string}> = (props) => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-        <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
-        <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
-    </svg>
-);
-
-export const ClipboardCheckIcon: React.FC<{className?: string}> = (props) => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-        <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
-        <path d="m9 14 2 2 4-4"/>
-        <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+        <path d="M20.8,3.2c-2.4-2.4-6.2-2.4-8.5,0L3.8,11.7c-2.4,2.4-2.4,6.2,0,8.5s6.2,2.4,8.5,0l8.5-8.5C23.2,9.4,23.2,5.6,20.8,3.2z M10.4,18.8c-1.6,1.6-4.1,1.6-5.7,0s-1.6-4.1,0-5.7l1.9-1.9l5.7,5.7L10.4,18.8z M18.8,10.4l-5.7-5.7l1.9-1.9c1.6-1.6,4.1-1.6,5.7,0c1.6,1.6,1.6,4.1,0,5.7L18.8,10.4z"/>
     </svg>
 );
 
 export const ListChecksIcon: React.FC<{className?: string}> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
-        <path d="M3 14h4v-4H3v4zm0 5h4v-4H3v4zM3 9h4V5H3v4zm5 5h13v-4H8v4zm0 5h13v-4H8v4zM8 5v4h13V5H8z"/>
+        <path d="M2.5 13.5l-1-1 3.5-3.5 1 1-3.5 3.5zm0 6l-1-1 3.5-3.5 1 1-3.5 3.5zm0-12l-1-1 3.5-3.5 1 1-3.5 3.5zM7 7h14v2H7zm0 6h14v2H7zm0 6h14v2H7z"/>
     </svg>
 );
 
 export const PhoneForwardedIcon: React.FC<{className?: string}> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
-        <path d="m18 11 5-5-5-5v3h-1c-4.97 0-9 4.03-9 9v1h2v-1c0-3.86 3.14-7 7-7h1v3zM20 15.5c-1.25 0-2.45-.2-3.57-.57-.35-.11-.74-.03-1.02.24l-2.2 2.2c-2.83-1.44-5.15-3.75-6.59-6.59l2.2-2.21c.28-.26.36-.65.25-1C8.7 6.45 8.5 5.25 8.5 4c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1 0 9.39 7.61 17 17 17 .55 0 1-.45 1-1v-3.5c0-.55-.45-1-1-1z"/>
+        <path d="M18 11l5-5-5-5v3h-1c-4.97 0-9 4.03-9 9v3h2v-3c0-3.86 3.14-7 7-7h1v3zM20 15.5c-1.25 0-2.45-.2-3.57-.57-.35-.11-.74-.03-1.02.24l-2.2 2.2c-2.83-1.44-5.15-3.75-6.59-6.59l2.2-2.21c.28-.26.36-.65.25-1C8.7 6.45 8.5 5.25 8.5 4c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1 0 9.39 7.61 17 17 17 .55 0 1-.45 1-1v-3.5c0-.55-.45-1-1-1z" />
     </svg>
 );
 
 export const ClockIcon: React.FC<{className?: string}> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
-        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm4.25-3.75-1.42 1.42L16.2 9.05l1.42-1.42L15.25 5.25zM6.38 7.63l1.42 1.42L9.17 7.63 7.76 6.22 6.38 7.63z"/>
+        <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/>
+        <path d="M12.5 7H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
     </svg>
 );
 
 export const DownloadIcon: React.FC<{className?: string}> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
-        <path fillRule="evenodd" d="M12 2.25a.75.75 0 01.75.75v11.69l3.22-3.22a.75.75 0 111.06 1.06l-4.5 4.5a.75.75 0 01-1.06 0l-4.5-4.5a.75.75 0 111.06-1.06l3.22 3.22V3a.75.75 0 01.75-.75z" clipRule="evenodd" />
-        <path fillRule="evenodd" d="M3 18.75a.75.75 0 01.75-.75h16.5a.75.75 0 010 1.5H3.75a.75.75 0 01-.75-.75z" clipRule="evenodd" />
+        <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
     </svg>
 );
 
-// Icons for ImageAnalysisReport
+export const ClipboardCheckIcon: React.FC<{className?: string}> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
+        <path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1s-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm-2 14l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z" />
+    </svg>
+);
+
+export const ClipboardIcon: React.FC<{className?: string}> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
+        <path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1s-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm2 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z" />
+    </svg>
+);
+
 export const ImageIcon: React.FC<{className?: string}> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
-        <path fillRule="evenodd" d="M1.5 6a2.25 2.25 0 012.25-2.25h16.5A2.25 2.25 0 0122.5 6v12a2.25 2.25 0 01-2.25 2.25H3.75A2.25 2.25 0 011.5 18V6zM3 16.06l4.47-4.47a.75.75 0 011.06 0l3.97 3.97L17.47 9.53a.75.75 0 011.06 0l2.25 2.25V6H3.75a.75.75 0 00-.75.75v9.31zM21 12.94l-2.25-2.25-3.53 3.53.97.97a.75.75 0 01-1.06 1.06l-1.5-1.5L9 18H3.75a.75.75 0 00.1-.14L9 12.31l3.97-3.97a.75.75 0 011.06 0l4.47 4.47V18a.75.75 0 00.75-.75v-4.31z" clipRule="evenodd" />
+        <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" />
     </svg>
 );
 
 export const CalendarIcon: React.FC<{className?: string}> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
-        <path fillRule="evenodd" d="M6.75 2.25A.75.75 0 017.5 3v1.5h9V3A.75.75 0 0118 3v1.5h.75a3 3 0 013 3v11.25a3 3 0 01-3 3H5.25a3 3 0 01-3-3V7.5a3 3 0 013-3H6V3a.75.75 0 01.75-.75zM5.25 6.75c-.966 0-1.75.784-1.75 1.75v10.5c0 .966.784 1.75 1.75 1.75h13.5c.966 0 1.75-.784 1.75-1.75V8.5c0-.966-.784-1.75-1.75-1.75H5.25z" clipRule="evenodd" />
+        <path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z" />
     </svg>
 );
 
 export const ClipboardListIcon: React.FC<{className?: string}> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
-        <path fillRule="evenodd" d="M12.75 2.25a.75.75 0 00-1.5 0v.175c-1.52.16-2.88.75-4.04 1.5-1.12.72-2.07 1.66-2.83 2.68a.75.75 0 001.2.92c.67-.9 1.5-1.7 2.53-2.31 1.07-.63 2.3-.98 3.64-.98h.01c1.34 0 2.57.35 3.64.98 1.03.6 1.86 1.4 2.53 2.31a.75.75 0 001.2-.92c-.76-1.02-1.7-1.96-2.83-2.68-1.16-.75-2.52-1.34-4.04-1.5V2.25z" clipRule="evenodd" />
-        <path fillRule="evenodd" d="M4.5 9.75A.75.75 0 003.75 9V7.5c0-1.036.84-1.875 1.875-1.875h12.75c1.036 0 1.875.84 1.875 1.875V9a.75.75 0 00-1.5 0v-.806c.07-.03.14-.06.2-.1v.01c-.04-.04-.08-.07-.12-.11L18.75 7.5H5.25l.001.44c-.04.04-.08.07-.12.11a.75.75 0 00-.5.694v.806zM5.25 20.25c0 .414.336.75.75.75h12c.414 0 .75-.336.75-.75V10.5a.75.75 0 00-1.5 0v9H6v-9a.75.75 0 00-1.5 0v9.75z" clipRule="evenodd" />
+        <path d="M19,3H5C3.9,3,3,3.9,3,5v14c0,1.1,0.9,2,2,2h14c1.1,0,2-0.9,2-2V5C21,3.9,20.1,3,19,3z M8,17H6v-2h2V17z M8,13H6v-2h2V13z M8,9H6V7h2V9z M18,17h-8v-2h8V17z M18,13h-8v-2h8V13z M18,9h-8V7h8V9z"/>
     </svg>
 );
 
 export const EyeIcon: React.FC<{className?: string}> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
-        <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" />
+        <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5C21.27 7.61 17 4.5 12 4.5zm0 12c-2.48 0-4.5-2.02-4.5-4.5S9.52 7.5 12 7.5s4.5 2.02 4.5 4.5-2.02 4.5-4.5 4.5zm0-7c-1.38 0-2.5 1.12-2.5 2.5s1.12 2.5 2.5 2.5 2.5-1.12 2.5-2.5-1.12-2.5-2.5-2.5z" />
     </svg>
 );
 
 export const LightbulbIcon: React.FC<{className?: string}> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
-        <path d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7z" />
+        <path d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7z" />
     </svg>
 );
