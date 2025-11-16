@@ -39,55 +39,54 @@ export const LinkIcon: React.FC<{className?: string}> = (props) => (
     </svg>
 );
 
-export const StethoscopeIcon: React.FC<{className?: string}> = (props) => (
+export const LogoIcon: React.FC<{className?: string}> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
-        <path d="M17.84,5.43C17.44,5.15 17,5 16.5,5H13V4a1,1,0,0,0-1-1H11A1,1,0,0,0,10,4v8.5a2.5,2.5,0,0,0,5,0V6.69l1.43.95a1,1,0,0,0,1.14-.14C18.1,7,18.24,6.23 17.84,5.43ZM13,10.5A.5.5,0,0,1,12.5,11h-1a.5.5,0,0,1-.5-.5V7h2Z"/>
-        <path d="M19,12a4,4,0,1,0,4,4A4,4,0,0,0,19,12Zm0,6a2,2,0,1,1,2-2A2,2,0,0,1,19,18Z"/>
-        <path d="M6,22a4,4,0,1,0-4-4A4,4,0,0,0,6,22Zm0-6a2,2,0,1,1-2,2A2,2,0,0,1,6,16Z"/>
-        <path d="M10,12.5v7a1,1,0,0,1-1,1H7a1,1,0,0,0,0,2H9a3,3,0,0,0,3-3v-7Z"/>
+        <path d="M10.5 13H8v-3h2.5V7.5h3V10H16v3h-2.5v2.5h-3V13zM12 2L4 5v6.09c0 5.05 3.41 9.76 8 10.91 4.59-1.15 8-5.86 8-10.91V5l-8-3z"/>
     </svg>
 );
 
 export const AutoModeIcon: React.FC<{className?: string}> = (props) => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
-        <path d="M12 2.75l.83 1.69 1.88.27-1.36 1.33.32 1.87L12 7l-1.67.88.32-1.87-1.36-1.33 1.88-.27L12 2.75zM19 11l-1.36-1.33.32-1.87L16.29 7l-1.67.88.32 1.87-1.36 1.33 1.88.27.83 1.69.83-1.69 1.88-.27zM5.71 7l-1.67.88.32 1.87L3 11l1.88.27.83 1.69.83-1.69 1.88-.27-1.36-1.33.32-1.87zM12 15.75l-1.67.88.32 1.87L9.29 20l1.88.27.83 1.69.83-1.69 1.88-.27-1.36-1.33.32-1.87L12 15.75z"/>
+    <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24" fill="currentColor" {...props}>
+        <path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/>
     </svg>
 );
 
 export const SparklesIcon: React.FC<{className?: string}> = (props) => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
-        <path d="M12 2.75l.83 1.69 1.88.27-1.36 1.33.32 1.87L12 7l-1.67.88.32-1.87-1.36-1.33 1.88-.27L12 2.75zM19.5 10.5l-1.88-.27- .83-1.69-.83 1.69-1.88.27 1.36 1.33-.32 1.87L16.5 13l1.67-.88-.32-1.87 1.36-1.33zM7.5 10.5l-1.88-.27-.83-1.69-.83 1.69-1.88.27 1.36 1.33-.32 1.87L4.5 13l1.67-.88-.32-1.87 1.36-1.33zM12 16.75l-.83 1.69-1.88.27 1.36 1.33-.32 1.87L12 21l1.67.88-.32-1.87 1.36-1.33-1.88-.27L12 16.75z"/>
+    <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px" fill="currentColor" {...props}>
+        <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
     </svg>
 );
 
 export const BoltIcon: React.FC<{className?: string}> = (props) => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
-        <path d="M11 21h-1l1-7H7v-2h6.11l-1.11-7h1l-1 7h4v2H12.89l1.11 7z"/>
+    <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px" fill="currentColor" {...props}>
+        <path d="M7 2v11h3v9l7-12h-4l4-8H7z"/>
     </svg>
 );
 
 export const BrainCircuitIcon: React.FC<{className?: string}> = (props) => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-        <path d="M12 2a4 4 0 0 1 4 4v2h-2a2 2 0 0 0-2-2v-2a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v2a2 2 0 0 0 2 2h2V8a4 4 0 0 1 4 4m-4 5v-3m0 3a2 2 0 1 1-4 0v-2a2 2 0 1 0-4 0v2a2 2 0 1 1-4 0v-2c0-2.83 2.69-5.17 6-5.47M16 13v-3m0 3a2 2 0 1 1 4 0v-2a2 2 0 1 0 4 0v2a2 2 0 1 1 4 0v-2c0-2.83-2.69-5.17-6-5.47M12 13v-1"/>
+    <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px" fill="currentColor" {...props}>
+        <path d="M12 6c-1.65 0-3 1.35-3 3v5.5c0 1.93 1.57 3.5 3.5 3.5s3.5-1.57 3.5-3.5V9c0-1.65-1.35-3-3-3zm-7 4c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm14 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zM8 17.5c0 .83-.67 1.5-1.5 1.5S5 18.33 5 17.5 5.67 16 6.5 16s1.5.67 1.5 1.5zM12 2c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zm0 8c-1.65 0-3-1.35-3-3s1.35-3 3-3 3 1.35 3 3-1.35 3-3 3zm5.5 7.5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5-1.5-.67-1.5-1.5.67-1.5 1.5-1.5z"/>
     </svg>
 );
 
-// FIX: Added missing icons
 export const MagnifyingGlassIcon: React.FC<{className?: string}> = (props) => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
-        <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
+    <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px" fill="currentColor" {...props}>
+        <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
     </svg>
 );
 
-export const TrashIcon: React.FC<{className?: string}> = (props) => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
-        <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
-    </svg>
+export const NewChatIcon: React.FC<{className?: string}> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+    <polyline points="14 2 14 8 20 8"></polyline>
+    <line x1="12" y1="18" x2="12" y2="12"></line>
+    <line x1="9" y1="15" x2="15" y2="15"></line>
+  </svg>
 );
 
 export const LiveIcon: React.FC<{className?: string}> = (props) => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
-        <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.49 6-3.31 6-6.72h-1.7z" />
+    <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px" fill="currentColor" {...props}>
+        <path d="M7 18h2V6H7v12zm4 4h2V2h-2v20zm-8-8h2v-4H3v4zm12 4h2V6h-2v12zm4-8v4h2v-4h-2z"/>
     </svg>
 );
 

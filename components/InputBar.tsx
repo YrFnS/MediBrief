@@ -228,11 +228,11 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onFileUpload, onClearFile, 
                         </button>
                     </div>
                 )}
-                <div className="flex items-end gap-2 p-2 rounded-xl bg-slate-100 dark:bg-slate-700 border border-transparent focus-within:border-blue-500 transition-colors">
+                <div className="flex gap-2 p-2 rounded-xl bg-slate-100 dark:bg-slate-700/80 border border-slate-200 dark:border-slate-600 focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-offset-white dark:focus-within:ring-offset-slate-800 focus-within:ring-blue-500 transition-all">
                     <button
                         onClick={() => fileInputRef.current?.click()}
                         disabled={isInputDisabled}
-                        className="p-2 rounded-full text-slate-500 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors disabled:opacity-50"
+                        className="p-2 rounded-full text-slate-500 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors disabled:opacity-50 self-end"
                         title="Attach file (image, PDF, .txt)"
                         aria-label="Attach file"
                     >
@@ -248,14 +248,14 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onFileUpload, onClearFile, 
                         onBlur={handleBlur}
                         placeholder={placeholderText}
                         rows={1}
-                        className="flex-1 bg-transparent resize-none outline-none max-h-48 text-slate-800 dark:text-slate-200 placeholder-slate-500 dark:placeholder-slate-400 disabled:cursor-not-allowed"
+                        className="flex-1 bg-transparent resize-none outline-none max-h-48 text-slate-800 dark:text-slate-200 placeholder-slate-500 dark:placeholder-slate-400 disabled:cursor-not-allowed py-2"
                         disabled={isInputDisabled}
                     />
 
                     <button
                         onClick={handleMicButtonClick}
                         disabled={isLoading && !isLiveSessionActive}
-                        className={`p-2 rounded-full transition-colors relative ${isListening || isLiveSessionActive ? 'text-red-500 bg-red-100 dark:bg-red-900/50' : 'text-slate-500 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'}`}
+                        className={`p-2 rounded-full transition-colors relative self-end ${isListening || isLiveSessionActive ? 'text-red-500 bg-red-100 dark:bg-red-900/50' : 'text-slate-500 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'}`}
                         title={currentMode === ChatModeEnum.Live ? 'Start/Stop live session' : 'Speak your query'}
                         aria-label={currentMode === ChatModeEnum.Live ? 'Start or stop live session' : 'Speak your query'}
                     >
@@ -266,7 +266,7 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onFileUpload, onClearFile, 
                     <button 
                         onClick={handleSendClick} 
                         disabled={isInputDisabled || (!prompt.trim() && !uploadedFile)}
-                        className="p-2 rounded-full bg-blue-500 text-white disabled:bg-slate-300 dark:disabled:bg-slate-600 disabled:cursor-not-allowed hover:bg-blue-600 transition-all duration-200"
+                        className="p-2 rounded-full bg-blue-500 text-white disabled:bg-slate-300 dark:disabled:bg-slate-600 disabled:cursor-not-allowed hover:bg-blue-600 transition-all duration-200 self-end"
                         aria-label="Send message"
                     >
                         {isLoading && !isLiveSessionActive ? (

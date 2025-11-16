@@ -1,7 +1,7 @@
 
 import React, { useMemo } from 'react';
 import { WELCOME_MESSAGE } from '../constants';
-import { StethoscopeIcon } from './icons';
+import { LogoIcon } from './icons';
 
 const WelcomeScreen: React.FC = () => {
     
@@ -18,7 +18,7 @@ const WelcomeScreen: React.FC = () => {
         <main className="flex-1 flex flex-col items-center justify-center p-4 text-center">
             <div className="max-w-2xl">
                  <div className="mx-auto mb-6 p-4 bg-blue-500 rounded-full w-20 h-20 flex items-center justify-center shadow-lg">
-                    <StethoscopeIcon className="w-12 h-12 text-white" />
+                    <LogoIcon className="w-12 h-12 text-white" />
                 </div>
                 <div 
                     className="text-left space-y-3 text-slate-600 dark:text-slate-300" 
