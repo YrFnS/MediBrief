@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import type { ChatMessage } from '../types';
 import { UserIcon, BotIcon, LinkIcon, DocumentTextIcon } from './icons';
 import BriefingReport from './BriefingReport';
+import ImageAnalysisReport from './ImageAnalysisReport';
 
 // TypeScript declaration for the 'marked' library loaded from CDN
 declare const marked: any;
@@ -16,12 +17,19 @@ const isJsonBriefing = (content: string): boolean => {
     }
 };
 
+// Helper to check if the message content is a medical image analysis
+const isImageAnalysis = (content: string): boolean => {
+    return content.trim().startsWith('🔬 **Medical Image Analysis**');
+};
+
+
 const Message: React.FC<{ message: ChatMessage }> = ({ message }) => {
     const isModel = message.role === 'model';
 
     const contentToDisplay = (message.role === 'user' && message.displayContent) ? message.displayContent : message.content;
     
     const isBriefing = isModel && isJsonBriefing(message.content);
+    const isAnalysis = isModel && isImageAnalysis(message.content);
 
     // Use the 'marked' library for robust markdown parsing
     const parsedContent = useMemo(() => {
@@ -57,6 +65,8 @@ const Message: React.FC<{ message: ChatMessage }> = ({ message }) => {
 
                 {isBriefing ? (
                     <BriefingReport content={message.content} />
+                ) : isAnalysis ? (
+                    <ImageAnalysisReport content={message.content} />
                 ) : (
                     <div className="prose prose-sm dark:prose-invert max-w-none text-slate-800 dark:text-slate-200" dangerouslySetInnerHTML={{ __html: parsedContent }}></div>
                 )}

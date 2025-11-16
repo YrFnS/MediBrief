@@ -94,6 +94,8 @@ const BriefingReport: React.FC<BriefingReportProps> = ({ content }) => {
 
             // Sections
             for (const section of parsedBriefing.sections) {
+                if (!section.items || section.items.length === 0) continue;
+
                 checkPageBreak(40); // Space for section header
                 
                 doc.setFont('helvetica', 'bold');
@@ -159,6 +161,7 @@ const BriefingReport: React.FC<BriefingReportProps> = ({ content }) => {
 
             <div className="space-y-4">
                 {parsedBriefing.sections.map((section) => {
+                    if (!section.items || section.items.length === 0) return null;
                     const config = SECTION_CONFIG[section.title] || { icon: ListChecksIcon, color: 'slate' };
                     const Icon = config.icon;
                     const isCritical = config.color === 'red';

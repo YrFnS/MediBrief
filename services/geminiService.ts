@@ -1,4 +1,4 @@
-import { GoogleGenAI, GenerateContentResponse, Content, Part, GenerateContentRequest } from "@google/genai";
+import { GoogleGenAI, GenerateContentResponse, Content, Part, GenerateContentRequest, GenerateContentStreamResult } from "@google/genai";
 import type { ChatMessage, ChatMode, UploadedFile } from '../types';
 import { MODEL_CONFIGS, SYSTEM_INSTRUCTION } from '../constants';
 
@@ -15,12 +15,12 @@ interface GenerateResponseOptions {
   responseType?: 'json' | 'text';
 }
 
-export const generateResponse = async (
+export const generateResponseStream = async function* (
   prompt: string,
   history: ChatMessage[],
   mode: ChatMode,
   options?: GenerateResponseOptions
-): Promise<GenerateContentResponse> => {
+): AsyncGenerator<GenerateContentResponse> {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   const modelConfig = MODEL_CONFIGS[mode];
@@ -70,7 +70,9 @@ export const generateResponse = async (
     }
   }
   
-  const response = await ai.models.generateContent(request);
+  const streamResult: GenerateContentStreamResult = await ai.models.generateContentStream(request);
 
-  return response;
+  for await (const chunk of streamResult) {
+    yield chunk;
+  }
 };

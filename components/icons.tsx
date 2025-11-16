@@ -111,6 +111,19 @@ export const DocumentTextIcon: React.FC<{className?: string}> = (props) => (
     </svg>
 );
 
+export const TrashIcon: React.FC<{className?: string}> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
+        <path fillRule="evenodd" d="M16.5 4.478v.227a48.816 48.816 0 013.878.512.75.75 0 11-.256 1.478l-.209-.035-1.005 13.006a.75.75 0 01-.749.654H5.858a.75.75 0 01-.749-.654L4.104 6.66l-.209.035a.75.75 0 01-.256-1.478A48.567 48.567 0 017.5 4.705v-.227c0-1.564 1.213-2.9 2.816-2.951a52.662 52.662 0 013.369 0c1.603.051 2.815 1.387 2.815 2.951zm-6.136-1.452a51.196 51.196 0 013.273 0C14.39 3.05 15 3.684 15 4.478v.113a49.488 49.488 0 00-6 0v-.113c0-.794.609-1.428 1.364-1.452z" clipRule="evenodd" />
+    </svg>
+);
+
+export const MicrophoneIcon: React.FC<{className?: string}> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
+        <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+        <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+    </svg>
+);
+
 
 // Icons for Briefing Report
 export const AlertTriangleIcon: React.FC<{className?: string}> = (props) => (
@@ -168,5 +181,37 @@ export const DownloadIcon: React.FC<{className?: string}> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
         <path fillRule="evenodd" d="M12 2.25a.75.75 0 01.75.75v11.69l3.22-3.22a.75.75 0 111.06 1.06l-4.5 4.5a.75.75 0 01-1.06 0l-4.5-4.5a.75.75 0 111.06-1.06l3.22 3.22V3a.75.75 0 01.75-.75z" clipRule="evenodd" />
         <path fillRule="evenodd" d="M3 18.75a.75.75 0 01.75-.75h16.5a.75.75 0 010 1.5H3.75a.75.75 0 01-.75-.75z" clipRule="evenodd" />
+    </svg>
+);
+
+// Icons for ImageAnalysisReport
+export const ImageIcon: React.FC<{className?: string}> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
+        <path fillRule="evenodd" d="M1.5 6a2.25 2.25 0 012.25-2.25h16.5A2.25 2.25 0 0122.5 6v12a2.25 2.25 0 01-2.25 2.25H3.75A2.25 2.25 0 011.5 18V6zM3 16.06l4.47-4.47a.75.75 0 011.06 0l3.97 3.97L17.47 9.53a.75.75 0 011.06 0l2.25 2.25V6H3.75a.75.75 0 00-.75.75v9.31zM21 12.94l-2.25-2.25-3.53 3.53.97.97a.75.75 0 01-1.06 1.06l-1.5-1.5L9 18H3.75a.75.75 0 00.1-.14L9 12.31l3.97-3.97a.75.75 0 011.06 0l4.47 4.47V18a.75.75 0 00.75-.75v-4.31z" clipRule="evenodd" />
+    </svg>
+);
+
+export const CalendarIcon: React.FC<{className?: string}> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
+        <path fillRule="evenodd" d="M6.75 2.25A.75.75 0 017.5 3v1.5h9V3A.75.75 0 0118 3v1.5h.75a3 3 0 013 3v11.25a3 3 0 01-3 3H5.25a3 3 0 01-3-3V7.5a3 3 0 013-3H6V3a.75.75 0 01.75-.75zM5.25 6.75c-.966 0-1.75.784-1.75 1.75v10.5c0 .966.784 1.75 1.75 1.75h13.5c.966 0 1.75-.784 1.75-1.75V8.5c0-.966-.784-1.75-1.75-1.75H5.25z" clipRule="evenodd" />
+    </svg>
+);
+
+export const ClipboardListIcon: React.FC<{className?: string}> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
+        <path fillRule="evenodd" d="M12.75 2.25a.75.75 0 00-1.5 0v.175c-1.52.16-2.88.75-4.04 1.5-1.12.72-2.07 1.66-2.83 2.68a.75.75 0 001.2.92c.67-.9 1.5-1.7 2.53-2.31 1.07-.63 2.3-.98 3.64-.98h.01c1.34 0 2.57.35 3.64.98 1.03.6 1.86 1.4 2.53 2.31a.75.75 0 001.2-.92c-.76-1.02-1.7-1.96-2.83-2.68-1.16-.75-2.52-1.34-4.04-1.5V2.25z" clipRule="evenodd" />
+        <path fillRule="evenodd" d="M4.5 9.75A.75.75 0 003.75 9V7.5c0-1.036.84-1.875 1.875-1.875h12.75c1.036 0 1.875.84 1.875 1.875V9a.75.75 0 00-1.5 0v-.806c.07-.03.14-.06.2-.1v.01c-.04-.04-.08-.07-.12-.11L18.75 7.5H5.25l.001.44c-.04.04-.08.07-.12.11a.75.75 0 00-.5.694v.806zM5.25 20.25c0 .414.336.75.75.75h12c.414 0 .75-.336.75-.75V10.5a.75.75 0 00-1.5 0v9H6v-9a.75.75 0 00-1.5 0v9.75z" clipRule="evenodd" />
+    </svg>
+);
+
+export const EyeIcon: React.FC<{className?: string}> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
+        <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" />
+    </svg>
+);
+
+export const LightbulbIcon: React.FC<{className?: string}> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
+        <path d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7z" />
     </svg>
 );

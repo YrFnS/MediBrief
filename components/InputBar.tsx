@@ -1,15 +1,23 @@
 
-import React, { useState, useRef, useCallback, ChangeEvent, KeyboardEvent } from 'react';
+import React, { useState, useRef, useCallback, ChangeEvent, KeyboardEvent, useEffect } from 'react';
 import type { UploadedFile, ChatMode } from '../types';
-import { PaperclipIcon, SendIcon, XCircleIcon, BriefingIcon, UserIcon, DrugsIcon, ExportIcon, HelpIcon, DocumentTextIcon } from './icons';
+import { PaperclipIcon, SendIcon, XCircleIcon, BriefingIcon, UserIcon, DrugsIcon, ExportIcon, HelpIcon, DocumentTextIcon, MicrophoneIcon } from './icons';
 
 interface InputBarProps {
     onSend: (prompt: string) => void;
     onFileUpload: (file: UploadedFile) => void;
     onClearFile: () => void;
+    setUploadedFile: (file: UploadedFile) => void;
     isLoading: boolean;
     currentMode: ChatMode;
     uploadedFile: UploadedFile | null;
+}
+
+declare global {
+    interface Window {
+        SpeechRecognition: any;
+        webkitSpeechRecognition: any;
+    }
 }
 
 const QUICK_COMMANDS = [
@@ -21,11 +29,14 @@ const QUICK_COMMANDS = [
 ];
 
 
-const InputBar: React.FC<InputBarProps> = ({ onSend, onFileUpload, onClearFile, isLoading, currentMode, uploadedFile }) => {
+const InputBar: React.FC<InputBarProps> = ({ onSend, onFileUpload, onClearFile, setUploadedFile, isLoading, currentMode, uploadedFile }) => {
     const [prompt, setPrompt] = useState('');
     const [showCommands, setShowCommands] = useState(false);
+    const [isListening, setIsListening] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const recognitionRef = useRef<any>(null);
+
 
     const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -41,18 +52,23 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onFileUpload, onClearFile, 
                 if (file.type.startsWith('image/')) {
                     uploadPayload.url = URL.createObjectURL(file);
                 }
-                onFileUpload(uploadPayload);
+                
+                if (prompt.trim() === '') {
+                     onFileUpload(uploadPayload);
+                } else {
+                     setUploadedFile(uploadPayload);
+                }
             };
             reader.readAsDataURL(file);
         }
-        // Reset the file input so the user can select the same file again
-        if (event.target) {
-            event.target.value = '';
-        }
+        if (event.target) event.target.value = '';
     };
 
     const handleSendClick = useCallback(() => {
         if (!isLoading) {
+            if (recognitionRef.current) {
+                recognitionRef.current.stop();
+            }
             onSend(prompt);
             setPrompt('');
             setShowCommands(false);
@@ -81,22 +97,75 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onFileUpload, onClearFile, 
         }
     };
     
+     const resizeTextarea = () => {
+        const textarea = textareaRef.current;
+        if (textarea) {
+            textarea.style.height = 'auto';
+            const scrollHeight = textarea.scrollHeight;
+            textarea.style.height = `${scrollHeight}px`;
+        }
+    };
+
     const handleTextareaInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const value = e.target.value;
         setPrompt(value);
         setShowCommands(value === '/');
-        const textarea = textareaRef.current;
-        if (textarea) {
-            textarea.style.height = 'auto';
-            textarea.style.height = `${textarea.scrollHeight}px`;
-        }
+        resizeTextarea();
     };
+
+    const handleMicClick = useCallback(() => {
+        if (isListening) {
+            recognitionRef.current?.stop();
+            return;
+        }
+
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            alert("Sorry, your browser doesn't support speech recognition.");
+            return;
+        }
+
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = 'en-US';
+        recognitionRef.current = recognition;
+
+        recognition.onstart = () => setIsListening(true);
+        recognition.onend = () => setIsListening(false);
+        recognition.onerror = (event: any) => {
+            if (event.error === 'not-allowed') {
+                alert('Microphone access was denied. Please allow microphone permission in your browser settings to use voice input.');
+            } else {
+                console.error('Speech recognition error:', event.error);
+            }
+            setIsListening(false);
+        };
+
+        let finalTranscript = prompt ? prompt + ' ' : '';
+
+        recognition.onresult = (event: any) => {
+            let interimTranscript = '';
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
+                if (event.results[i].isFinal) {
+                    finalTranscript += event.results[i][0].transcript;
+                } else {
+                    interimTranscript += event.results[i][0].transcript;
+                }
+            }
+            setPrompt(finalTranscript + interimTranscript);
+        };
+        
+        recognition.start();
+
+    }, [isListening, prompt]);
+
+    useEffect(() => {
+        resizeTextarea();
+    }, [prompt]);
     
     const handleBlur = () => {
-        // Use a small timeout to allow click events on the suggestions to register
-        setTimeout(() => {
-            setShowCommands(false);
-        }, 150);
+        setTimeout(() => setShowCommands(false), 150);
     };
 
     return (
@@ -166,6 +235,16 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onFileUpload, onClearFile, 
                         className="flex-1 bg-transparent resize-none outline-none max-h-48 text-slate-800 dark:text-slate-200 placeholder-slate-500 dark:placeholder-slate-400"
                         disabled={isLoading}
                     />
+
+                    <button
+                        onClick={handleMicClick}
+                        disabled={isLoading}
+                        className={`p-2 rounded-full transition-colors ${isListening ? 'text-red-500 bg-red-100 dark:bg-red-900/50' : 'text-slate-500 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'}`}
+                        title="Speak your query"
+                        aria-label="Speak your query"
+                    >
+                        <MicrophoneIcon className="w-6 h-6" />
+                    </button>
                     
                     <button 
                         onClick={handleSendClick} 
