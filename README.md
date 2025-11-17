@@ -36,7 +36,7 @@ Use these commands in the input bar for faster workflows:
 | `/brief`          | Generates a comprehensive shift briefing.         |
 | `/patient [ID]`   | Gets a detailed summary for a specific patient.   |
 | `/drugs [name]`   | Looks up medication information via web search.   |
-| `/export`         | Provides the briefing in a copy-paste text format.|
+| `/export`         | Generates a briefing and downloads it as a PDF.   |
 | `/help`           | Displays a detailed help message with all commands.|
 
 ## 🛠️ Technology Stack
