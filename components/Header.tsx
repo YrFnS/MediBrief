@@ -14,7 +14,7 @@ const Header: React.FC<HeaderProps> = ({ currentMode, onModeChange, onClearChat,
     return (
         <header className="flex-shrink-0 bg-white dark:bg-slate-800 shadow-md p-2 md:p-3 z-20">
             <div className="max-w-5xl mx-auto flex justify-between items-center">
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-1 sm:space-x-2">
                     <div className="p-2 bg-blue-500 rounded-full">
                          <LogoIcon className="w-6 h-6 text-white" />
                     </div>

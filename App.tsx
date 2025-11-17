@@ -600,7 +600,7 @@ const App: React.FC = () => {
     }, [isLiveSessionActive, stopLiveSession]);
 
     return (
-        <div className="flex flex-col h-screen font-sans">
+        <div className="flex flex-col h-screen font-sans overflow-hidden">
             <Header
                 currentMode={chatMode}
                 onModeChange={(mode) => dispatch({ type: 'SET_CHAT_MODE', payload: mode })}

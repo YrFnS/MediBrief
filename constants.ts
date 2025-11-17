@@ -1,20 +1,27 @@
 import { ChatMode } from './types';
 
-export const WELCOME_MESSAGE = `👋 **Welcome to MediBrief - Your AI Shift Assistant**
+export const WELCOME_CONTENT = {
+    title: "Welcome to MediBrief",
+    subtitle: "Your AI Shift Assistant",
+    introduction: "I help healthcare workers stay organized by:",
+    features: [
+        { icon: "📄", text: "Processing patient notes and medical documents" },
+        { icon: "🔬", text: "Analyzing lab results and medical images" },
+        { icon: "📋", text: "Generating shift briefings with priorities" },
+        { icon: "💊", text: "Checking drug information" },
+        { icon: "❓", text: "Answering questions about patient care" }
+    ],
+    getStarted: {
+        title: "To get started:",
+        steps: [
+            "Upload your patient notes, schedules, or medical documents",
+            "Ask me to generate your shift briefing",
+            "Or just ask me questions about your patients"
+        ]
+    },
+    closing: "What would you like to do today?"
+};
 
-I help healthcare workers stay organized by:
-- 📄 Processing patient notes and medical documents
-- 🔬 Analyzing lab results and medical images  
-- 📋 Generating shift briefings with priorities
-- 💊 Checking drug information
-- ❓ Answering questions about patient care
-
-**To get started:**
-1. Upload your patient notes, schedules, or medical documents
-2. Ask me to generate your shift briefing
-3. Or just ask me questions about your patients
-
-What would you like to do today?`;
 
 export const HELP_COMMAND_RESPONSE = `🔧 **MediBrief Help & Commands**
 

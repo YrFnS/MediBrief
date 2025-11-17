@@ -50,9 +50,9 @@ const Message: React.FC<{ message: ChatMessage }> = ({ message }) => {
                 {message.filePreview && (
                     <div className="mb-3">
                         {message.filePreview.type.startsWith('image/') && message.filePreview.url ? (
-                            <img src={message.filePreview.url} alt={message.filePreview.name} className="max-w-xs max-h-48 rounded-lg border border-slate-200 dark:border-slate-700" />
+                            <img src={message.filePreview.url} alt={message.filePreview.name} className="max-w-[250px] w-full max-h-48 rounded-lg border border-slate-200 dark:border-slate-700" />
                         ) : (
-                             <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-100 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-700 max-w-xs">
+                             <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-100 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-700 max-w-[250px] w-full">
                                 <DocumentTextIcon className="w-8 h-8 text-slate-500 dark:text-slate-400 flex-shrink-0" />
                                 <div className="overflow-hidden">
                                     <p className="font-semibold text-sm truncate text-slate-700 dark:text-slate-200">{message.filePreview.name}</p>

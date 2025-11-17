@@ -142,12 +142,12 @@ const BriefingReport: React.FC<BriefingReportProps> = ({ content }) => {
 
     return (
         <div className="bg-slate-50 dark:bg-slate-900/50 -m-4 p-4 rounded-xl">
-            <div className="flex justify-between items-start mb-4 gap-2">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-4 gap-3">
                  <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                     <span className="text-2xl">📋</span>
                     <span>{parsedBriefing.briefingTitle}</span>
                 </h2>
-                <div className="flex gap-2 flex-shrink-0">
+                <div className="flex gap-2 flex-shrink-0 self-end sm:self-auto">
                     <button onClick={handleCopy} disabled={isExporting} className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-md bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-200 transition-colors disabled:opacity-50">
                         {isCopied ? <ClipboardCheckIcon className="w-4 h-4 text-green-500" /> : <ClipboardIcon className="w-4 h-4" />}
                         {isCopied ? 'Copied!' : 'Copy'}

@@ -34,7 +34,7 @@ const ModeSelector: React.FC<ModeSelectorProps> = ({ currentMode, onModeChange }
                             }`}
                     >
                         <Icon className="w-4 h-4" />
-                        <span className="hidden sm:inline">{mode}</span>
+                        <span className="hidden md:inline">{mode}</span>
                          <span className="absolute top-full mt-2 w-max max-w-xs bg-slate-800 text-white text-xs rounded py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-30">
                             {MODEL_CONFIGS[mode].description}
                         </span>

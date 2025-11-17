@@ -1,29 +1,53 @@
-
-import React, { useMemo } from 'react';
-import { WELCOME_MESSAGE } from '../constants';
-import { LogoIcon } from './icons';
+import React from 'react';
+import { WELCOME_CONTENT } from '../constants';
+import { LogoIcon, CheckIcon } from './icons';
 
 const WelcomeScreen: React.FC = () => {
-    
-    const parsedWelcomeMessage = useMemo(() => {
-        return WELCOME_MESSAGE
-            .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-slate-800 dark:text-slate-100">$1</strong>')
-            .replace(/-\s(.*?)(?=\n|$)/g, '<li class="flex items-start"><span class="mr-2 mt-1 text-blue-500">✓</span><span>$1</span></li>')
-            .replace(/<li/g, '<ul><li')
-            .replace(/li>\n/g, 'li></ul>')
-            .replace(/<\/ul><ul>/g, ''); // Fix multiple lists
-    }, []);
-
     return (
-        <main className="flex-1 flex flex-col items-center justify-center p-4 text-center">
-            <div className="max-w-2xl">
-                 <div className="mx-auto mb-6 p-4 bg-blue-500 rounded-full w-20 h-20 flex items-center justify-center shadow-lg">
-                    <LogoIcon className="w-12 h-12 text-white" />
+        <main className="flex-1 flex flex-col items-center justify-center p-4 overflow-hidden">
+            <div className="max-w-lg w-full text-left">
+                 <div className="flex justify-center mb-6">
+                    <div className="p-3 sm:p-4 bg-blue-500 rounded-full w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center shadow-lg">
+                        <LogoIcon className="w-10 h-10 sm:w-12 sm:h-12 text-white" />
+                    </div>
                 </div>
-                <div 
-                    className="text-left space-y-3 text-slate-600 dark:text-slate-300" 
-                    dangerouslySetInnerHTML={{ __html: parsedWelcomeMessage }}
-                />
+                
+                <div className="space-y-4 text-slate-600 dark:text-slate-300">
+                    <h1 className="text-xl font-semibold text-slate-800 dark:text-slate-100">
+                        <span role="img" aria-label="waving hand" className="mr-2">👋</span>
+                        {WELCOME_CONTENT.title}
+                    </h1>
+                    
+                    <h2 className="flex items-center text-lg">
+                        <CheckIcon className="w-6 h-6 mr-2 text-blue-500" />
+                        <strong className="font-semibold text-slate-800 dark:text-slate-100">{WELCOME_CONTENT.subtitle}</strong>
+                    </h2>
+                    
+                    <p>{WELCOME_CONTENT.introduction}</p>
+                    
+                    <ul className="space-y-2 pl-1">
+                        {WELCOME_CONTENT.features.map((feature, index) => (
+                            <li key={index} className="flex items-start">
+                                <CheckIcon className="w-5 h-5 mr-3 mt-0.5 text-blue-500 flex-shrink-0" />
+                                <span>
+                                    <span role="img" aria-hidden="true" className="mr-2">{feature.icon}</span>
+                                    {feature.text}
+                                </span>
+                            </li>
+                        ))}
+                    </ul>
+                    
+                    <div>
+                        <p><strong className="font-semibold text-slate-800 dark:text-slate-100">{WELCOME_CONTENT.getStarted.title}</strong></p>
+                        <ol className="list-decimal list-inside mt-1 space-y-1">
+                            {WELCOME_CONTENT.getStarted.steps.map((step, index) => (
+                                <li key={index}>{step}</li>
+                            ))}
+                        </ol>
+                    </div>
+
+                    <p>{WELCOME_CONTENT.closing}</p>
+                </div>
             </div>
         </main>
     );
