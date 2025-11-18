@@ -291,7 +291,7 @@ export const FILE_ANALYSIS_PROMPT = (filename: string) => `Analyze the attached 
 
 **STEP 1: IDENTIFY DOCUMENT TYPE**
 First, determine the type of document. Is it a:
-- Medical Image (X-ray, CT/MRI scan, lab result printout, prescription, handwritten notes, ECG/EKG)
+- Medical Image (X-ray, CT/MRI scan, lab result printout, prescription, handwritten notes, ECG/EKG, visible skin condition)
 - Medication List
 - Other medical document (Patient notes, lab results, schedule, etc.)
 
@@ -303,12 +303,15 @@ First, determine the type of document. Is it a:
 Provide your analysis in this exact format:
 "🔬 **Medical Image Analysis**
 
-**Image Type:** [e.g., X-ray, Prescription, Handwritten notes]
-**Patient:** [If visible]
-**Date:** [If visible]
+**Image Type:** [e.g., X-ray, Prescription, Skin Lesion, Hand-written note]
+**Patient:** [If visible, otherwise 'Not Visible']
+**Date:** [If visible, otherwise 'Not Visible']
 
 **Visual Observations:**
-[Describe the anatomy or subject found in the image. Explicitly list any **potential abnormalities**, fractures, lesions, or pathological findings visible. Be detailed but clear.]
+[Provide a detailed summary of what is seen in the image. Describe anatomy, orientation, quality of image, and primary subject matter.]
+
+**Potential Abnormalities:**
+[Explicitly listed potential abnormalities, fractures, lesions, irregularities, or pathological findings. If none are apparent, state 'No gross abnormalities detected'.]
 
 **Extracted Information:**
 [Extract all visible text using OCR. For prescriptions, list drug names, dosages, frequency, and instructions.]
@@ -316,7 +319,7 @@ Provide your analysis in this exact format:
 **⚠️ Note:** This is automated analysis. Always verify with original images and clinical judgment.
 
 **Next Steps for Clinical Review:**
-[Suggest immediate clinical actions, follow-up imaging, specialist referrals, or verification steps needed based on the findings.]"
+[Suggest specific next steps, such as 'Clinical correlation recommended', 'Follow-up X-ray in 2 weeks', 'Dermatology referral', or 'Verify dosage with pharmacy'.]"
 
 ---
 

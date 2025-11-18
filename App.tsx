@@ -520,6 +520,28 @@ const App: React.FC = () => {
             return;
         }
 
+        // CRITICAL: Initialize/Resume audio contexts synchronously within the user click event.
+        // This is required for Safari/Mobile browsers to allow audio playback.
+        try {
+            if (!inputAudioContextRef.current) {
+                inputAudioContextRef.current = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+            }
+            if (!outputAudioContextRef.current) {
+                outputAudioContextRef.current = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+            }
+            
+            if (inputAudioContextRef.current.state === 'suspended') {
+                await inputAudioContextRef.current.resume();
+            }
+            if (outputAudioContextRef.current.state === 'suspended') {
+                await outputAudioContextRef.current.resume();
+            }
+        } catch (err) {
+            console.error("Error initializing audio contexts", err);
+            dispatch({ type: 'REQUEST_FAILED', payload: "Could not initialize audio device. Please check permissions." });
+            return;
+        }
+
         dispatch({ type: 'LIVE_SESSION_START' });
 
         try {
@@ -537,16 +559,8 @@ const App: React.FC = () => {
                 },
                 callbacks: {
                     onopen: async () => {
-                        inputAudioContextRef.current = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-                        outputAudioContextRef.current = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
-                        
-                        // Resume contexts to ensure playback works on mobile/safari where user gesture is required
-                        if (outputAudioContextRef.current.state === 'suspended') {
-                            await outputAudioContextRef.current.resume();
-                        }
-                        if (inputAudioContextRef.current.state === 'suspended') {
-                            await inputAudioContextRef.current.resume();
-                        }
+                        // Audio Contexts are already initialized and resumed above in the click handler.
+                        if (!inputAudioContextRef.current) return;
 
                         mediaStreamSourceRef.current = inputAudioContextRef.current.createMediaStreamSource(stream);
                         scriptProcessorRef.current = inputAudioContextRef.current.createScriptProcessor(4096, 1, 1);
