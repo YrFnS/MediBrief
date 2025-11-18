@@ -245,11 +245,12 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onFileUpload, onClearFile, 
                         onClick={() => cameraInputRef.current?.click()}
                         disabled={isInputDisabled}
                         className="p-2 rounded-full text-slate-500 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors disabled:opacity-50 self-end"
-                        title="Take a photo"
-                        aria-label="Take a photo"
+                        title="Scan document with camera"
+                        aria-label="Scan document with camera"
                     >
                         <CameraIcon className="w-6 h-6" />
                     </button>
+                    {/* capture="environment" forces rear camera on mobile */}
                     <input type="file" ref={cameraInputRef} onChange={handleFileChange} accept="image/*" capture="environment" className="hidden" />
 
                     <textarea

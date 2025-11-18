@@ -447,16 +447,16 @@ const App: React.FC = () => {
             finalPrompt = SHIFT_BRIEFING_PROMPT();
             modeForRequest = ChatModeEnum.Deep;
             responseType = 'json';
-        } else if (trimmedPrompt.toLowerCase().startsWith('/drugs')) {
-            modeForRequest = ChatModeEnum.Web;
         } else if (trimmedPrompt.toLowerCase().startsWith('/patient')) {
             modeForRequest = ChatModeEnum.Deep;
         } else if (chatMode === ChatModeEnum.Live) {
-            // Live mode configuration uses 'AUDIO' modalities.
-            // If the user is typing text here, they expect a text response, so we must fallback to Standard.
-            modeForRequest = ChatModeEnum.Standard;
+            // If user sends text while in Live mode (which is audio-centric), 
+            // fall back to the smart Auto mode so they get a text response with tools if needed.
+            modeForRequest = ChatModeEnum.Auto;
         } else {
             // Respect user's manual mode selection if no command is found
+            // Note: Auto mode now has tool usage enabled by default in constants.ts,
+            // so we don't need to force Web mode for drug queries anymore.
             modeForRequest = chatMode;
         }
 
@@ -536,10 +536,18 @@ const App: React.FC = () => {
                     systemInstruction: SYSTEM_INSTRUCTION
                 },
                 callbacks: {
-                    onopen: () => {
+                    onopen: async () => {
                         inputAudioContextRef.current = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
                         outputAudioContextRef.current = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
                         
+                        // Resume contexts to ensure playback works on mobile/safari where user gesture is required
+                        if (outputAudioContextRef.current.state === 'suspended') {
+                            await outputAudioContextRef.current.resume();
+                        }
+                        if (inputAudioContextRef.current.state === 'suspended') {
+                            await inputAudioContextRef.current.resume();
+                        }
+
                         mediaStreamSourceRef.current = inputAudioContextRef.current.createMediaStreamSource(stream);
                         scriptProcessorRef.current = inputAudioContextRef.current.createScriptProcessor(4096, 1, 1);
                         
