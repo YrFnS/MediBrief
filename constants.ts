@@ -1,4 +1,6 @@
+
 import { ChatMode } from './types';
+import { Type } from '@google/genai';
 
 export const WELCOME_CONTENT = {
     title: "Welcome to MediBrief",
@@ -36,7 +38,7 @@ Here’s a quick guide to getting the most out of your AI assistant.
 
 **Chat Modes:**
 You can switch modes using the selector at the top right:
-- **Auto:** The AI automatically chooses the best mode for your query.
+- **Auto:** Smart mode. Automatically uses Google Search and other tools when needed.
 - **Standard:** Balanced mode for general questions and file analysis.
 - **Quick Query:** Fastest responses for simple questions.
 - **Deep Analysis:** Maximum reasoning power for complex tasks like generating briefings.
@@ -59,23 +61,23 @@ Remember, you can always ask questions naturally. I'm here to help!`;
 const scheduleAppointmentFunctionDeclaration = {
   name: 'scheduleAppointment',
   parameters: {
-    type: 'OBJECT',
+    type: Type.OBJECT,
     description: 'Schedules a patient appointment for a follow-up.',
     properties: {
       patientId: {
-        type: 'STRING',
+        type: Type.STRING,
         description: 'The unique identifier for the patient.',
       },
       date: {
-        type: 'STRING',
+        type: Type.STRING,
         description: 'The date of the appointment, e.g., "2024-08-15".',
       },
       time: {
-        type: 'STRING',
+        type: Type.STRING,
         description: 'The time of the appointment in 24-hour format, e.g., "14:30".',
       },
        notes: {
-        type: 'STRING',
+        type: Type.STRING,
         description: 'Optional notes for the appointment, such as reason for visit.',
       },
     },
@@ -86,9 +88,11 @@ const scheduleAppointmentFunctionDeclaration = {
 
 export const MODEL_CONFIGS = {
   [ChatMode.Auto]: {
-    model: '', // Not a real model, logic is handled in the app
-    config: {},
-    description: "AI automatically selects the best mode for your query."
+    model: 'gemini-2.5-flash',
+    config: {
+      tools: [{ googleSearch: {} }],
+    },
+    description: "Smart mode: Automatically checks the web when needed."
   },
   [ChatMode.Standard]: {
     model: 'gemini-2.5-flash',
@@ -164,7 +168,7 @@ When users ask questions, follow these rules precisely:
 
 2.  **DRUG INFORMATION QUERIES:**
     -   **User Asks:** "What is [drug name]?" or "Tell me about [medication]"
-    -   **Your Action:** Use Google Search (if in Web Search mode) to get current information.
+    -   **Your Action:** Use Google Search (if available) to get current information.
     -   **Your Response:** Provide:
         -   Generic and brand names
         -   Drug class
@@ -178,7 +182,7 @@ When users ask questions, follow these rules precisely:
 
 3.  **DRUG INTERACTION CHECKS:**
     -   **User Asks:** "Check interaction between [drug A] and [drug B]"
-    -   **Your Action:** Use Google Search (if in Web Search mode) to find known interactions.
+    -   **Your Action:** Use Google Search (if available) to find known interactions.
     -   **Your Response:** State the severity of the interaction. If it is severe, recommend alternatives and always suggest consulting with the pharmacy.
 
 4.  **PROCEDURAL & GENERAL MEDICAL QUESTIONS:**
@@ -224,9 +228,17 @@ EXPORT & SUMMARY FEATURES:
 
 PROACTIVE FEATURES:
 
-After processing documents, proactively offer:
+After processing documents or discussing patients, proactively check for safety issues:
 
-1. CONFLICT DETECTION:
+1.  **DRUG INTERACTION DETECTION (CRITICAL):**
+    -   **Scan:** Actively cross-reference medications found in uploaded documents (medication lists, notes) or mentioned in the conversation.
+    -   **If an interaction is found:**
+        -   **Trigger:** You MUST start the response with: "⚠️ **Potential Drug Interaction Detected:**"
+        -   **Description:** Briefly describe the interaction (e.g., "Patient X is prescribed [Drug A] and [Drug B], which can lead to [Risk].").
+        -   **Severity:** Note if it is mild, moderate, or severe/contraindicated.
+        -   **Action:** Explicitly state: "Please consult with a pharmacist to verify safety and check alternatives."
+
+2. CONFLICT DETECTION:
    If you detect:
    - Duplicate medications
    - Conflicting orders
@@ -235,7 +247,7 @@ After processing documents, proactively offer:
    
    Alert: "⚠️ **Potential Issue Detected:** [Description] - Would you like me to investigate?"
 
-2. TIMELINE ALERTS:
+3. TIMELINE ALERTS:
    If you notice:
    - Medications due soon
    - Procedures approaching
@@ -243,13 +255,13 @@ After processing documents, proactively offer:
    
    Remind: "🔔 **Upcoming:** [What] in [timeframe]"
 
-3. SMART SUGGESTIONS:
+4. SMART SUGGESTIONS:
    Based on uploaded documents, suggest:
    - "💡 I noticed you have 3 diabetic patients - would you like me to create a glucose monitoring summary?"
    - "💡 Multiple patients on anticoagulants - want a bleeding risk overview?"
    - "💡 Several pending labs - should I create a tracking list?"
 
-4. KNOWLEDGE GAPS:
+5. KNOWLEDGE GAPS:
    If asked about something not in uploaded documents:
    "ℹ️ I don't have that information in the documents you've uploaded. Would you like me to:
    - Search for general medical information?
@@ -310,6 +322,7 @@ Provide your analysis in this exact format:
 
 **Potential Concerns:**
 - [List any potential issues found, such as duplicates.]
+- [CRITICAL: Check for and list any POTENTIAL DRUG INTERACTIONS here with a ⚠️ prefix and description]
 
 **Recommendations:**
 [Provide clinical recommendations based on the list.]"
@@ -327,7 +340,7 @@ Provide your analysis in this exact format:
 - [Finding 2]
 - ...
 
-**⚠️ Alerts:** [List any critical values, urgent items, or concerns. If none, state "No critical alerts detected."]"
+**⚠️ Alerts:** [List any critical values, urgent items, or concerns. If a drug interaction is detected, list it here starting with "⚠️ Potential Drug Interaction Detected:"]"
 
 ---
 
@@ -344,7 +357,8 @@ ${text}
 
 1.  **Summarize Key Information:** Identify and list the most critical findings. This includes patient details, chief complaints, vital signs, primary diagnosis, treatment plan, and any flagged lab values.
 2.  **Identify Document Type:** Based on the content, state what kind of document this is (e.g., Patient Discharge Summary, Lab Report, Nurse's Handoff Notes).
-3.  **Flag Alerts & Urgent Items:** Create a list of any urgent action items, critical values, or potential safety concerns (like drug allergies or contraindications). If none are found, state "No critical alerts detected."
+3.  **Flag Alerts & Urgent Items:** Create a list of any urgent action items, critical values, or potential safety concerns (like drug allergies or contraindications).
+4.  **Check for Drug Interactions:** Proactively scan the text for multiple medications. If found, check for interactions and list them in the Alerts section.
 
 **Response Format:**
 
@@ -359,7 +373,7 @@ Please structure your response in this exact format:
 - [Finding 2]
 - ...
 
-**⚠️ Alerts:** [List any critical values, urgent items, or concerns. If none, state "No critical alerts detected."]"
+**⚠️ Alerts:** [List any critical values, urgent items, or concerns. If a drug interaction is found, start the bullet with "⚠️ **Potential Drug Interaction Detected:**" and describe the risk.]"
 
 After providing your analysis, conclude with: "This information has been added to your shift knowledge base."`;
 

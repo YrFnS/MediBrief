@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect, useReducer, useRef } from 'react';
 import { GoogleGenAI, LiveSession, LiveServerMessage, Modality, Blob } from "@google/genai";
 import type { ChatMessage, ChatMode, UploadedFile } from './types';
@@ -222,11 +223,27 @@ type AppAction =
     | { type: 'LIVE_TURN_COMPLETE'; payload: { userInput: string; modelOutput: string } }
     | { type: 'ADD_INTERIM_MESSAGE', payload: ChatMessage };
 
-const savedMessages = localStorage.getItem('mediBriefMessages');
+const getInitialMessages = (): ChatMessage[] => {
+    try {
+        const savedMessages = localStorage.getItem('mediBriefMessages');
+        if (savedMessages) {
+            const parsed = JSON.parse(savedMessages);
+            // Basic validation to ensure it's an array of messages
+            if (Array.isArray(parsed) && parsed.every(m => 'role' in m && 'content' in m)) {
+                return parsed;
+            }
+        }
+    } catch (error) {
+        console.error("Failed to parse messages from localStorage. Clearing corrupted data.", error);
+        localStorage.removeItem('mediBriefMessages');
+    }
+    return [];
+};
+
 const initialLiveTranscript: LiveTranscript = { userInput: '', modelOutput: '', isUserInputFinal: false };
 
 const initialState: AppState = {
-    messages: savedMessages ? JSON.parse(savedMessages) : [],
+    messages: getInitialMessages(),
     isLoading: false,
     chatMode: ChatModeEnum.Auto,
     error: null,
@@ -252,7 +269,7 @@ const appReducer = (state: AppState, action: AppAction): AppState => {
             const newMessages = [...state.messages];
             const lastMessage = newMessages[newMessages.length - 1];
             if (lastMessage && lastMessage.role === 'model') {
-                lastMessage.content += action.payload.chunk;
+                lastMessage.content += action.payload.chunk || '';
                 if(action.payload.sources && action.payload.sources.length > 0) {
                     lastMessage.sources = action.payload.sources;
                 }
@@ -434,8 +451,9 @@ const App: React.FC = () => {
             modeForRequest = ChatModeEnum.Web;
         } else if (trimmedPrompt.toLowerCase().startsWith('/patient')) {
             modeForRequest = ChatModeEnum.Deep;
-        } else if (chatMode === ChatModeEnum.Auto) {
-            // Auto mode logic: default to Standard
+        } else if (chatMode === ChatModeEnum.Live) {
+            // Live mode configuration uses 'AUDIO' modalities.
+            // If the user is typing text here, they expect a text response, so we must fallback to Standard.
             modeForRequest = ChatModeEnum.Standard;
         } else {
             // Respect user's manual mode selection if no command is found
@@ -461,7 +479,7 @@ const App: React.FC = () => {
             
             for await (const chunk of stream) {
                 const sources = chunk.candidates?.[0]?.groundingMetadata?.groundingChunks;
-                dispatch({ type: 'APPEND_TO_LAST_MESSAGE', payload: { chunk: chunk.text, sources } });
+                dispatch({ type: 'APPEND_TO_LAST_MESSAGE', payload: { chunk: chunk.text || '', sources } });
             }
         } catch (e) {
             const friendlyError = getFriendlyErrorMessage(e);

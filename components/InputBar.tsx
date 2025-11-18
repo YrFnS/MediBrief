@@ -2,7 +2,7 @@
 import React, { useState, useRef, useCallback, ChangeEvent, KeyboardEvent, useEffect } from 'react';
 import type { UploadedFile, ChatMode } from '../types';
 import { ChatMode as ChatModeEnum } from '../types';
-import { PaperclipIcon, SendIcon, XCircleIcon, BriefingIcon, UserIcon, DrugsIcon, DownloadIcon, HelpIcon, DocumentTextIcon, MicrophoneIcon } from './icons';
+import { PaperclipIcon, SendIcon, XCircleIcon, BriefingIcon, UserIcon, DrugsIcon, DownloadIcon, HelpIcon, DocumentTextIcon, MicrophoneIcon, CameraIcon } from './icons';
 
 interface InputBarProps {
     onSend: (prompt: string) => void;
@@ -37,6 +37,7 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onFileUpload, onClearFile, 
     const [showCommands, setShowCommands] = useState(false);
     const [isListening, setIsListening] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const cameraInputRef = useRef<HTMLInputElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const recognitionRef = useRef<any>(null);
 
@@ -240,6 +241,17 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onFileUpload, onClearFile, 
                     </button>
                     <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*,application/pdf,.txt,.md" className="hidden" />
                     
+                    <button
+                        onClick={() => cameraInputRef.current?.click()}
+                        disabled={isInputDisabled}
+                        className="p-2 rounded-full text-slate-500 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors disabled:opacity-50 self-end"
+                        title="Take a photo"
+                        aria-label="Take a photo"
+                    >
+                        <CameraIcon className="w-6 h-6" />
+                    </button>
+                    <input type="file" ref={cameraInputRef} onChange={handleFileChange} accept="image/*" capture="environment" className="hidden" />
+
                     <textarea
                         ref={textareaRef}
                         value={prompt}

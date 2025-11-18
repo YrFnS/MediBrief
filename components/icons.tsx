@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 export const UserIcon: React.FC<{className?: string}> = (props) => (
@@ -208,5 +209,11 @@ export const LightbulbIcon: React.FC<{className?: string}> = (props) => (
 export const CheckIcon: React.FC<{className?: string}> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
         <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+    </svg>
+);
+
+export const CameraIcon: React.FC<{className?: string}> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
+        <path d="M4 4h3l2-2h6l2 2h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm8 3a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm0 2a3 3 0 1 1 0 6 3 3 0 0 1 0-6z" />
     </svg>
 );
