@@ -155,6 +155,39 @@ const createBlob = (data: Float32Array): Blob => {
   };
 }
 
+// --- Error Handling Helper ---
+const getFriendlyErrorMessage = (error: unknown): string => {
+    let errorMessage = 'An unknown error occurred.';
+    if (error instanceof Error) {
+        try {
+            // Attempt to parse the error message as JSON, which is common for API errors
+            const errorObj = JSON.parse(error.message);
+            if (errorObj.error && errorObj.error.message) {
+                const message = errorObj.error.message.toLowerCase();
+                if (message.includes('overloaded') || message.includes('too many requests') || errorObj.error.code === 503 || errorObj.error.code === 500) {
+                    return 'The service is currently experiencing high demand. Please wait a moment and try again.';
+                }
+                 if (message.includes('api key not valid')) {
+                    return 'The API key is not valid. Please check your configuration.';
+                }
+                return errorObj.error.message; // Return the specific message from the API
+            } else {
+                return error.message; // Not the expected JSON format, return raw message
+            }
+        } catch (parseError) {
+            // If it's not a JSON string, return the raw message.
+            // Also check for common non-JSON error messages.
+            if (error.message.toLowerCase().includes('permission denied')) {
+                return 'Microphone access was denied. Please allow microphone permission in your browser settings.';
+            }
+            return error.message;
+        }
+    } else if (typeof error === 'string') {
+        return error;
+    }
+    return errorMessage;
+};
+
 
 // --- State Management (useReducer) ---
 
@@ -339,8 +372,8 @@ const App: React.FC = () => {
             await handleSend(analysisPrompt, file, displayMessage);
 
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : "An unknown error occurred during file processing.";
-            dispatch({ type: 'REQUEST_FAILED', payload: errorMessage });
+            const friendlyError = getFriendlyErrorMessage(error);
+            dispatch({ type: 'REQUEST_FAILED', payload: friendlyError });
         }
     }, []);
 
@@ -373,8 +406,8 @@ const App: React.FC = () => {
 
                 dispatch({ type: 'UPDATE_LAST_MESSAGE_CONTENT', payload: '✅ Your shift briefing PDF has been downloaded successfully.' });
             } catch (e) {
-                const errorMessage = e instanceof Error ? e.message : 'An unknown error occurred during PDF export.';
-                const finalMessage = `Sorry, I couldn't generate the PDF. Please try again.\n\n**Error:** ${errorMessage}`;
+                const friendlyError = getFriendlyErrorMessage(e);
+                const finalMessage = `Sorry, I couldn't generate the PDF. Please try again.\n\n**Error:** ${friendlyError}`;
                 dispatch({ type: 'UPDATE_LAST_MESSAGE_CONTENT', payload: finalMessage });
             }
             return;
@@ -387,11 +420,13 @@ const App: React.FC = () => {
         }
 
         let finalPrompt = trimmedPrompt;
-        let modeForRequest = chatMode;
+        let modeForRequest: ChatMode;
         let responseType: 'json' | 'text' = 'text';
 
-        // Command & trigger-based mode/prompt adjustments
-        if (BRIEFING_TRIGGERS.some(trigger => trimmedPrompt.toLowerCase().includes(trigger)) || trimmedPrompt.toLowerCase() === '/brief') {
+        const isBriefingCommand = BRIEFING_TRIGGERS.some(trigger => trimmedPrompt.toLowerCase().includes(trigger)) || trimmedPrompt.toLowerCase() === '/brief';
+
+        // Determine mode and prompt based on commands or user selection
+        if (isBriefingCommand) {
             finalPrompt = SHIFT_BRIEFING_PROMPT();
             modeForRequest = ChatModeEnum.Deep;
             responseType = 'json';
@@ -399,11 +434,12 @@ const App: React.FC = () => {
             modeForRequest = ChatModeEnum.Web;
         } else if (trimmedPrompt.toLowerCase().startsWith('/patient')) {
             modeForRequest = ChatModeEnum.Deep;
-        }
-
-        if (chatMode !== ChatModeEnum.Auto) {
-           // If a command forced a mode, it will be used. Otherwise, respect the user's manual selection.
-           modeForRequest = (modeForRequest !== chatMode) ? modeForRequest : chatMode;
+        } else if (chatMode === ChatModeEnum.Auto) {
+            // Auto mode logic: default to Standard
+            modeForRequest = ChatModeEnum.Standard;
+        } else {
+            // Respect user's manual mode selection if no command is found
+            modeForRequest = chatMode;
         }
 
         const userMessage: ChatMessage = { role: 'user', content: finalPrompt };
@@ -428,8 +464,8 @@ const App: React.FC = () => {
                 dispatch({ type: 'APPEND_TO_LAST_MESSAGE', payload: { chunk: chunk.text, sources } });
             }
         } catch (e) {
-            const errorMessage = e instanceof Error ? e.message : 'An unknown error occurred.';
-            dispatch({ type: 'REQUEST_FAILED', payload: errorMessage });
+            const friendlyError = getFriendlyErrorMessage(e);
+            dispatch({ type: 'REQUEST_FAILED', payload: friendlyError });
         } finally {
             dispatch({ type: 'REQUEST_FINISH' });
         }
@@ -569,7 +605,8 @@ const App: React.FC = () => {
                     },
                     onerror: (e: ErrorEvent) => {
                         console.error('Live session error:', e);
-                        dispatch({ type: 'REQUEST_FAILED', payload: 'Live session encountered an error.' });
+                        const errorMessage = e.message || 'Live session encountered an error.';
+                        dispatch({ type: 'REQUEST_FAILED', payload: errorMessage });
                         stopLiveSession();
                     },
                     onclose: () => {
@@ -580,11 +617,11 @@ const App: React.FC = () => {
             liveSessionRef.current = await sessionPromise;
 
         } catch (e) {
-            const errorMessage = e instanceof Error ? e.message : 'An unknown error occurred.';
-            if (errorMessage.includes('Permission denied')) {
-                 alert('Microphone access was denied. Please allow microphone permission in your browser settings.');
+            const friendlyError = getFriendlyErrorMessage(e);
+            if (friendlyError.includes('Microphone access was denied')) {
+                 alert(friendlyError);
             }
-            dispatch({ type: 'REQUEST_FAILED', payload: `Failed to start live session. Error: ${errorMessage}` });
+            dispatch({ type: 'REQUEST_FAILED', payload: `Failed to start live session. Error: ${friendlyError}` });
             stopLiveSession();
         }
 
