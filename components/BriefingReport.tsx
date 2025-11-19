@@ -1,5 +1,7 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
+import { parse } from 'marked';
+import DOMPurify from 'dompurify';
 import { AlertTriangleIcon, UsersIcon, PillIcon, ListChecksIcon, PhoneForwardedIcon, ClockIcon, DownloadIcon, ClipboardCheckIcon, ClipboardIcon } from './icons';
 import { exportBriefingToPdf } from '../services/exportService';
 import { parseJsonSafe } from '../utils';
@@ -65,6 +67,13 @@ const BriefingReport: React.FC<BriefingReportProps> = ({ content }) => {
         }
     }, [parsedBriefing, isExporting]);
 
+    const renderMarkdownItem = (item: string) => {
+        const html = parse(item, { breaks: false, gfm: true }) as string;
+        // DOMPurify configured to open links in new tab
+        const sanitized = DOMPurify.sanitize(html, { ADD_ATTR: ['target'] });
+        return { __html: sanitized };
+    };
+
     if (!parsedBriefing) {
         return <div className="text-sm text-red-500">Error: Could not display the shift briefing due to a formatting issue.</div>;
     }
@@ -103,7 +112,11 @@ const BriefingReport: React.FC<BriefingReportProps> = ({ content }) => {
                             </h3>
                             <ul className="space-y-1.5 pl-4 text-sm text-slate-700 dark:text-slate-300">
                                 {section.items.map((item, index) => (
-                                     <li key={index} className="list-disc marker:text-slate-400 dark:marker:text-slate-500">{item}</li>
+                                     <li 
+                                        key={index} 
+                                        className="list-disc marker:text-slate-400 dark:marker:text-slate-500 [&>p]:inline"
+                                        dangerouslySetInnerHTML={renderMarkdownItem(item)}
+                                     />
                                 ))}
                             </ul>
                         </div>

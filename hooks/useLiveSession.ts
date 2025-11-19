@@ -2,7 +2,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality, Blob } from "@google/genai";
 import { MODEL_CONFIGS, SYSTEM_INSTRUCTION } from '../constants';
-import { ChatMode } from '../types';
+import { ChatMode, ChatMessage } from '../types';
 
 declare global {
   interface Window {
@@ -69,7 +69,7 @@ type LiveSession = Awaited<ReturnType<InstanceType<typeof GoogleGenAI>['live']['
 export interface UseLiveSessionReturn {
     isLive: boolean;
     transcript: { userInput: string; modelOutput: string };
-    startSession: () => Promise<void>;
+    startSession: (history?: ChatMessage[]) => Promise<void>;
     stopSession: () => Promise<void>;
     error: string | null;
 }
@@ -138,7 +138,7 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
         }
     }, [onTurnComplete]);
 
-    const startSession = useCallback(async () => {
+    const startSession = useCallback(async (history: ChatMessage[] = []) => {
         if (isLive || isStoppingRef.current) return;
 
         setError(null);
@@ -164,11 +164,19 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
             });
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
+            // CONTEXT INJECTION: Convert history to a context string
+            let contextString = "";
+            if (history.length > 0) {
+                contextString = "\n\nCONTEXT FROM PREVIOUS CHAT HISTORY:\n" + 
+                    history.slice(-10).map(m => `${m.role.toUpperCase()}: ${m.content}`).join("\n") +
+                    "\n\n(Use this context to answer questions about previously discussed patients or documents.)";
+            }
+
             const sessionPromise = ai.live.connect({
                 model: MODEL_CONFIGS[ChatMode.Live].model,
                 config: {
                     ...MODEL_CONFIGS[ChatMode.Live].config,
-                    systemInstruction: SYSTEM_INSTRUCTION
+                    systemInstruction: SYSTEM_INSTRUCTION + contextString
                 },
                 callbacks: {
                     onopen: async () => {
@@ -242,6 +250,13 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
                         }
                         
                          if (message.serverContent?.interrupted) {
+                            // DATA LOSS FIX: Save the partial turn before wiping audio
+                            if (onTurnComplete && (accumulatedTranscriptRef.current.userInput || accumulatedTranscriptRef.current.modelOutput)) {
+                                onTurnComplete(accumulatedTranscriptRef.current.userInput, accumulatedTranscriptRef.current.modelOutput);
+                                accumulatedTranscriptRef.current = { userInput: '', modelOutput: '' };
+                                setTranscript({ userInput: '', modelOutput: '' });
+                            }
+
                             audioSourcesRef.current.forEach(source => {
                                 try { source.stop(); } catch (e) {}
                             });

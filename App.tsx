@@ -431,9 +431,10 @@ const App: React.FC = () => {
         if (isLive) {
             stopSession();
         } else {
-            startSession();
+            // PASS CONTEXT: Inject the current chat history into the live session
+            startSession(messages);
         }
-    }, [isLive, stopSession, startSession]);
+    }, [isLive, stopSession, startSession, messages]);
 
     if (!process.env.API_KEY) {
          return (
