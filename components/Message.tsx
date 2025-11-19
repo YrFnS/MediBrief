@@ -60,6 +60,20 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast }) => {
         return DOMPurify.sanitize(html);
     }, [contentToDisplay]);
 
+    // Define specific typography overrides for Safety Alerts.
+    // We use prose-blockquote classes to transform standard markdown quotes (>) into
+    // Red Alert Boxes.
+    const typographyClasses = `
+        prose prose-sm dark:prose-invert max-w-none text-slate-800 dark:text-slate-200
+        prose-blockquote:bg-red-50 dark:prose-blockquote:bg-red-900/20 
+        prose-blockquote:border-l-4 prose-blockquote:border-red-600 
+        prose-blockquote:text-red-800 dark:prose-blockquote:text-red-200 
+        prose-blockquote:py-3 prose-blockquote:px-4 prose-blockquote:rounded-r-md 
+        prose-blockquote:not-italic prose-blockquote:font-medium
+        prose-blockquote:shadow-sm prose-blockquote:my-4
+        prose-strong:text-slate-900 dark:prose-strong:text-slate-100
+    `;
+
     return (
         <div className={`flex items-start gap-4 ${isModel ? '' : 'flex-row-reverse'}`}>
             <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${isModel ? 'bg-blue-500' : 'bg-slate-400'}`}>
@@ -92,7 +106,7 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast }) => {
                         <span>Generating structured report...</span>
                     </div>
                 ) : (
-                    <div className="prose prose-sm dark:prose-invert max-w-none text-slate-800 dark:text-slate-200" dangerouslySetInnerHTML={{ __html: parsedContent }}></div>
+                    <div className={typographyClasses} dangerouslySetInnerHTML={{ __html: parsedContent }}></div>
                 )}
                 
                 {message.sources && message.sources.length > 0 && (
