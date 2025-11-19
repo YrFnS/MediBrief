@@ -1,3 +1,4 @@
+
 import React, { useMemo } from 'react';
 import type { ChatMessage } from '../types';
 import { UserIcon, BotIcon, LinkIcon, DocumentTextIcon } from './icons';
@@ -10,7 +11,9 @@ declare const marked: any;
 // Helper to check if a message content is a valid JSON briefing
 const isJsonBriefing = (content: string): boolean => {
     try {
-        const data = JSON.parse(content);
+        // Clean up potential markdown code blocks
+        const cleaned = content.replace(/```json\n?|```/g, '').trim();
+        const data = JSON.parse(cleaned);
         return typeof data === 'object' && data !== null && 'briefingTitle' in data && 'sections' in data;
     } catch (e) {
         return false;
@@ -18,8 +21,18 @@ const isJsonBriefing = (content: string): boolean => {
 };
 
 // Helper to check if the message content is a medical image analysis
+// Now checks for the JSON structure defined in FILE_ANALYSIS_PROMPT
 const isImageAnalysis = (content: string): boolean => {
-    return content.trim().startsWith('🔬 **Medical Image Analysis**');
+    try {
+         const cleaned = content.replace(/```json\n?|```/g, '').trim();
+         // Quick check if it looks like JSON before expensive parse
+         if (!cleaned.startsWith('{')) return false;
+         
+         const data = JSON.parse(cleaned);
+         return typeof data === 'object' && data !== null && data.reportType === 'medical-image';
+    } catch (e) {
+        return false;
+    }
 };
 
 

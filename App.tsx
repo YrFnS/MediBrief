@@ -29,9 +29,16 @@ interface ParsedBriefing {
     sections: ParsedSection[];
 }
 
+const cleanJsonOutput = (text: string): string => {
+    // Remove markdown code blocks (```json ... ``` or just ``` ... ```)
+    let cleaned = text.replace(/```json\n?|```/g, '').trim();
+    return cleaned;
+};
+
 const isJsonBriefing = (content: string): boolean => {
     try {
-        const data = JSON.parse(content);
+        const cleaned = cleanJsonOutput(content);
+        const data = JSON.parse(cleaned);
         return typeof data === 'object' && data !== null && 'briefingTitle' in data && 'sections' in data;
     } catch (e) {
         return false;
@@ -413,12 +420,14 @@ const App: React.FC = () => {
                 for await (const chunk of stream) {
                     fullResponseText += chunk.text;
                 }
+                
+                const cleanedJson = cleanJsonOutput(fullResponseText);
 
-                if (!fullResponseText.trim().startsWith('{')) {
+                if (!cleanedJson.startsWith('{')) {
                     throw new Error("The model did not return a valid briefing. Ensure there is enough context in the chat to generate a report.");
                 }
                 
-                const parsedBriefing = JSON.parse(fullResponseText);
+                const parsedBriefing = JSON.parse(cleanedJson);
                 await exportBriefingToPdf(parsedBriefing);
 
                 dispatch({ type: 'UPDATE_LAST_MESSAGE_CONTENT', payload: '✅ Your shift briefing PDF has been downloaded successfully.' });

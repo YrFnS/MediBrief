@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useCallback } from 'react';
 import { AlertTriangleIcon, UsersIcon, PillIcon, ListChecksIcon, PhoneForwardedIcon, ClockIcon, DownloadIcon, ClipboardCheckIcon, ClipboardIcon } from './icons';
 
@@ -37,7 +38,9 @@ const BriefingReport: React.FC<BriefingReportProps> = ({ content }) => {
 
     const parsedBriefing = useMemo<ParsedBriefing | null>(() => {
         try {
-            const data: ParsedBriefing = JSON.parse(content);
+            // Clean up potential markdown code blocks
+            const cleaned = content.replace(/```json\n?|```/g, '').trim();
+            const data: ParsedBriefing = JSON.parse(cleaned);
             if (data && data.briefingTitle && Array.isArray(data.sections)) {
                 return data;
             }

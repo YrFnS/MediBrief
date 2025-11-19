@@ -1,3 +1,4 @@
+
 import React, { useMemo } from 'react';
 import { ImageIcon, UserIcon, CalendarIcon, ClipboardListIcon, EyeIcon, LightbulbIcon, AlertTriangleIcon } from './icons';
 
@@ -6,36 +7,26 @@ interface ImageAnalysisReportProps {
 }
 
 interface ParsedAnalysis {
+    reportType?: string;
     imageType?: string;
     patient?: string;
     date?: string;
-    extractedInfo?: string;
-    visualObs?: string;
-    actions?: string;
+    extractedInformation?: string;
+    visualObservations?: string;
+    potentialAbnormalities?: string;
+    nextSteps?: string;
     note?: string;
 }
 
 const parseAnalysisContent = (content: string): ParsedAnalysis => {
-    const analysis: ParsedAnalysis = {};
-    
-    // Helper to extract content for a given key
-    const extract = (key: string): string | undefined => {
-        const regex = new RegExp(`\\*\\*${key}:\\*\\*\\s*([\\s\\S]*?)(?=\\n\\*\\*|\\n\\s*⚠️|$)`, 'i');
-        const match = content.match(regex);
-        return match ? match[1].trim().replace(/^\[|\]$/g, '') : undefined; // Clean up brackets and trim
-    };
-    
-    analysis.imageType = extract("Image Type");
-    analysis.patient = extract("Patient");
-    analysis.date = extract("Date");
-    analysis.extractedInfo = extract("Extracted Information");
-    analysis.visualObs = extract("Visual Observations");
-    analysis.actions = extract("Recommended Actions");
-
-    const noteMatch = content.match(/⚠️\s*Note:\s*([\s\S]*?)(?=\n\*\*|$)/i);
-    analysis.note = noteMatch ? noteMatch[1].trim() : undefined;
-
-    return analysis;
+    try {
+        const cleaned = content.replace(/```json\n?|```/g, '').trim();
+        const data = JSON.parse(cleaned);
+        return data;
+    } catch (e) {
+        console.error("Failed to parse Image Analysis JSON", e);
+        return {};
+    }
 };
 
 interface ReportSectionProps {
@@ -66,6 +57,10 @@ const ReportSection: React.FC<ReportSectionProps> = ({ Icon, title, content, isC
 
 const ImageAnalysisReport: React.FC<ImageAnalysisReportProps> = ({ content }) => {
     const analysis = useMemo(() => parseAnalysisContent(content), [content]);
+
+    if (!analysis || Object.keys(analysis).length === 0) {
+        return <div className="text-red-500 text-sm">Error analyzing image data.</div>;
+    }
 
     return (
         <div className="bg-slate-50 dark:bg-slate-900/50 -m-4 p-4 rounded-xl">
@@ -99,9 +94,10 @@ const ImageAnalysisReport: React.FC<ImageAnalysisReportProps> = ({ content }) =>
             </div>
 
             <div className="space-y-4">
-                <ReportSection Icon={ClipboardListIcon} title="Extracted Information" content={analysis.extractedInfo} isCode />
-                <ReportSection Icon={EyeIcon} title="Visual Observations" content={analysis.visualObs} />
-                <ReportSection Icon={LightbulbIcon} title="Recommended Actions" content={analysis.actions} />
+                <ReportSection Icon={ClipboardListIcon} title="Extracted Information" content={analysis.extractedInformation} isCode />
+                <ReportSection Icon={EyeIcon} title="Visual Observations" content={analysis.visualObservations} />
+                <ReportSection Icon={AlertTriangleIcon} title="Potential Abnormalities" content={analysis.potentialAbnormalities} />
+                <ReportSection Icon={LightbulbIcon} title="Next Steps / Actions" content={analysis.nextSteps} />
 
                 {analysis.note && (
                     <div className="p-3 rounded-lg bg-amber-100/50 dark:bg-amber-900/20 flex items-start gap-2 text-amber-800 dark:text-amber-200">

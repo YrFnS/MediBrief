@@ -300,31 +300,26 @@ First, determine the type of document. Is it a:
 ---
 
 **IF TYPE IS "Medical Image":**
-Provide your analysis in this exact format:
-"🔬 **Medical Image Analysis**
-
-**Image Type:** [e.g., X-ray, Prescription, Skin Lesion, Hand-written note]
-**Patient:** [If visible, otherwise 'Not Visible']
-**Date:** [If visible, otherwise 'Not Visible']
-
-**Visual Observations:**
-[Provide a detailed summary of what is seen in the image. Describe anatomy, orientation, quality of image, and primary subject matter.]
-
-**Potential Abnormalities:**
-[Explicitly listed potential abnormalities, fractures, lesions, irregularities, or pathological findings. If none are apparent, state 'No gross abnormalities detected'.]
-
-**Extracted Information:**
-[Extract all visible text using OCR. For prescriptions, list drug names, dosages, frequency, and instructions.]
-
-**⚠️ Note:** This is automated analysis. Always verify with original images and clinical judgment.
-
-**Next Steps for Clinical Review:**
-[Suggest specific next steps, such as 'Clinical correlation recommended', 'Follow-up X-ray in 2 weeks', 'Dermatology referral', or 'Verify dosage with pharmacy'.]"
+You MUST respond with a VALID JSON object. Do not use markdown.
+JSON Schema:
+\`\`\`json
+{
+  "reportType": "medical-image",
+  "imageType": "[e.g., X-ray, Prescription, Skin Lesion, Hand-written note]",
+  "patient": "[If visible, otherwise 'Not Visible']",
+  "date": "[If visible, otherwise 'Not Visible']",
+  "visualObservations": "[Provide a detailed summary of what is seen in the image. Describe anatomy, orientation, quality of image, and primary subject matter.]",
+  "potentialAbnormalities": "[Explicitly listed potential abnormalities, fractures, lesions, irregularities, or pathological findings. If none are apparent, state 'No gross abnormalities detected'.]",
+  "extractedInformation": "[Extract all visible text using OCR. For prescriptions, list drug names, dosages, frequency, and instructions.]",
+  "note": "This is automated analysis. Always verify with original images and clinical judgment.",
+  "nextSteps": "[Suggest specific next steps, such as 'Clinical correlation recommended', 'Follow-up X-ray in 2 weeks', 'Dermatology referral', or 'Verify dosage with pharmacy'.]"
+}
+\`\`\`
 
 ---
 
 **IF TYPE IS "Medication List":**
-Provide your analysis in this exact format:
+Provide your analysis in this exact format (Text/Markdown):
 "💊 **Medication Review**
 
 **Total Medications:** [Count of all medications found]
@@ -345,7 +340,7 @@ Provide your analysis in this exact format:
 ---
 
 **IF TYPE IS "Other medical document":**
-Provide your analysis in this exact format:
+Provide your analysis in this exact format (Text/Markdown):
 "**✅ Processed:** ${filename}
 
 **📋 Document Type:** [Identified type]
@@ -359,7 +354,7 @@ Provide your analysis in this exact format:
 
 ---
 
-After providing your analysis in the correct format, add this concluding sentence: "This information has been added to your shift knowledge base. You can now ask me questions about this document."`;
+After providing your analysis, add this concluding sentence (outside the JSON if applicable): "This information has been added to your shift knowledge base. You can now ask me questions about this document."`;
 
 
 export const FILE_TEXT_ANALYSIS_PROMPT = (filename: string, text: string) => `The following text has been extracted from a document named "${filename}". Please perform a comprehensive medical analysis of this content.

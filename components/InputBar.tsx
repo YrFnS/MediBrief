@@ -2,7 +2,7 @@
 import React, { useState, useRef, useCallback, ChangeEvent, KeyboardEvent, useEffect } from 'react';
 import type { UploadedFile, ChatMode } from '../types';
 import { ChatMode as ChatModeEnum } from '../types';
-import { PaperclipIcon, SendIcon, XCircleIcon, BriefingIcon, UserIcon, DrugsIcon, DownloadIcon, HelpIcon, DocumentTextIcon, MicrophoneIcon, CameraIcon } from './icons';
+import { PaperclipIcon, SendIcon, XCircleIcon, BriefingIcon, UserIcon, DrugsIcon, DownloadIcon, HelpIcon, DocumentTextIcon, MicrophoneIcon, CameraIcon, LiveIcon } from './icons';
 
 interface InputBarProps {
     onSend: (prompt: string) => void;
@@ -272,7 +272,7 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onFileUpload, onClearFile, 
                         title={currentMode === ChatModeEnum.Live ? 'Start/Stop live session' : 'Speak your query'}
                         aria-label={currentMode === ChatModeEnum.Live ? 'Start or stop live session' : 'Speak your query'}
                     >
-                        <MicrophoneIcon className="w-6 h-6" />
+                        {currentMode === ChatModeEnum.Live ? <LiveIcon className="w-6 h-6" /> : <MicrophoneIcon className="w-6 h-6" />}
                         {isLiveSessionActive && <span className="absolute top-0 right-0 w-3 h-3 rounded-full bg-red-500 border-2 border-white dark:border-slate-800 animate-pulse"></span>}
                     </button>
                     
