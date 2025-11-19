@@ -135,6 +135,15 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
         recognition.onerror = (event: any) => {
             console.error('Speech error:', event.error);
             setIsListening(false);
+            
+            // Handle specific hardware/permission errors
+            if (event.error === 'not-allowed') {
+                alert("Microphone access denied. Please check your browser permission settings.");
+            } else if (event.error === 'audio-capture') {
+                alert("No microphone found. Please ensure a microphone is connected and recognized.");
+            } else if (event.error === 'service-not-allowed') {
+                alert("Speech service not available.");
+            }
         };
 
         let finalTranscript = prompt ? prompt + ' ' : '';

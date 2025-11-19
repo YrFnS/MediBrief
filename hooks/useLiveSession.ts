@@ -274,7 +274,21 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
         } catch (e: any) {
             console.error("Live start failed", e);
             stopSession();
-            setError("Microphone or connection failed.");
+            
+            let errMsg = "Microphone or connection failed.";
+            const msg = e.message || e.toString();
+            const name = e.name || '';
+
+            // Handle missing hardware (device not found)
+            if (name === 'NotFoundError' || name === 'DevicesNotFoundError' || msg.includes('device not found')) {
+                errMsg = "No microphone found. Please connect a microphone to use Live mode.";
+            } 
+            // Handle permission denied
+            else if (name === 'NotAllowedError' || name === 'PermissionDeniedError' || msg.includes('permission denied')) {
+                errMsg = "Microphone permissions denied. Please allow microphone access in your browser address bar.";
+            }
+            
+            setError(errMsg);
         }
     }, [isLive, stopSession, onTurnComplete]);
 
