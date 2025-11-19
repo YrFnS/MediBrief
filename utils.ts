@@ -20,16 +20,32 @@ export const cleanJsonOutput = (text: string): string => {
          }
     }
 
-    // 3. Fallback: Robust cleaning finding the first '{' and the last '}' 
-    // This handles cases where the model adds preamble (e.g., "Here is the JSON: ...") but no markdown.
+    // 3. Fallback: Robust search for valid JSON object.
+    // We iterate through potential starting braces to avoid capturing conversational preambles 
+    // that might contain braces, e.g., "Here is the plan {option A}. JSON: { ... }"
+    let startIndex = text.indexOf('{');
+    const lastIndex = text.lastIndexOf('}');
+
+    while (startIndex !== -1 && lastIndex > startIndex) {
+        const candidate = text.substring(startIndex, lastIndex + 1);
+        try {
+            JSON.parse(candidate);
+            // If it parses successfully, return it immediately
+            return candidate; 
+        } catch (e) {
+            // If parse fails, look for the NEXT opening brace and try again
+            startIndex = text.indexOf('{', startIndex + 1);
+        }
+    }
+
+    // Last Ditch: Just return the widest bracket range and hope the parser handles trailing garbage
     const firstBrace = text.indexOf('{');
     const lastBrace = text.lastIndexOf('}');
-
     if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
         return text.substring(firstBrace, lastBrace + 1);
     }
     
-    // Fallback: Just return the text (likely to fail parsing, but gives us a chance)
+    // Fallback: Just return the text
     return text.trim();
 };
 

@@ -69,6 +69,14 @@ export const generateResponseStream = async function* (
   // Convert previous messages into Gemini's format.
   const contents: Content[] = validHistory.map(messageToContent);
 
+  // --- SANITIZATION: Ensure strict User -> Model -> User alternation ---
+  // If the history ends with a USER message, we cannot append another USER message.
+  // This happens if a previous request failed, was interrupted, or the page was reloaded before a response.
+  // We fix this by injecting a placeholder Model turn.
+  if (contents.length > 0 && contents[contents.length - 1].role === 'user') {
+      contents.push({ role: 'model', parts: [{ text: "(Previous response missing or interrupted)" }] });
+  }
+
   // Construct the parts for the CURRENT user message.
   const currentMessageParts: Part[] = [];
 

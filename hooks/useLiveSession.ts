@@ -209,15 +209,16 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
                                     result: `Appointment successfully scheduled. Details: Patient ID: ${args.patientId}, Date: ${args.date}, Time: ${args.time}.` 
                                 };
                                 sessionPromise.then((session) => {
-                                    // CRITICAL FIX: functionResponses must be an ARRAY.
-                                    // Sending a single object will cause the model to hang or error.
-                                    session.sendToolResponse({
-                                        functionResponses: [{
-                                            id : fc.id,
-                                            name: fc.name,
-                                            response: result,
-                                        }]
-                                    })
+                                    // CRITICAL FIX: Check if session is still active before sending
+                                    if (liveSessionRef.current) {
+                                        session.sendToolResponse({
+                                            functionResponses: [{
+                                                id : fc.id,
+                                                name: fc.name,
+                                                response: result,
+                                            }]
+                                        });
+                                    }
                                 });
                             }
                         }
