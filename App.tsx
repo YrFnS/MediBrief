@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect, useReducer } from 'react';
 import type { ChatMessage, ChatMode, UploadedFile, LiveTranscript } from './types';
 import { ChatMode as ChatModeEnum } from './types';
@@ -226,6 +227,13 @@ const App: React.FC = () => {
         const currentFile = fileOverride || uploadedFile;
 
         if (!trimmedPrompt && !currentFile) return;
+
+        // CRITICAL UX FIX: If the user decides to TYPE a message while a Live Voice session is active,
+        // we must Stop the voice session immediately. Otherwise, we have "Schizophrenic AI" 
+        // (Voice AI listening while Text AI replies separately).
+        if (isLive) {
+            stopSession();
+        }
         
         // Command to directly export the briefing as a PDF
         if (trimmedPrompt.toLowerCase() === '/export') {
@@ -346,7 +354,7 @@ const App: React.FC = () => {
         } finally {
             dispatch({ type: 'REQUEST_FINISH' });
         }
-    }, [chatMode, messages, uploadedFile]);
+    }, [chatMode, messages, uploadedFile, isLive, stopSession]);
 
     const handleFileUpload = useCallback(async (file: UploadedFile) => {
         try {
@@ -396,6 +404,20 @@ const App: React.FC = () => {
             startSession();
         }
     }, [isLive, stopSession, startSession]);
+
+    if (!process.env.API_KEY) {
+         return (
+            <div className="flex flex-col items-center justify-center h-screen bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200 p-4">
+                <div className="bg-white dark:bg-slate-800 p-8 rounded-xl shadow-lg max-w-md text-center">
+                    <div className="text-red-500 text-5xl mb-4">⚠️</div>
+                    <h1 className="text-xl font-bold mb-2">API Key Missing</h1>
+                    <p className="text-slate-600 dark:text-slate-400 mb-4">
+                        The application cannot start because the <code>API_KEY</code> environment variable is not set.
+                    </p>
+                </div>
+            </div>
+         );
+    }
 
     return (
         <div className="flex flex-col h-[100dvh] font-sans overflow-hidden">

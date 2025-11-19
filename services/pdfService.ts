@@ -23,22 +23,26 @@ export interface PdfProcessingResult {
  */
 export const extractPdfText = async (file: File): Promise<string> => {
     const arrayBuffer = await file.arrayBuffer();
-    const pdf = await getDocument(arrayBuffer).promise;
-    const numPages = pdf.numPages;
-    let fullText = '';
+    let pdf = null;
+    try {
+        pdf = await getDocument(arrayBuffer).promise;
+        const numPages = pdf.numPages;
+        let fullText = '';
 
-    for (let i = 1; i <= numPages; i++) {
-        const page = await pdf.getPage(i);
-        const textContent = await page.getTextContent();
-        // item.str is the text, item.hasEOL indicates if there is a newline at the end.
-        // We use this to preserve the document structure.
-        const pageText = textContent.items.map((item: any) => {
-            return item.str + (item.hasEOL ? '\n' : ' ');
-        }).join('');
-        fullText += pageText + '\n\n';
+        for (let i = 1; i <= numPages; i++) {
+            const page = await pdf.getPage(i);
+            const textContent = await page.getTextContent();
+            // item.str is the text, item.hasEOL indicates if there is a newline at the end.
+            // We use this to preserve the document structure.
+            const pageText = textContent.items.map((item: any) => {
+                return item.str + (item.hasEOL ? '\n' : ' ');
+            }).join('');
+            fullText += pageText + '\n\n';
+        }
+        return fullText;
+    } finally {
+        if (pdf) await pdf.destroy();
     }
-
-    return fullText;
 };
 
 /**
@@ -48,10 +52,11 @@ export const extractPdfText = async (file: File): Promise<string> => {
  * @returns A promise that resolves to an object indicating the strategy and any extracted text.
  */
 export const processPdf = async (file: File): Promise<PdfProcessingResult> => {
+  let pdf = null;
   try {
     // Fail Fast Strategy: Check first 3 pages for text density before processing the whole file.
     const arrayBuffer = await file.arrayBuffer();
-    const pdf = await getDocument(arrayBuffer).promise;
+    pdf = await getDocument(arrayBuffer).promise;
     
     const maxPagesToCheck = Math.min(pdf.numPages, 3);
     let sampleText = '';
@@ -65,6 +70,10 @@ export const processPdf = async (file: File): Promise<PdfProcessingResult> => {
     // Heuristic: If a PDF has less than 50 chars of extractable text in the first 3 pages,
     // it's almost certainly a scanned document.
     const isLikelyScanned = sampleText.trim().length < 50 && file.size > 1024;
+
+    // We must clean up this 'probe' instance before moving on
+    await pdf.destroy();
+    pdf = null;
 
     if (isLikelyScanned) {
       console.log("PDF appears to be scanned (Fail Fast Check). Recommending OCR fallback.");
@@ -81,5 +90,7 @@ export const processPdf = async (file: File): Promise<PdfProcessingResult> => {
     // If pdf.js throws an error (e.g., for a corrupted or encrypted file),
     // we must fall back to sending the file for OCR.
     return { strategy: PdfProcessingStrategy.OCR_FALLBACK };
+  } finally {
+      if (pdf) await pdf.destroy();
   }
 };
