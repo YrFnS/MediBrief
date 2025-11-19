@@ -1,4 +1,3 @@
-
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality, Blob } from "@google/genai";
 import { MODEL_CONFIGS, SYSTEM_INSTRUCTION } from '../constants';
@@ -54,7 +53,6 @@ const createBlob = (data: Float32Array): Blob => {
   const int16 = new Int16Array(l);
   for (let i = 0; i < l; i++) {
     // CRITICAL FIX: Clamp values between -1 and 1 to prevent integer overflow (screeching noise)
-    // Audio inputs often exceed 1.0 due to gain settings or loud noises.
     const clamped = Math.max(-1, Math.min(1, data[i]));
     // Convert float to Int16 PCM (multiply by 32768)
     int16[i] = clamped < 0 ? clamped * 0x8000 : clamped * 0x7FFF;
@@ -110,15 +108,15 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
             });
             audioSourcesRef.current.clear();
 
-            // CRITICAL FIX: Properly await close to release hardware audio contexts
-            // to prevent hitting browser limits (typically 6 contexts).
-            if (inputAudioContextRef.current) {
-                await inputAudioContextRef.current.close();
-                inputAudioContextRef.current = null;
+            // CRITICAL FIX: "Zombie Audio Hardware"
+            // Do NOT close the context. Browsers have a hardware limit (often 6 contexts).
+            // If we close and recreate rapidly, we hit the limit and the mic dies.
+            // Instead, we just suspend them to save CPU, but keep the instance alive.
+            if (inputAudioContextRef.current && inputAudioContextRef.current.state === 'running') {
+                await inputAudioContextRef.current.suspend();
             }
-            if (outputAudioContextRef.current) {
-                await outputAudioContextRef.current.close();
-                outputAudioContextRef.current = null;
+            if (outputAudioContextRef.current && outputAudioContextRef.current.state === 'running') {
+                await outputAudioContextRef.current.suspend();
             }
 
             nextStartTimeRef.current = 0;
@@ -146,10 +144,15 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
         accumulatedTranscriptRef.current = { userInput: '', modelOutput: '' };
 
         try {
-            // Initialize Audio Contexts
-            inputAudioContextRef.current = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-            outputAudioContextRef.current = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+            // SINGLETON PATTERN: Reuse existing context if valid, or create new only if null.
+            if (!inputAudioContextRef.current) {
+                inputAudioContextRef.current = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+            }
+            if (!outputAudioContextRef.current) {
+                outputAudioContextRef.current = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+            }
             
+            // Resume contexts if they were suspended (which they are by default or by stopSession)
             if (inputAudioContextRef.current.state === 'suspended') await inputAudioContextRef.current.resume();
             if (outputAudioContextRef.current.state === 'suspended') await outputAudioContextRef.current.resume();
 
@@ -186,8 +189,8 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
                         scriptProcessorRef.current = inputAudioContextRef.current.createScriptProcessor(4096, 1, 1);
                         
                         scriptProcessorRef.current.onaudioprocess = (audioProcessingEvent) => {
-                            // Guard against zombie processes sending data after context is closed
-                            if (!inputAudioContextRef.current || inputAudioContextRef.current.state === 'closed') return;
+                            // Guard against zombie processes sending data after context is closed/suspended
+                            if (!inputAudioContextRef.current || inputAudioContextRef.current.state !== 'running') return;
                             
                             const inputData = audioProcessingEvent.inputBuffer.getChannelData(0);
                             const pcmBlob = createBlob(inputData);
@@ -211,7 +214,6 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
 
                         if (message.toolCall) {
                              for (const fc of message.toolCall.functionCalls) {
-                                console.log('Function call received:', fc);
                                 const args = fc.args as any;
                                 // Echo specific arguments back to the model for better context confirmation
                                 const result = { 
@@ -233,13 +235,13 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
                         }
 
                         const audioData = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
-                        if (audioData && outputAudioContextRef.current && outputAudioContextRef.current.state !== 'closed') {
+                        if (audioData && outputAudioContextRef.current) {
                             const outCtx = outputAudioContextRef.current;
+                            // Audio safety check
+                            if (outCtx.state !== 'running') await outCtx.resume();
+                            
                             nextStartTimeRef.current = Math.max(nextStartTimeRef.current, outCtx.currentTime);
                             const audioBuffer = await decodeAudioData(decode(audioData), outCtx, 24000, 1);
-                            
-                            // Check context state again before creating source
-                            if (outCtx.state === 'closed') return;
                             
                             const source = outCtx.createBufferSource();
                             source.buffer = audioBuffer;
@@ -288,7 +290,7 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
             // RACE CONDITION FIX:
             // If stopSession() was called while we were awaiting the connection,
             // clean up the new orphaned session immediately.
-            if (isStoppingRef.current || !inputAudioContextRef.current) {
+            if (isStoppingRef.current) {
                 console.log("Session connected after stop was called. Closing orphaned session.");
                 session.close();
                 return;

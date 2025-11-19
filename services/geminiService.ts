@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, GenerateContentResponse, Content, Part, GenerateContentParameters } from "@google/genai";
 import type { ChatMessage, ChatMode, UploadedFile } from '../types';
 import { MODEL_CONFIGS, SYSTEM_INSTRUCTION } from '../constants';
@@ -69,14 +68,6 @@ export const generateResponseStream = async function* (
   // Convert previous messages into Gemini's format.
   const contents: Content[] = validHistory.map(messageToContent);
 
-  // --- SANITIZATION: Ensure strict User -> Model -> User alternation ---
-  // If the history ends with a USER message, we cannot append another USER message.
-  // This happens if a previous request failed, was interrupted, or the page was reloaded before a response.
-  // We fix this by injecting a placeholder Model turn.
-  if (contents.length > 0 && contents[contents.length - 1].role === 'user') {
-      contents.push({ role: 'model', parts: [{ text: "(Previous response missing or interrupted)" }] });
-  }
-
   // Construct the parts for the CURRENT user message.
   const currentMessageParts: Part[] = [];
 
@@ -99,7 +90,29 @@ export const generateResponseStream = async function* (
       throw new Error("Cannot send an empty message. Please provide a prompt or a file.");
   }
 
-  // Add the current user message to the contents array.
+  // --- SANITIZATION: Ensure strict User -> Model -> User alternation ---
+  // FIX: "The Hallucinated History"
+  // If the history ends with a USER message (due to previous error), do NOT inject a fake Model message.
+  // Instead, merge the previous User message into the current one, effectively creating a multi-part User turn.
+  if (contents.length > 0 && contents[contents.length - 1].role === 'user') {
+      // We pop the last message (the orphan)
+      const lastUserContent = contents.pop();
+      if (lastUserContent && lastUserContent.parts) {
+          // We prepend its parts to the current request
+          // We insert a separator to ensure text doesn't blend weirdly
+          if (lastUserContent.parts.length > 0 && currentMessageParts.length > 0) {
+              // If both have text, add a newline separator to the previous text part
+              const lastPart = lastUserContent.parts[lastUserContent.parts.length - 1];
+              if (lastPart.text) {
+                  lastPart.text += "\n\n[User Continued]:\n";
+              }
+          }
+          // Prepend all parts of the previous message to the start of current message parts
+          currentMessageParts.unshift(...lastUserContent.parts);
+      }
+  }
+
+  // Add the merged (or normal) user message to the contents array.
   contents.push({ role: 'user', parts: currentMessageParts });
 
   const request: GenerateContentParameters = {

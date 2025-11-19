@@ -5,10 +5,9 @@ import Header from './components/Header';
 import MessageList from './components/MessageList';
 import InputBar from './components/InputBar';
 import { generateResponseStream } from './services/geminiService';
-import { processPdf, PdfProcessingStrategy } from './services/pdfService';
 import { exportBriefingToPdf } from './services/exportService';
 import { cleanJsonOutput, isJsonBriefing } from './utils';
-import { FILE_ANALYSIS_PROMPT, FILE_TEXT_ANALYSIS_PROMPT, BRIEFING_TRIGGERS, SHIFT_BRIEFING_PROMPT, HELP_COMMAND_RESPONSE } from './constants';
+import { FILE_ANALYSIS_PROMPT, BRIEFING_TRIGGERS, SHIFT_BRIEFING_PROMPT, HELP_COMMAND_RESPONSE } from './constants';
 import { useLiveSession } from './hooks/useLiveSession';
 
 // --- Error Handling Helper ---
@@ -321,8 +320,10 @@ const App: React.FC = () => {
         
         let finalApiPrompt = trimmedPrompt;
         let historyContent = trimmedPrompt;
+        // By default, we send the file. 
+        // We NO LONGER do client-side extraction for PDFs ("The OCR Lobotomy").
+        // Gemini Native Multimodal is superior for medical charts/tables.
         let fileForApi: UploadedFile | undefined = uploadedFile || undefined;
-        let skipFileSending = false;
         let displayOverride = undefined;
 
         // --- MODE SELECTION & COMMAND DETECTION ---
@@ -336,26 +337,21 @@ const App: React.FC = () => {
                 let analysisPrompt: string;
                 
                 if (uploadedFile.type === 'application/pdf') {
-                    dispatch({ type: 'SET_LOADING', payload: true }); // Show loading while processing PDF
-                    const pdfResult = await processPdf(uploadedFile.file);
-                    
-                    if (pdfResult.strategy === PdfProcessingStrategy.TEXT_EXTRACTION && pdfResult.extractedText) {
-                        // Client-side text extraction (saves tokens)
-                        const promptBase = trimmedPrompt ? `User Query: ${trimmedPrompt}` : `Analyze this document.`;
-                        analysisPrompt = FILE_TEXT_ANALYSIS_PROMPT(uploadedFile.file.name, pdfResult.extractedText) + `\n\n${promptBase}`;
-                        skipFileSending = true;
-                    } else {
-                        // OCR Fallback
-                        const promptBase = trimmedPrompt || FILE_ANALYSIS_PROMPT(uploadedFile.file.name);
-                        analysisPrompt = promptBase;
-                    }
+                    // PDF Logic: Pass file directly to Gemini.
+                    // We still use a structured prompt to guide the analysis.
+                    const promptBase = trimmedPrompt ? `User Query: ${trimmedPrompt}` : `Analyze this medical document.`;
+                    analysisPrompt = FILE_ANALYSIS_PROMPT(uploadedFile.file.name) + `\n\n${promptBase}`;
                 } else if (uploadedFile.type === 'text/plain' || uploadedFile.file.name.endsWith('.txt') || uploadedFile.file.name.endsWith('.md')) {
+                     // Text files: Still safe to extract client-side to save bandwidth, as they have no layout.
                      const textContent = await uploadedFile.file.text();
                      const promptBase = trimmedPrompt ? `User Query: ${trimmedPrompt}` : `Analyze this document.`;
-                     analysisPrompt = FILE_TEXT_ANALYSIS_PROMPT(uploadedFile.file.name, textContent) + `\n\n${promptBase}`;
-                     skipFileSending = true;
+                     // Note: We use FILE_ANALYSIS_PROMPT generic or TEXT specific?
+                     // Let's use the logic that injects the text.
+                     analysisPrompt = `Analyze the following text file content:\n\n${textContent}\n\n${promptBase}`;
+                     // For text files, we embed content in prompt, so we don't send file blob.
+                     fileForApi = undefined; 
                 } else {
-                    // Image or other format
+                    // Images
                     if (!trimmedPrompt) {
                         analysisPrompt = FILE_ANALYSIS_PROMPT(uploadedFile.file.name);
                         displayOverride = `Analyzing file: ${uploadedFile.file.name}`; 
@@ -367,17 +363,12 @@ const App: React.FC = () => {
                 finalApiPrompt = analysisPrompt;
                 
                 // FIX: "The Briefing Bulldozer"
-                // If user attached a file AND requested a briefing, we must append the briefing prompt
-                // to the analysis prompt, otherwise the analysis is overwritten/lost.
                 if (isBriefingCommand) {
                     finalApiPrompt = `${finalApiPrompt}\n\nIMPORTANT: After analyzing the above document, ${SHIFT_BRIEFING_PROMPT()}`;
-                    // Ensure we use Deep reasoning for this combo
                     modeForRequest = ChatModeEnum.Deep;
                     responseType = 'json';
                     historyContent = trimmedPrompt || "/brief (with file)";
                 }
-                
-                if(skipFileSending) fileForApi = undefined;
                 
              } catch (error) {
                  const friendlyError = getFriendlyErrorMessage(error);
@@ -418,7 +409,8 @@ const App: React.FC = () => {
                 name: uploadedFile.file.name, 
                 type: uploadedFile.type, 
                 url: persistenceUrl,
-                base64: skipFileSending ? undefined : uploadedFile.base64 
+                // Only persist base64 if we actually sent it to API (i.e. not a text file we extracted)
+                base64: fileForApi ? uploadedFile.base64 : undefined 
             };
         }
         
