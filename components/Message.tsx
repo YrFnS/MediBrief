@@ -22,9 +22,10 @@ interface MessageProps {
     message: ChatMessage;
     isLoading?: boolean;
     isLast?: boolean;
+    onImageLoad?: () => void;
 }
 
-const Message: React.FC<MessageProps> = ({ message, isLoading, isLast }) => {
+const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLoad }) => {
     const isModel = message.role === 'model';
 
     const contentToDisplay = (message.role === 'user' && message.displayContent) ? message.displayContent : message.content;
@@ -80,7 +81,12 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast }) => {
                 {message.filePreview && (
                     <div className="mb-3">
                         {message.filePreview.type.startsWith('image/') && message.filePreview.url ? (
-                            <img src={message.filePreview.url} alt={message.filePreview.name} className="max-w-[250px] w-full max-h-48 rounded-lg border border-slate-200 dark:border-slate-700" />
+                            <img 
+                                src={message.filePreview.url} 
+                                alt={message.filePreview.name} 
+                                onLoad={onImageLoad}
+                                className="max-w-[250px] w-full max-h-48 rounded-lg border border-slate-200 dark:border-slate-700 object-cover" 
+                            />
                         ) : (
                              <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-100 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-700 max-w-[250px] w-full">
                                 <DocumentTextIcon className="w-8 h-8 text-slate-500 dark:text-slate-400 flex-shrink-0" />

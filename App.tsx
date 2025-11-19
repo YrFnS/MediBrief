@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect, useReducer } from 'react';
 import type { ChatMessage, ChatMode, UploadedFile, LiveTranscript } from './types';
 import { ChatMode as ChatModeEnum } from './types';
@@ -287,7 +288,7 @@ const App: React.FC = () => {
                 return;
             }
             // Check for supported types (Image, PDF, Text)
-            const isSupported = file.type.startsWith('image/') || file.type === 'application/pdf' || file.type === 'text/plain' || file.name.endsWith('.md');
+            const isSupported = file.type.startsWith('image/') || file.type === 'application/pdf' || file.type === 'text/plain' || file.name.endsWith('.md') || file.name.endsWith('.txt');
             if (!isSupported) {
                  alert("Unsupported file type. Please upload Images, PDFs, or Text files.");
                  return;
@@ -319,6 +320,8 @@ const App: React.FC = () => {
         // we must Stop the voice session immediately.
         if (isLive) {
             stopSession();
+            // VISUAL FIX: explicitly revert to Auto mode so the user knows they are no longer in Live mode.
+            dispatch({ type: 'SET_CHAT_MODE', payload: ChatModeEnum.Auto });
         }
         
         // Command to directly export the briefing as a PDF
@@ -390,11 +393,23 @@ const App: React.FC = () => {
                     const promptBase = trimmedPrompt ? `User Query: ${trimmedPrompt}` : `Analyze this medical document.`;
                     analysisPrompt = FILE_ANALYSIS_PROMPT(uploadedFile.file.name) + `\n\n${promptBase}`;
                 } else if (uploadedFile.type === 'text/plain' || uploadedFile.file.name.endsWith('.txt') || uploadedFile.file.name.endsWith('.md')) {
-                     // Text files: Still safe to extract client-side to save bandwidth, as they have no layout.
+                     // Text files: AMNESIA FIX
+                     // We read the content and EMBED it into the history.
+                     // This ensures that in future turns, the model still has access to the text.
                      const textContent = await uploadedFile.file.text();
+                     
                      const promptBase = trimmedPrompt ? `User Query: ${trimmedPrompt}` : `Analyze this document.`;
-                     analysisPrompt = `Analyze the following text file content:\n\n${textContent}\n\n${promptBase}`;
-                     // For text files, we embed content in prompt, so we don't send file blob.
+                     
+                     // This huge string goes to the API and History
+                     const fullEmbeddedContent = `*** BEGIN FILE CONTENT: ${uploadedFile.file.name} ***\n${textContent}\n*** END FILE CONTENT ***\n\n${promptBase}`;
+                     
+                     analysisPrompt = fullEmbeddedContent;
+                     historyContent = fullEmbeddedContent;
+                     
+                     // This clean string is what the user sees
+                     displayOverride = `📄 **Uploaded ${uploadedFile.file.name}**\n\n${trimmedPrompt || "Requested analysis."}`;
+                     
+                     // We do not need to send the file blob, as we embedded the text
                      fileForApi = undefined; 
                 } else {
                     // Images
@@ -413,7 +428,8 @@ const App: React.FC = () => {
                     finalApiPrompt = `${finalApiPrompt}\n\nIMPORTANT: After analyzing the above document, ${SHIFT_BRIEFING_PROMPT()}`;
                     modeForRequest = ChatModeEnum.Deep;
                     responseType = 'json';
-                    historyContent = trimmedPrompt || "/brief (with file)";
+                    // For text files, historyContent is already set above. For PDFs/Images, we update it here.
+                    if (!displayOverride) historyContent = trimmedPrompt || "/brief (with file)";
                 }
                 
              } catch (error) {
@@ -434,6 +450,7 @@ const App: React.FC = () => {
              if (trimmedPrompt.toLowerCase().startsWith('/patient')) {
                 modeForRequest = ChatModeEnum.Deep;
             } else if (chatMode === ChatModeEnum.Live) {
+                // If we were in Live mode but are sending text, fallback to Auto
                 modeForRequest = ChatModeEnum.Auto;
             } else {
                 modeForRequest = chatMode;

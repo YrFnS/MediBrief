@@ -11,9 +11,11 @@ interface ParsedBriefing {
     sections: ParsedSection[];
 }
 
-// Helper to strip emojis which break jsPDF
+// Helper to strip emojis and unsupported unicode characters which break jsPDF standard fonts.
+// Includes ranges for: Emoticons, Dingbats, Transport/Map symbols, Enclosed Alphanumeric, etc.
 const stripEmojis = (str: string): string => {
-    return str.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}]/gu, '');
+    return str.replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, '')
+              .replace(/\s+/g, ' ').trim();
 };
 
 export const exportBriefingToPdf = async (briefing: ParsedBriefing): Promise<void> => {
@@ -37,7 +39,6 @@ export const exportBriefingToPdf = async (briefing: ParsedBriefing): Promise<voi
         // Title
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(18);
-        // Strip emojis from title
         doc.text(stripEmojis(briefing.briefingTitle), pageW / 2, y, { align: 'center' });
         y += 40;
 
@@ -49,7 +50,6 @@ export const exportBriefingToPdf = async (briefing: ParsedBriefing): Promise<voi
             
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(14);
-            // Strip emojis from section titles
             doc.text(stripEmojis(section.title), margin, y);
             y += 20;
 
@@ -57,7 +57,6 @@ export const exportBriefingToPdf = async (briefing: ParsedBriefing): Promise<voi
             doc.setFontSize(10);
             
             for (const item of section.items) {
-                // Strip emojis from list items
                 const lines = doc.splitTextToSize(`• ${stripEmojis(item)}`, maxW - 15);
                 const requiredHeight = lines.length * 12;
 

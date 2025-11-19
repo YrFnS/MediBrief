@@ -43,6 +43,41 @@ const messageToContent = (message: ChatMessage): Content => {
     return { role: message.role, parts };
 };
 
+/**
+ * Consolidates the history to ensure strict User -> Model -> User alternation.
+ * Merges consecutive messages of the same role.
+ */
+const consolidateContents = (contents: Content[]): Content[] => {
+    if (contents.length === 0) return [];
+
+    const consolidated: Content[] = [];
+    let currentRole = contents[0].role;
+    let currentParts: Part[] = [...contents[0].parts];
+
+    for (let i = 1; i < contents.length; i++) {
+        const msg = contents[i];
+        if (msg.role === currentRole) {
+            // Merge consecutive messages of the same role
+            // Add a separator if both parts have text to prevent run-on sentences
+            if (currentParts.length > 0 && msg.parts.length > 0) {
+                 // Optional: Add a visual break if needed, but standard newlines are usually enough
+                 // for the model to understand it's a continuation.
+            }
+            currentParts = [...currentParts, ...msg.parts];
+        } else {
+            // Push the completed group
+            consolidated.push({ role: currentRole, parts: currentParts });
+            // Start new group
+            currentRole = msg.role;
+            currentParts = [...msg.parts];
+        }
+    }
+    // Push the final group
+    consolidated.push({ role: currentRole, parts: currentParts });
+
+    return consolidated;
+};
+
 interface GenerateResponseOptions {
   file?: UploadedFile;
   responseType?: 'json' | 'text';
@@ -59,14 +94,16 @@ export const generateResponseStream = async function* (
   const modelConfig = MODEL_CONFIGS[mode];
   const file = options?.file;
   
-  // Filter out any empty model messages from history to prevent API errors
-  // We accept messages if they have text content OR if they have a filePreview object (even without base64)
-  const validHistory = history.filter(msg => {
-     return (msg.content && msg.content.trim() !== '') || (msg.filePreview);
+  // Filter out extremely empty messages, but keep those with file previews (even zombie ones)
+  const rawHistory = history.filter(msg => {
+     return (msg.content && msg.content.trim() !== '') || (msg.filePreview !== undefined);
   });
 
-  // Convert previous messages into Gemini's format.
-  const contents: Content[] = validHistory.map(messageToContent);
+  // Convert to Gemini Format
+  let contents: Content[] = rawHistory.map(messageToContent);
+
+  // Consolidate to fix any broken alternation (e.g. User -> [Error Removed] -> User)
+  contents = consolidateContents(contents);
 
   // Construct the parts for the CURRENT user message.
   const currentMessageParts: Part[] = [];
@@ -90,34 +127,28 @@ export const generateResponseStream = async function* (
       throw new Error("Cannot send an empty message. Please provide a prompt or a file.");
   }
 
-  // --- SANITIZATION: Ensure strict User -> Model -> User alternation ---
-  // FIX: "The Hallucinated History"
-  // If the history ends with a USER message (due to previous error), do NOT inject a fake Model message.
-  // Instead, merge the previous User message into the current one, effectively creating a multi-part User turn.
+  // Final Alternation Check:
+  // If the history ends with USER, we must merge our new message into that last USER message
+  // because Gemini expects the last message in `contents` to be the one triggering the response,
+  // but standard `generateContent` API usually handles the "history + new prompt" logic by 
+  // treating `contents` as the FULL conversation.
+  
   if (contents.length > 0 && contents[contents.length - 1].role === 'user') {
-      // We pop the last message (the orphan)
-      const lastUserContent = contents.pop();
-      if (lastUserContent && lastUserContent.parts) {
-          // We prepend its parts to the current request
-          // We insert a separator to ensure text doesn't blend weirdly
-          if (lastUserContent.parts.length > 0 && currentMessageParts.length > 0) {
-              // If both have text, add a newline separator to the previous text part
-              const lastPart = lastUserContent.parts[lastUserContent.parts.length - 1];
-              if (lastPart.text) {
-                  lastPart.text += "\n\n[User Continued]:\n";
-              }
-          }
-          // Prepend all parts of the previous message to the start of current message parts
-          currentMessageParts.unshift(...lastUserContent.parts);
+      const lastUserMsg = contents.pop(); // Remove it
+      if (lastUserMsg) {
+          // Merge its parts with the new parts
+          // We put the OLD parts first, then the NEW parts
+          const mergedParts = [...lastUserMsg.parts, ...currentMessageParts];
+          contents.push({ role: 'user', parts: mergedParts });
       }
+  } else {
+      // Normal case: History ends with Model (or is empty), so we append a new User message
+      contents.push({ role: 'user', parts: currentMessageParts });
   }
-
-  // Add the merged (or normal) user message to the contents array.
-  contents.push({ role: 'user', parts: currentMessageParts });
 
   const request: GenerateContentParameters = {
     model: modelConfig.model,
-    contents: contents, // Pass the full conversation
+    contents: contents,
     config: {
       ...modelConfig.config,
       systemInstruction: SYSTEM_INSTRUCTION,

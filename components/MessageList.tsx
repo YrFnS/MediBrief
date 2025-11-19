@@ -1,5 +1,4 @@
-
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import type { ChatMessage, LiveTranscript } from '../types';
 import Message from './Message';
 import WelcomeScreen from './WelcomeScreen';
@@ -53,9 +52,9 @@ const MessageList: React.FC<MessageListProps> = ({ messages, isLoading, isLive, 
         setIsAtBottom(atBottom);
     };
 
-    const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+    const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
         messagesEndRef.current?.scrollIntoView({ behavior });
-    };
+    }, []);
 
     useEffect(() => {
         // Smart Scroll: Only auto-scroll if the user was already at the bottom
@@ -65,7 +64,14 @@ const MessageList: React.FC<MessageListProps> = ({ messages, isLoading, isLive, 
             // the "wobbly" visual effect. Only use smooth for initial render or manual jumps.
             scrollToBottom(isLoading ? 'auto' : 'smooth');
         }
-    }, [messages, isLoading, liveTranscript, isAtBottom]);
+    }, [messages, isLoading, liveTranscript, isAtBottom, scrollToBottom]);
+
+    // Callback specifically for when images load and change the layout height
+    const handleImageLoad = useCallback(() => {
+        if (isAtBottom) {
+            scrollToBottom('auto');
+        }
+    }, [isAtBottom, scrollToBottom]);
 
     if (messages.length === 0 && !isLive) {
         return <WelcomeScreen />;
@@ -83,7 +89,8 @@ const MessageList: React.FC<MessageListProps> = ({ messages, isLoading, isLive, 
                         key={index} 
                         message={msg} 
                         isLoading={isLoading} 
-                        isLast={index === messages.length - 1} 
+                        isLast={index === messages.length - 1}
+                        onImageLoad={handleImageLoad}
                     />
                 ))}
                 
