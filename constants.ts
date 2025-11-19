@@ -3,60 +3,52 @@ import { ChatMode } from './types';
 import { Type, Modality } from '@google/genai';
 
 export const WELCOME_CONTENT = {
-    title: "Welcome to MediBrief",
-    subtitle: "Your AI Shift Assistant",
-    introduction: "I help healthcare workers stay organized by:",
+    title: "MediBrief Clinical Assistant",
+    subtitle: "Medical-Grade Intelligence & Safety Layer",
+    introduction: "I am an advanced clinical assistant designed to support your shift by:",
     features: [
-        { icon: "📄", text: "Processing patient notes and medical documents" },
-        { icon: "🔬", text: "Analyzing lab results and medical images" },
-        { icon: "📋", text: "Generating shift briefings with priorities" },
-        { icon: "💊", text: "Checking drug information" },
-        { icon: "❓", text: "Answering questions about patient care" }
+        { icon: "🛡️", text: "Safety Checks: Active screening for allergies & contraindications" },
+        { icon: "📄", text: "Chart Analysis: extracting vitals & labs from raw documents" },
+        { icon: "📋", text: "Shift Briefings: Generating structured handoff reports" },
+        { icon: "💊", text: "Pharmacology: Verifying dosing & interactions via Search" },
+        { icon: "🎙️", text: "Live Consult: Hands-free voice assistance" }
     ],
     getStarted: {
-        title: "To get started:",
+        title: "Clinical Workflow:",
         steps: [
-            "Upload your patient notes, schedules, or medical documents",
-            "Ask me to generate your shift briefing",
-            "Or just ask me questions about your patients"
+            "Upload patient charts, notes, or EKG images",
+            "Verify safety alerts before prescribing",
+            "Use /brief to generate a handoff report"
         ]
     },
-    closing: "What would you like to do today?"
+    closing: "Ready for patient data integration."
 };
 
 
-export const HELP_COMMAND_RESPONSE = `🔧 **MediBrief Help & Commands**
+export const HELP_COMMAND_RESPONSE = `🔧 **MediBrief Clinical Commands**
 
-Here’s a quick guide to getting the most out of your AI assistant.
+**Core Functions:**
+- \`/brief\` - Generates a structured Shift Briefing (JSON -> PDF) based on current context.
+- \`/patient [ID]\` - Deep-dive summary for a specific patient.
+- \`/drugs [name]\` - Real-time pharmacology check (uses Google Search).
+- \`/export\` - Download the current briefing as a formatted PDF.
+- \`/help\` - Display this reference.
 
-**Quick Commands:**
-- \`/brief\` - Generates a comprehensive shift briefing from all documents and conversation history. (Uses Deep Analysis mode).
-- \`/patient [ID]\` - Gets a detailed summary for a specific patient.
-- \`/drugs [name]\` - Looks up medication information using up-to-date web search. (Uses Web Search mode).
-- \`/export\` - Generates a comprehensive shift briefing and downloads it as a PDF file.
-- \`/help\` - Displays this help message.
+**Safety Protocols:**
+- **Auto-Detection:** The AI automatically scans uploaded files for Allergies and History.
+- **Red Alerts:** Critical contraindications are highlighted in Red Boxes (Text) or Vocalized (Audio).
 
 **Chat Modes:**
-You can switch modes using the selector at the top right:
-- **Auto:** Smart mode. Automatically uses Google Search to verify medical facts, check drugs, and resolve uncertainty.
-- **Standard:** Balanced mode for general questions and file analysis.
-- **Quick Query:** Fastest responses for simple questions.
-- **Deep Analysis:** Maximum reasoning power for complex tasks like generating briefings.
-- **Web Search:** Forces Google Search for every query.
-- **Live**: Engages in a real-time voice conversation.
+- **Auto:** Smart routing (Search for facts, Reasoning for charts).
+- **Standard:** Balanced analysis.
+- **Quick Query:** Low latency responses.
+- **Deep Analysis:** High-reasoning (Gemini Pro) for complex diagnostics.
+- **Live**: Real-time voice conversation with "Wake Word" style safety alerts.
 
-**File Handling:**
-- You can upload **PDFs, images (JPG, PNG), and text files**.
-- The app automatically **extracts text** from digital PDFs for fast analysis.
-- For **scanned documents or images**, it uses advanced OCR to read the content.
-- Upload multiple files before running \`/brief\` to get a consolidated report.
-
-**Natural Language Examples:**
-- "What's the plan for today?"
-- "Check for interactions between aspirin and warfarin"
-- "Create a handoff email for the next shift"
-
-Remember, you can always ask questions naturally. I'm here to help!`;
+**File Support:**
+- **PDFs (Native):** Full multimodal analysis (charts, tables, handwriting).
+- **Images:** X-Rays, EKGs, Skin Lesions (Visual Analysis).
+- **Text:** Raw clinical notes.`;
 
 const scheduleAppointmentFunctionDeclaration = {
   name: 'scheduleAppointment',
@@ -148,14 +140,25 @@ Before answering ANY clinical question or summarizing ANY document, you must exe
 2.  **INTERACTION CHECK:**
     *   If discussing multiple drugs, check for drug-drug interactions.
 
-**⚠️ CRITICAL WARNING FORMAT:**
+---
+
+**⚠️ MODALITY-SPECIFIC ALERTING (CRITICAL)**
+
+**IF RESPONSE IS TEXT:**
 If you detect a safety threat (Allergy, Contraindication, Severe Interaction), you MUST use a Markdown Blockquote starting with a Stop Sign emoji to trigger the Red Alert UI.
 
-Example of a Safety Alert:
+Example:
 > 🛑 **CRITICAL SAFETY WARNING**
 > **Patient has a documented ALLERGY to PENICILLIN.**
 > Amoxicillin is contraindicated.
-> Please verify with the prescribing physician immediately.
+
+**IF RESPONSE IS AUDIO (LIVE MODE):**
+Do NOT use Markdown formatting.
+You MUST explicitly vocalize the warning.
+Start your sentence with: "CRITICAL SAFETY WARNING." and speak clearly and authoritatively.
+
+Example Spoken Output:
+"Critical Safety Warning. The patient has a documented allergy to Penicillin. Amoxicillin is contraindicated."
 
 ---
 

@@ -20,18 +20,64 @@
     ::-webkit-scrollbar-thumb:hover {
       background: #64748b; /* slate-500 */
     }
+
+    /* Clinical Table Styles for Lab Results */
+    .prose table {
+      font-size: 0.875rem; /* text-sm */
+      width: 100%;
+      border-collapse: collapse;
+      border: 1px solid #e2e8f0; /* slate-200 */
+    }
+    .dark .prose table {
+      border-color: #334155; /* slate-700 */
+    }
+    
+    .prose thead {
+      background-color: #f8fafc; /* slate-50 */
+    }
+    .dark .prose thead {
+      background-color: #1e293b; /* slate-800 */
+    }
+
+    .prose th {
+      padding: 0.75rem 1rem;
+      text-align: left;
+      font-weight: 600;
+      color: #475569; /* slate-600 */
+      border-bottom: 2px solid #e2e8f0;
+    }
+    .dark .prose th {
+      color: #cbd5e1; /* slate-300 */
+      border-bottom-color: #334155;
+    }
+
+    .prose td {
+      padding: 0.5rem 1rem;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .dark .prose td {
+      border-bottom-color: #334155;
+    }
+
+    /* Striped Rows for better readability */
+    .prose tr:nth-child(even) {
+      background-color: #fcfcfc;
+    }
+    .dark .prose tr:nth-child(even) {
+      background-color: rgba(30, 41, 59, 0.3);
+    }
   </style>
 <script type="importmap">
 {
   "imports": {
     "@google/genai": "https://aistudiocdn.com/@google/genai@^1.29.1",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react-dom/client": "https://aistudiocdn.com/react-dom@^19.2.0/client",
     "react": "https://aistudiocdn.com/react@^19.2.0",
-    "pdfjs-dist": "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.5.136/pdf.min.mjs",
     "marked": "https://esm.sh/marked@15.0.6",
     "jspdf": "https://esm.sh/jspdf@2.5.2",
-    "dompurify": "https://esm.sh/dompurify@3.0.6"
+    "dompurify": "https://esm.sh/dompurify@3.0.6",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/"
   }
 }
 </script>

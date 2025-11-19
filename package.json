@@ -10,11 +10,11 @@
   },
   "dependencies": {
     "@google/genai": "^1.29.1",
-    "react-dom": "^19.2.0",
     "react": "^19.2.0",
     "marked": "15.0.6",
     "jspdf": "2.5.2",
-    "dompurify": "3.0.6"
+    "dompurify": "3.0.6",
+    "react-dom": "^19.2.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

@@ -1,4 +1,3 @@
-
 import React, { useMemo } from 'react';
 import { parse } from 'marked';
 import DOMPurify from 'dompurify';
@@ -7,6 +6,17 @@ import { UserIcon, BotIcon, LinkIcon, DocumentTextIcon } from './icons';
 import BriefingReport from './BriefingReport';
 import ImageAnalysisReport from './ImageAnalysisReport';
 import { isJsonBriefing, isImageAnalysis } from '../utils';
+
+// PERFORMANCE FIX: "The Hook Hoarder"
+// Move hook configuration OUTSIDE the component.
+// DOMPurify hooks are global. Adding them inside the component adds a NEW duplicate hook
+// every time a message renders, eventually crashing the browser tab.
+DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+    if ('target' in node) {
+        node.setAttribute('target', '_blank');
+        node.setAttribute('rel', 'noopener noreferrer');
+    }
+});
 
 interface MessageProps {
     message: ChatMessage;
@@ -24,21 +34,19 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast }) => {
 
     // Detect if we are likely streaming a JSON object but it's not complete/valid yet.
     // This prevents "flashing" raw JSON characters to the user.
-    // Improved logic handles cases where the model adds a preamble like "Certainly! Here is the JSON..."
     const isStreamingJson = useMemo(() => {
         if (!isModel || !isLoading || !isLast) return false;
         const content = message.content;
         
         // Check if there is an opening JSON code block
         const hasJsonBlockStart = content.includes('```json');
-        // Check if there is a closing code block AFTER the opening one (allowing for some buffer)
+        // Check if there is a closing code block AFTER the opening one
         const hasJsonBlockEnd = hasJsonBlockStart && content.includes('```', content.indexOf('```json') + 7);
         
         // If we started a block but haven't closed it, we are streaming
         if (hasJsonBlockStart && !hasJsonBlockEnd) return true;
 
-        // Check for raw object start (less common with polite models but possible)
-        // If it starts with { but doesn't end with }
+        // Check for raw object start
         const trimmed = content.trim();
         if (trimmed.startsWith('{') && !trimmed.endsWith('}')) return true;
 
@@ -46,23 +54,12 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast }) => {
     }, [message.content, isModel, isLoading, isLast]);
 
     const parsedContent = useMemo(() => {
-        // Configure DOMPurify to force target="_blank" on all links.
-        // This prevents the app from navigating away when a user clicks a source link.
-        DOMPurify.addHook('afterSanitizeAttributes', (node) => {
-            if ('target' in node) {
-                node.setAttribute('target', '_blank');
-                node.setAttribute('rel', 'noopener noreferrer');
-            }
-        });
-
         // Configure marked to treat newlines as <br> tags
         const html = parse(contentToDisplay, { breaks: true, gfm: true }) as string;
         return DOMPurify.sanitize(html);
     }, [contentToDisplay]);
 
     // Define specific typography overrides for Safety Alerts.
-    // We use prose-blockquote classes to transform standard markdown quotes (>) into
-    // Red Alert Boxes.
     const typographyClasses = `
         prose prose-sm dark:prose-invert max-w-none text-slate-800 dark:text-slate-200
         prose-blockquote:bg-red-50 dark:prose-blockquote:bg-red-900/20 

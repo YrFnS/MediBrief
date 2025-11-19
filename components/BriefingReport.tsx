@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useCallback } from 'react';
 import { parse } from 'marked';
 import DOMPurify from 'dompurify';
@@ -69,13 +68,30 @@ const BriefingReport: React.FC<BriefingReportProps> = ({ content }) => {
 
     const renderMarkdownItem = (item: string) => {
         const html = parse(item, { breaks: false, gfm: true }) as string;
-        // DOMPurify configured to open links in new tab
+        // DOMPurify hook is already configured globally in Message.tsx or via a separate init
+        // but we sanitize here locally just to be safe for the briefing content
         const sanitized = DOMPurify.sanitize(html, { ADD_ATTR: ['target'] });
         return { __html: sanitized };
     };
 
     if (!parsedBriefing) {
-        return <div className="text-sm text-red-500">Error: Could not display the shift briefing due to a formatting issue.</div>;
+        // SAFETY FIX: "The Black Box Failure"
+        // If JSON parsing fails, DO NOT hide the content. Show it as raw markdown.
+        // A doctor needs to see the text, even if it's ugly.
+        const rawHtml = parse(content, { breaks: true, gfm: true }) as string;
+        const sanitizedRaw = DOMPurify.sanitize(rawHtml);
+        
+        return (
+            <div className="space-y-2">
+                <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg flex items-start gap-2">
+                    <AlertTriangleIcon className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                    <p className="text-sm text-amber-700 dark:text-amber-200">
+                        <strong>Formatting Error:</strong> The briefing could not be structured automatically. Displaying raw output below to ensure no information is lost.
+                    </p>
+                </div>
+                <div className="prose prose-sm dark:prose-invert max-w-none p-2" dangerouslySetInnerHTML={{ __html: sanitizedRaw }} />
+            </div>
+        );
     }
 
     return (

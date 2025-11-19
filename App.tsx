@@ -9,6 +9,7 @@ import { exportBriefingToPdf } from './services/exportService';
 import { cleanJsonOutput, isJsonBriefing } from './utils';
 import { FILE_ANALYSIS_PROMPT, BRIEFING_TRIGGERS, SHIFT_BRIEFING_PROMPT, HELP_COMMAND_RESPONSE } from './constants';
 import { useLiveSession } from './hooks/useLiveSession';
+import { DocumentTextIcon } from './components/icons';
 
 // --- Error Handling Helper ---
 const getFriendlyErrorMessage = (error: unknown): string => {
@@ -68,7 +69,10 @@ type AppAction =
 
 const getInitialMessages = (): ChatMessage[] => {
     try {
-        const savedMessages = localStorage.getItem('mediBriefMessages');
+        // SECURITY FIX: Use sessionStorage instead of localStorage.
+        // This ensures patient data is wiped when the tab closes, preventing
+        // unauthorized access on shared hospital workstations.
+        const savedMessages = sessionStorage.getItem('mediBriefMessages');
         if (savedMessages) {
             const parsed = JSON.parse(savedMessages);
             // Basic validation to ensure it's an array of messages
@@ -77,8 +81,8 @@ const getInitialMessages = (): ChatMessage[] => {
             }
         }
     } catch (error) {
-        console.error("Failed to parse messages from localStorage. Clearing corrupted data.", error);
-        localStorage.removeItem('mediBriefMessages');
+        console.error("Failed to parse messages from sessionStorage. Clearing corrupted data.", error);
+        sessionStorage.removeItem('mediBriefMessages');
     }
     return [];
 };
@@ -167,6 +171,7 @@ const App: React.FC = () => {
     const [state, dispatch] = useReducer(appReducer, initialState);
     const { messages, isLoading, chatMode } = state;
     const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null);
+    const [isDragging, setIsDragging] = useState(false);
 
     // --- Live Session Hook Integration ---
     const handleLiveTurnComplete = useCallback((userInput: string, modelOutput: string) => {
@@ -206,7 +211,7 @@ const App: React.FC = () => {
             try {
                 // CRITICAL: We must remove blob URLs as they are temporary and break on refresh.
                 // However, we TRY to keep base64 to prevent data loss ("The Amnesiac Chart").
-                // If localStorage is full, the catch block handles the fallback.
+                // If sessionStorage is full, the catch block handles the fallback.
                 const optimizedMessages = msgsToSave.map(msg => {
                     if (msg.filePreview) {
                         const isDataUrl = msg.filePreview.url?.startsWith('data:');
@@ -225,9 +230,9 @@ const App: React.FC = () => {
                     }
                     return msg;
                 });
-                localStorage.setItem('mediBriefMessages', JSON.stringify(optimizedMessages));
+                sessionStorage.setItem('mediBriefMessages', JSON.stringify(optimizedMessages));
             } catch (e) {
-                console.warn("Failed to save messages to localStorage (quota exceeded). Attempting to save truncated history.");
+                console.warn("Failed to save messages to sessionStorage (quota exceeded). Attempting to save truncated history.");
                 // Fallback: If we fail to save (likely due to large images), try saving only the last 5 messages.
                 // If that fails, we just don't save the newest state, but the app doesn't crash.
                 if (msgsToSave.length > 5) {
@@ -239,7 +244,7 @@ const App: React.FC = () => {
                              ...m, 
                              filePreview: m.filePreview ? { ...m.filePreview, base64: undefined, url: undefined } : undefined
                          }));
-                         localStorage.setItem('mediBriefMessages', JSON.stringify(lightVersion));
+                         sessionStorage.setItem('mediBriefMessages', JSON.stringify(lightVersion));
                      } catch(e2) {
                          console.error("Storage completely full.");
                      }
@@ -250,12 +255,55 @@ const App: React.FC = () => {
         if (messages.length > 0) {
             saveMessages(messages);
         } else {
-            localStorage.removeItem('mediBriefMessages');
+            sessionStorage.removeItem('mediBriefMessages');
         }
     }, [messages]);
     
     const handleClearChat = useCallback(() => {
         dispatch({ type: 'RESET_CHAT' });
+    }, []);
+
+    // --- DRAG AND DROP HANDLERS ---
+    const handleDragOver = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        if (!isDragging) setIsDragging(true);
+    }, [isDragging]);
+
+    const handleDragLeave = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        // Only set false if we are leaving the main window (relatedTarget is null)
+        if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+        setIsDragging(false);
+    }, []);
+
+    const handleDrop = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(false);
+        
+        const file = e.dataTransfer.files?.[0];
+        if (file) {
+             if (file.size > 4 * 1024 * 1024) { 
+                alert("File is too large. Please select a file smaller than 4MB.");
+                return;
+            }
+            // Check for supported types (Image, PDF, Text)
+            const isSupported = file.type.startsWith('image/') || file.type === 'application/pdf' || file.type === 'text/plain' || file.name.endsWith('.md');
+            if (!isSupported) {
+                 alert("Unsupported file type. Please upload Images, PDFs, or Text files.");
+                 return;
+            }
+
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const base64 = (reader.result as string).split(',')[1];
+                const uploadPayload: UploadedFile = { file, base64, type: file.type };
+                if (file.type.startsWith('image/')) {
+                    uploadPayload.url = URL.createObjectURL(file);
+                }
+                setUploadedFile(uploadPayload);
+            };
+            reader.readAsDataURL(file);
+        }
     }, []);
 
     /**
@@ -345,8 +393,6 @@ const App: React.FC = () => {
                      // Text files: Still safe to extract client-side to save bandwidth, as they have no layout.
                      const textContent = await uploadedFile.file.text();
                      const promptBase = trimmedPrompt ? `User Query: ${trimmedPrompt}` : `Analyze this document.`;
-                     // Note: We use FILE_ANALYSIS_PROMPT generic or TEXT specific?
-                     // Let's use the logic that injects the text.
                      analysisPrompt = `Analyze the following text file content:\n\n${textContent}\n\n${promptBase}`;
                      // For text files, we embed content in prompt, so we don't send file blob.
                      fileForApi = undefined; 
@@ -463,7 +509,23 @@ const App: React.FC = () => {
     }
 
     return (
-        <div className="flex flex-col h-[100dvh] font-sans overflow-hidden">
+        <div 
+            className="flex flex-col h-[100dvh] font-sans overflow-hidden relative"
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+        >
+            {/* Drag and Drop Overlay */}
+            {isDragging && (
+                <div className="absolute inset-0 z-50 bg-blue-500/10 backdrop-blur-sm flex items-center justify-center border-4 border-blue-500 border-dashed m-4 rounded-xl animate-pulse pointer-events-none">
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-xl flex flex-col items-center text-blue-500">
+                        <DocumentTextIcon className="w-16 h-16 mb-4" />
+                        <h2 className="text-2xl font-bold">Drop Medical Records Here</h2>
+                        <p className="text-slate-500 mt-2">PDF, Images (X-Ray, EKG), or Text</p>
+                    </div>
+                </div>
+            )}
+
             <Header
                 currentMode={chatMode}
                 onModeChange={(mode) => dispatch({ type: 'SET_CHAT_MODE', payload: mode })}

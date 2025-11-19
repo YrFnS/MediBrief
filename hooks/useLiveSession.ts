@@ -169,10 +169,22 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
             // CONTEXT INJECTION: Convert history to a context string
+            // OPTIMIZATION: "The Context Cleaner"
+            // We strip out massive JSON blobs (like generated briefings or image reports)
+            // to prevent confusing the audio model and wasting tokens.
             let contextString = "";
             if (history.length > 0) {
+                const sanitizedHistory = history.slice(-10).map(m => {
+                    let content = m.content;
+                    // If it starts with a curly brace or markdown json block, it's likely a report.
+                    if (content.trim().startsWith('{') || content.includes('```json')) {
+                        content = "[Structured Data Report Generated]";
+                    }
+                    return `${m.role.toUpperCase()}: ${content}`;
+                }).join("\n");
+
                 contextString = "\n\nCONTEXT FROM PREVIOUS CHAT HISTORY:\n" + 
-                    history.slice(-10).map(m => `${m.role.toUpperCase()}: ${m.content}`).join("\n") +
+                    sanitizedHistory +
                     "\n\n(Use this context to answer questions about previously discussed patients or documents.)";
             }
 
