@@ -378,7 +378,7 @@ const App: React.FC = () => {
     }, [isLive, stopSession, startSession]);
 
     return (
-        <div className="flex flex-col h-screen font-sans overflow-hidden">
+        <div className="flex flex-col h-[100dvh] font-sans overflow-hidden">
             <Header
                 currentMode={chatMode}
                 onModeChange={(mode) => dispatch({ type: 'SET_CHAT_MODE', payload: mode })}

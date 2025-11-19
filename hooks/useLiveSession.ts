@@ -75,6 +75,9 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
     const [transcript, setTranscript] = useState({ userInput: '', modelOutput: '' });
     const [error, setError] = useState<string | null>(null);
 
+    // Refs to track accumulating text across closures
+    const accumulatedTranscriptRef = useRef({ userInput: '', modelOutput: '' });
+
     const liveSessionRef = useRef<LiveSession | null>(null);
     const inputAudioContextRef = useRef<AudioContext | null>(null);
     const outputAudioContextRef = useRef<AudioContext | null>(null);
@@ -100,17 +103,24 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
         audioSourcesRef.current.forEach(source => source.stop());
         audioSourcesRef.current.clear();
         nextStartTimeRef.current = 0;
+        
+        // CRITICAL FIX: Save any partial transcript that was in progress when stopped
+        if ((accumulatedTranscriptRef.current.userInput || accumulatedTranscriptRef.current.modelOutput) && onTurnComplete) {
+            onTurnComplete(accumulatedTranscriptRef.current.userInput, accumulatedTranscriptRef.current.modelOutput);
+        }
+        
+        // Reset refs
+        accumulatedTranscriptRef.current = { userInput: '', modelOutput: '' };
 
         setIsLive(false);
         setTranscript({ userInput: '', modelOutput: '' });
-    }, []);
+    }, [onTurnComplete]);
 
     const startSession = useCallback(async () => {
         if (isLive) return;
 
         setError(null);
-        let currentInput = '';
-        let currentOutput = '';
+        accumulatedTranscriptRef.current = { userInput: '', modelOutput: '' };
 
         try {
             // Initialize Audio Contexts
@@ -122,7 +132,14 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
 
             setIsLive(true);
 
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            // FIX: Enable echo cancellation to prevent feedback loop
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true,
+                } 
+            });
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
             const sessionPromise = ai.live.connect({
@@ -150,12 +167,14 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
                     onmessage: async (message: LiveServerMessage) => {
                         if (message.serverContent?.inputTranscription) {
                             const { text } = message.serverContent.inputTranscription;
-                            currentInput = text;
-                            setTranscript(prev => ({ ...prev, userInput: text }));
+                            accumulatedTranscriptRef.current.userInput += text; // Append to ref
+                            // Update state for UI
+                            setTranscript(prev => ({ ...prev, userInput: accumulatedTranscriptRef.current.userInput }));
                         }
                         if (message.serverContent?.outputTranscription) {
-                            currentOutput += message.serverContent.outputTranscription.text;
-                            setTranscript(prev => ({ ...prev, modelOutput: currentOutput }));
+                            accumulatedTranscriptRef.current.modelOutput += message.serverContent.outputTranscription.text; // Append to ref
+                            // Update state for UI
+                            setTranscript(prev => ({ ...prev, modelOutput: accumulatedTranscriptRef.current.modelOutput }));
                         }
 
                         if (message.toolCall) {
@@ -197,10 +216,10 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
 
                         if (message.serverContent?.turnComplete) {
                             if (onTurnComplete) {
-                                onTurnComplete(currentInput, currentOutput);
+                                onTurnComplete(accumulatedTranscriptRef.current.userInput, accumulatedTranscriptRef.current.modelOutput);
                             }
-                            currentInput = '';
-                            currentOutput = '';
+                            // Reset for next turn
+                            accumulatedTranscriptRef.current = { userInput: '', modelOutput: '' };
                             setTranscript({ userInput: '', modelOutput: '' });
                         }
                     },

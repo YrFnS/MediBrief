@@ -1,4 +1,3 @@
-
 import React, { useMemo } from 'react';
 import { parse } from 'marked';
 import DOMPurify from 'dompurify';
@@ -42,6 +41,15 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast }) => {
     }, [message.content, isModel, isLoading, isLast]);
 
     const parsedContent = useMemo(() => {
+        // Configure DOMPurify to force target="_blank" on all links.
+        // This prevents the app from navigating away when a user clicks a source link.
+        DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+            if ('target' in node) {
+                node.setAttribute('target', '_blank');
+                node.setAttribute('rel', 'noopener noreferrer');
+            }
+        });
+
         // Configure marked to treat newlines as <br> tags
         const html = parse(contentToDisplay, { breaks: true, gfm: true }) as string;
         return DOMPurify.sanitize(html);
