@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useCallback, ChangeEvent, KeyboardEvent, useEffect } from 'react';
 import type { UploadedFile, ChatMode } from '../types';
 import { ChatMode as ChatModeEnum } from '../types';
@@ -77,7 +76,10 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onFileUpload, onClearFile, 
     };
 
     const handleSendClick = useCallback(() => {
-        if (!isLoading) {
+        // Allow sending if not loading, OR if we are live (since we can send text in live mode)
+        const canSend = !isLoading || isLiveSessionActive;
+        
+        if (canSend) {
             if (recognitionRef.current) {
                 recognitionRef.current.stop();
             }
@@ -88,7 +90,7 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onFileUpload, onClearFile, 
                 textareaRef.current.style.height = 'auto';
             }
         }
-    }, [isLoading, onSend, prompt]);
+    }, [isLoading, isLiveSessionActive, onSend, prompt]);
     
     const handleCommandSelect = (command: string) => {
         setPrompt(command);
@@ -188,9 +190,12 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onFileUpload, onClearFile, 
         setTimeout(() => setShowCommands(false), 150);
     };
 
-    const isInputDisabled = isLoading || isLiveSessionActive;
+    // We only disable input if we are performing a standard HTTP generation (isLoading)
+    // If we are in a Live Session, we ALLOW text input (multimodal)
+    const isInputDisabled = isLoading && !isLiveSessionActive;
+    
     const placeholderText = isLiveSessionActive
-        ? 'Live session is active...'
+        ? 'Type while listening...'
         : `Message MediBrief... (${currentMode} mode)`;
 
     return (

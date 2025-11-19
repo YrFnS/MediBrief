@@ -214,7 +214,19 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
                     },
                 },
             });
-            liveSessionRef.current = await sessionPromise;
+            const session = await sessionPromise;
+
+            // RACE CONDITION FIX:
+            // If stopSession() was called while we were awaiting the connection,
+            // inputAudioContextRef.current will be null (cleaned up).
+            // We must close this new orphaned session immediately.
+            if (!inputAudioContextRef.current) {
+                console.log("Session connected after stop was called. Closing orphaned session.");
+                session.close();
+                return;
+            }
+            
+            liveSessionRef.current = session;
 
         } catch (e: any) {
             console.error("Live session start error", e);

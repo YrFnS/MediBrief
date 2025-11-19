@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect, useReducer } from 'react';
 import type { ChatMessage, ChatMode, UploadedFile, LiveTranscript } from './types';
 import { ChatMode as ChatModeEnum } from './types';
@@ -294,10 +293,17 @@ const App: React.FC = () => {
             // Store the base64 data in the message history so the model can see it later.
             // OPTIMIZATION: If skipFileSending is true (we extracted text), we do NOT store the base64.
             // This prevents sending both the PDF bytes AND the extracted text in future history turns.
+            
+            // FIX: We use the base64 to create a data URI for the `url` property. 
+            // We cannot rely on `currentFile.url` (Blob URL) because InputBar revokes it immediately after sending.
+            const persistenceUrl = currentFile.type.startsWith('image/') && currentFile.base64 
+                ? `data:${currentFile.type};base64,${currentFile.base64}` 
+                : undefined;
+
             userMessage.filePreview = { 
                 name: currentFile.file.name, 
                 type: currentFile.type, 
-                url: currentFile.url,
+                url: persistenceUrl,
                 base64: skipFileSending ? undefined : currentFile.base64 
             };
         }
