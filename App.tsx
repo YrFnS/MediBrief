@@ -88,10 +88,22 @@ const getInitialMessages = (): ChatMessage[] => {
     return [];
 };
 
+const getInitialMode = (): ChatMode => {
+    try {
+        const savedMode = sessionStorage.getItem('mediBriefChatMode');
+        if (savedMode && Object.values(ChatModeEnum).includes(savedMode as ChatModeEnum)) {
+            return savedMode as ChatModeEnum;
+        }
+    } catch (error) {
+        console.error("Failed to parse chat mode.", error);
+    }
+    return ChatModeEnum.Auto;
+};
+
 const initialState: AppState = {
     messages: getInitialMessages(),
     isLoading: false,
-    chatMode: ChatModeEnum.Auto,
+    chatMode: getInitialMode(),
     error: null,
 };
 
@@ -259,6 +271,15 @@ const App: React.FC = () => {
             sessionStorage.removeItem('mediBriefMessages');
         }
     }, [messages]);
+
+    // --- Chat Mode Persistence ---
+    useEffect(() => {
+        try {
+            sessionStorage.setItem('mediBriefChatMode', chatMode);
+        } catch (e) {
+            console.error("Failed to save chat mode preference.");
+        }
+    }, [chatMode]);
     
     const handleClearChat = useCallback(() => {
         dispatch({ type: 'RESET_CHAT' });

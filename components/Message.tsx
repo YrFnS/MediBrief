@@ -1,8 +1,9 @@
-import React, { useMemo } from 'react';
+
+import React, { useMemo, useState } from 'react';
 import { parse } from 'marked';
 import DOMPurify from 'dompurify';
 import type { ChatMessage } from '../types';
-import { UserIcon, BotIcon, LinkIcon, DocumentTextIcon } from './icons';
+import { UserIcon, BotIcon, LinkIcon, DocumentTextIcon, ClipboardIcon, CheckIcon } from './icons';
 import BriefingReport from './BriefingReport';
 import ImageAnalysisReport from './ImageAnalysisReport';
 import { isJsonBriefing, isImageAnalysis } from '../utils';
@@ -27,6 +28,7 @@ interface MessageProps {
 
 const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLoad }) => {
     const isModel = message.role === 'model';
+    const [isCopied, setIsCopied] = useState(false);
 
     const contentToDisplay = (message.role === 'user' && message.displayContent) ? message.displayContent : message.content;
     
@@ -60,6 +62,12 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLo
         return DOMPurify.sanitize(html);
     }, [contentToDisplay]);
 
+    const handleCopy = () => {
+        navigator.clipboard.writeText(message.content);
+        setIsCopied(true);
+        setTimeout(() => setIsCopied(false), 2000);
+    };
+
     // Define specific typography overrides for Safety Alerts.
     const typographyClasses = `
         prose prose-sm dark:prose-invert max-w-none text-slate-800 dark:text-slate-200
@@ -73,11 +81,24 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLo
     `;
 
     return (
-        <div className={`flex items-start gap-4 ${isModel ? '' : 'flex-row-reverse'}`}>
+        <div className={`flex items-start gap-4 ${isModel ? '' : 'flex-row-reverse'} group`}>
             <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${isModel ? 'bg-blue-500' : 'bg-slate-400'}`}>
                 {isModel ? <BotIcon className="w-5 h-5 text-white" /> : <UserIcon className="w-5 h-5 text-white" />}
             </div>
-            <div className={`w-full max-w-full rounded-xl p-4 ${isModel ? 'bg-white dark:bg-slate-800 shadow' : 'bg-blue-100 dark:bg-blue-900/50'}`}>
+            <div className={`w-full max-w-full rounded-xl p-4 relative ${isModel ? 'bg-white dark:bg-slate-800 shadow' : 'bg-blue-100 dark:bg-blue-900/50'}`}>
+                
+                {/* Universal Copy Button for AI Messages (excluding pending/structured reports which have their own) */}
+                {isModel && !isBriefing && !isAnalysis && !isStreamingJson && (
+                    <button 
+                        onClick={handleCopy}
+                        className="absolute top-2 right-2 p-1.5 rounded-md text-slate-400 hover:text-blue-500 hover:bg-slate-100 dark:hover:bg-slate-700 opacity-0 group-hover:opacity-100 transition-all"
+                        title="Copy to clipboard"
+                        aria-label="Copy message text"
+                    >
+                        {isCopied ? <CheckIcon className="w-4 h-4 text-green-500" /> : <ClipboardIcon className="w-4 h-4" />}
+                    </button>
+                )}
+
                 {message.filePreview && (
                     <div className="mb-3">
                         {message.filePreview.type.startsWith('image/') && message.filePreview.url ? (
