@@ -1,5 +1,5 @@
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { ChatMessage, LiveTranscript } from '../types';
 import Message from './Message';
 import WelcomeScreen from './WelcomeScreen';
@@ -42,21 +42,39 @@ interface MessageListProps {
 
 const MessageList: React.FC<MessageListProps> = ({ messages, isLoading, isLive, liveTranscript }) => {
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [isAtBottom, setIsAtBottom] = useState(true);
+
+    const handleScroll = () => {
+        if (!containerRef.current) return;
+        const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
+        // Check if user is within 50px of the bottom
+        const atBottom = scrollHeight - scrollTop - clientHeight < 50;
+        setIsAtBottom(atBottom);
+    };
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     };
 
     useEffect(() => {
-        scrollToBottom();
-    }, [messages, isLoading, liveTranscript]);
+        // Smart Scroll: Only auto-scroll if the user was already at the bottom
+        // or if a new message just started coming in (which forces attention)
+        if (isAtBottom) {
+            scrollToBottom();
+        }
+    }, [messages, isLoading, liveTranscript, isAtBottom]);
 
     if (messages.length === 0 && !isLive) {
         return <WelcomeScreen />;
     }
 
     return (
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">
+        <main 
+            className="flex-1 overflow-y-auto p-4 md:p-6" 
+            ref={containerRef}
+            onScroll={handleScroll}
+        >
             <div className="max-w-3xl mx-auto space-y-6">
                 {messages.map((msg, index) => (
                     <Message key={index} message={msg} />

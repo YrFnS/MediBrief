@@ -9,13 +9,31 @@ const messageToContent = (message: ChatMessage): Content => {
 
     // If the message has a persistent file attached (from history), add it.
     // This ensures the model can "see" images from previous turns.
-    if (message.filePreview && message.filePreview.base64 && message.filePreview.type) {
-        parts.push({
-            inlineData: {
-                mimeType: message.filePreview.type,
-                data: message.filePreview.base64,
+    if (message.filePreview) {
+        if (message.filePreview.base64 && message.filePreview.type) {
+            parts.push({
+                inlineData: {
+                    mimeType: message.filePreview.type,
+                    data: message.filePreview.base64,
+                }
+            });
+        } else {
+            // "Zombie" Fix & Optimization:
+            // If base64 is missing, it's either because it expired from localStorage OR we intentionally
+            // optimized it away because we extracted the text (for PDFs/Text files).
+            
+            const isImage = message.filePreview.type.startsWith('image/');
+            const hasTextContent = message.content && message.content.trim().length > 0;
+
+            // If it's an image and data is missing, we MUST warn the model.
+            // If it's a document but we have no text content, we MUST warn the model.
+            // If it's a document AND we have text content, we assume the text is sufficient and don't spam the model.
+            if (isImage || !hasTextContent) {
+                parts.push({ 
+                    text: `[Attachment: ${message.filePreview.name} - (File data not available)]` 
+                });
             }
-        });
+        }
     }
 
     // Add the text content if it exists
@@ -43,10 +61,9 @@ export const generateResponseStream = async function* (
   const file = options?.file;
   
   // Filter out any empty model messages from history to prevent API errors
-  // Also ensures we don't send messages with no parts
+  // We accept messages if they have text content OR if they have a filePreview object (even without base64)
   const validHistory = history.filter(msg => {
-     // Keep if it has text content OR if it has a file attachment
-     return (msg.content && msg.content.trim() !== '') || (msg.filePreview?.base64);
+     return (msg.content && msg.content.trim() !== '') || (msg.filePreview);
   });
 
   // Convert previous messages into Gemini's format.

@@ -41,6 +41,14 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onFileUpload, onClearFile, 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const recognitionRef = useRef<any>(null);
 
+    // Cleanup effect for Object URLs to prevent memory leaks
+    useEffect(() => {
+        return () => {
+            if (uploadedFile && uploadedFile.url) {
+                URL.revokeObjectURL(uploadedFile.url);
+            }
+        };
+    }, [uploadedFile]);
 
     const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];

@@ -16,9 +16,19 @@ const Message: React.FC<{ message: ChatMessage }> = ({ message }) => {
     const isBriefing = isModel && isJsonBriefing(message.content);
     const isAnalysis = isModel && isImageAnalysis(message.content);
 
+    // Detect if we are likely streaming a JSON object but it's not complete/valid yet.
+    // This prevents "flashing" raw JSON characters to the user.
+    const isStreamingJson = useMemo(() => {
+        if (!isModel) return false;
+        const content = message.content.trim();
+        const startsWithJson = content.startsWith('```json') || content.startsWith('{');
+        const endsWithJson = content.endsWith('```') || content.endsWith('}');
+        // If it starts like JSON but doesn't end like JSON, we assume it's still generating
+        return startsWithJson && !endsWithJson;
+    }, [message.content, isModel]);
+
     const parsedContent = useMemo(() => {
         // Configure marked to treat newlines as <br> tags
-        // parse can be async if configured, but defaults to sync string return
         const html = parse(contentToDisplay, { breaks: true, gfm: true }) as string;
         return DOMPurify.sanitize(html);
     }, [contentToDisplay]);
@@ -49,6 +59,11 @@ const Message: React.FC<{ message: ChatMessage }> = ({ message }) => {
                     <BriefingReport content={message.content} />
                 ) : isAnalysis ? (
                     <ImageAnalysisReport content={message.content} />
+                ) : isStreamingJson ? (
+                     <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 italic p-2 animate-pulse">
+                        <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                        <span>Generating structured report...</span>
+                    </div>
                 ) : (
                     <div className="prose prose-sm dark:prose-invert max-w-none text-slate-800 dark:text-slate-200" dangerouslySetInnerHTML={{ __html: parsedContent }}></div>
                 )}
