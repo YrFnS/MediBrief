@@ -40,11 +40,15 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onFileUpload, onClearFile, 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const recognitionRef = useRef<any>(null);
 
-    // Cleanup effect for Object URLs to prevent memory leaks
+    // Cleanup effect for Object URLs
     useEffect(() => {
+        let activeUrl = uploadedFile?.url;
         return () => {
-            if (uploadedFile && uploadedFile.url) {
-                URL.revokeObjectURL(uploadedFile.url);
+            // Small delay to ensure we don't revoke the URL while it's being transferred to the chat message bubble
+            if (activeUrl) {
+                setTimeout(() => {
+                    URL.revokeObjectURL(activeUrl!);
+                }, 1000);
             }
         };
     }, [uploadedFile]);

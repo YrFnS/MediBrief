@@ -64,7 +64,8 @@ type AppAction =
     | { type: 'REQUEST_FAILED'; payload: string }
     | { type: 'SET_CHAT_MODE'; payload: ChatMode }
     | { type: 'RESET_CHAT' }
-    | { type: 'ADD_INTERIM_MESSAGE', payload: ChatMessage };
+    | { type: 'ADD_INTERIM_MESSAGE', payload: ChatMessage }
+    | { type: 'SET_LOADING', payload: boolean }; // Added explicit loading setter
 
 const getInitialMessages = (): ChatMessage[] => {
     try {
@@ -155,6 +156,8 @@ const appReducer = (state: AppState, action: AppAction): AppState => {
             return { ...state, chatMode: action.payload };
         case 'RESET_CHAT':
             return { ...initialState, messages: [], chatMode: state.chatMode };
+        case 'SET_LOADING':
+            return { ...state, isLoading: action.payload };
         default:
             return state;
     }
@@ -227,6 +230,8 @@ const App: React.FC = () => {
         // Command to directly export the briefing as a PDF
         if (trimmedPrompt.toLowerCase() === '/export') {
             dispatch({ type: 'ADD_INTERIM_MESSAGE', payload: { role: 'model', content: '📥 Generating your briefing for PDF export. This may take a moment...' } });
+            dispatch({ type: 'SET_LOADING', payload: true }); // FIX: Show loading state during export
+            
             try {
                 const history = messages.filter(m => !isJsonBriefing(m.content));
                 const modeForRequest = ChatModeEnum.Deep;
@@ -252,6 +257,8 @@ const App: React.FC = () => {
                 const friendlyError = getFriendlyErrorMessage(e);
                 const finalMessage = `Sorry, I couldn't generate the PDF. Please try again.\n\n**Error:** ${friendlyError}`;
                 dispatch({ type: 'UPDATE_LAST_MESSAGE_CONTENT', payload: finalMessage });
+            } finally {
+                dispatch({ type: 'SET_LOADING', payload: false });
             }
             return;
         }
@@ -262,7 +269,11 @@ const App: React.FC = () => {
              return;
         }
 
-        let finalPrompt = trimmedPrompt;
+        // Decouple the Prompt sent to API from the Content stored in History
+        // This prevents "The Magician's Reveal" where internal prompts are shown to the user
+        let apiPrompt = trimmedPrompt;
+        let historyContent = trimmedPrompt;
+
         let modeForRequest: ChatMode;
         let responseType: 'json' | 'text' = 'text';
 
@@ -270,7 +281,8 @@ const App: React.FC = () => {
 
         // Determine mode and prompt based on commands or user selection
         if (isBriefingCommand) {
-            finalPrompt = SHIFT_BRIEFING_PROMPT();
+            apiPrompt = SHIFT_BRIEFING_PROMPT();
+            historyContent = "/brief"; // Keep history clean
             modeForRequest = ChatModeEnum.Deep;
             responseType = 'json';
         } else if (trimmedPrompt.toLowerCase().startsWith('/patient')) {
@@ -284,7 +296,7 @@ const App: React.FC = () => {
             modeForRequest = chatMode;
         }
 
-        const userMessage: ChatMessage = { role: 'user', content: finalPrompt };
+        const userMessage: ChatMessage = { role: 'user', content: historyContent };
         if(displayOverride) {
             userMessage.displayContent = displayOverride;
         }
@@ -313,10 +325,16 @@ const App: React.FC = () => {
         if(!fileOverride) setUploadedFile(null);
 
         try {
-            const history = [...messages];
-            // Optimization: If skipFileSending is true, we pass undefined for the file so it isn't sent to the API.
+            // We use the current state messages (which includes the just-added userMessage with CLEAN historyContent)
+            // But we need to send the API_PROMPT for the last turn, not historyContent.
+            
+            const history = [...messages]; // Messages *before* the current user message
             const fileToSend = skipFileSending ? undefined : currentFile;
-            const stream = generateResponseStream(finalPrompt, history, modeForRequest, { file: fileToSend, responseType });
+            
+            // Note: generateResponseStream appends apiPrompt to the history we pass it.
+            // We pass 'history' (previous messages) and 'apiPrompt' (current instruction).
+            // This ensures Gemini sees the full instruction, but our UI/State only sees the clean command.
+            const stream = generateResponseStream(apiPrompt, history, modeForRequest, { file: fileToSend, responseType });
             
             for await (const chunk of stream) {
                 const sources = chunk.candidates?.[0]?.groundingMetadata?.groundingChunks;
@@ -357,6 +375,8 @@ const App: React.FC = () => {
             
             // We pass the file to handleSend so it shows the UI preview, 
             // but we use skipFileSending=true to prevent sending bytes to the API if we already extracted text.
+            // NOTE: The 'analysisPrompt' will be used as the API Prompt.
+            // We should keep the displayMessage as provided to prevent "The Wall of Text".
             await handleSend(analysisPrompt, file, displayMessage, skipFileSending);
 
         } catch (error) {
