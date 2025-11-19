@@ -11,6 +11,11 @@ interface ParsedBriefing {
     sections: ParsedSection[];
 }
 
+// Helper to strip emojis which break jsPDF
+const stripEmojis = (str: string): string => {
+    return str.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}]/gu, '');
+};
+
 export const exportBriefingToPdf = async (briefing: ParsedBriefing): Promise<void> => {
     try {
         const doc = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
@@ -32,7 +37,8 @@ export const exportBriefingToPdf = async (briefing: ParsedBriefing): Promise<voi
         // Title
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(18);
-        doc.text(briefing.briefingTitle, pageW / 2, y, { align: 'center' });
+        // Strip emojis from title
+        doc.text(stripEmojis(briefing.briefingTitle), pageW / 2, y, { align: 'center' });
         y += 40;
 
         // Sections
@@ -43,20 +49,22 @@ export const exportBriefingToPdf = async (briefing: ParsedBriefing): Promise<voi
             
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(14);
-            doc.text(section.title, margin, y);
+            // Strip emojis from section titles
+            doc.text(stripEmojis(section.title), margin, y);
             y += 20;
 
             doc.setFont('helvetica', 'normal');
             doc.setFontSize(10);
             
             for (const item of section.items) {
-                const lines = doc.splitTextToSize(`• ${item}`, maxW - 15);
+                // Strip emojis from list items
+                const lines = doc.splitTextToSize(`• ${stripEmojis(item)}`, maxW - 15);
                 const requiredHeight = lines.length * 12;
 
                 if (checkPageBreak(requiredHeight)) {
                     doc.setFont('helvetica', 'bold');
                     doc.setFontSize(12);
-                    doc.text(`${section.title} (continued)`, margin, y);
+                    doc.text(`${stripEmojis(section.title)} (continued)`, margin, y);
                     y += 20;
                     doc.setFont('helvetica', 'normal');
                     doc.setFontSize(10);

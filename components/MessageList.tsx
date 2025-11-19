@@ -77,7 +77,12 @@ const MessageList: React.FC<MessageListProps> = ({ messages, isLoading, isLive, 
         >
             <div className="max-w-3xl mx-auto space-y-6">
                 {messages.map((msg, index) => (
-                    <Message key={index} message={msg} />
+                    <Message 
+                        key={index} 
+                        message={msg} 
+                        isLoading={isLoading} 
+                        isLast={index === messages.length - 1} 
+                    />
                 ))}
                 
                 {isLoading && messages.length > 0 && !isLive && (

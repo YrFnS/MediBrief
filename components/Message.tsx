@@ -8,7 +8,13 @@ import BriefingReport from './BriefingReport';
 import ImageAnalysisReport from './ImageAnalysisReport';
 import { isJsonBriefing, isImageAnalysis } from '../utils';
 
-const Message: React.FC<{ message: ChatMessage }> = ({ message }) => {
+interface MessageProps {
+    message: ChatMessage;
+    isLoading?: boolean;
+    isLast?: boolean;
+}
+
+const Message: React.FC<MessageProps> = ({ message, isLoading, isLast }) => {
     const isModel = message.role === 'model';
 
     const contentToDisplay = (message.role === 'user' && message.displayContent) ? message.displayContent : message.content;
@@ -18,14 +24,22 @@ const Message: React.FC<{ message: ChatMessage }> = ({ message }) => {
 
     // Detect if we are likely streaming a JSON object but it's not complete/valid yet.
     // This prevents "flashing" raw JSON characters to the user.
+    // CRITICAL FIX: We only check this if the message is the LAST one and we are currently LOADING.
+    // If we are NOT loading, and the JSON is still broken, we show the raw text so the user sees the error
+    // instead of an eternal spinner.
     const isStreamingJson = useMemo(() => {
         if (!isModel) return false;
+        
+        // Only hide content if we are actively streaming this specific message
+        if (!isLoading || !isLast) return false;
+
         const content = message.content.trim();
         const startsWithJson = content.startsWith('```json') || content.startsWith('{');
         const endsWithJson = content.endsWith('```') || content.endsWith('}');
+        
         // If it starts like JSON but doesn't end like JSON, we assume it's still generating
         return startsWithJson && !endsWithJson;
-    }, [message.content, isModel]);
+    }, [message.content, isModel, isLoading, isLast]);
 
     const parsedContent = useMemo(() => {
         // Configure marked to treat newlines as <br> tags

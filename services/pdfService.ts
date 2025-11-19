@@ -49,18 +49,32 @@ export const extractPdfText = async (file: File): Promise<string> => {
  */
 export const processPdf = async (file: File): Promise<PdfProcessingResult> => {
   try {
-    const text = await extractPdfText(file);
+    // Fail Fast Strategy: Check first 3 pages for text density before processing the whole file.
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await getDocument(arrayBuffer).promise;
     
-    // Heuristic: If a PDF file larger than 1KB has less than 100 characters of extractable text,
-    // it's very likely a scanned, image-based document that requires OCR.
-    const isLikelyScanned = text.trim().length < 100 && file.size > 1024;
+    const maxPagesToCheck = Math.min(pdf.numPages, 3);
+    let sampleText = '';
+
+    for (let i = 1; i <= maxPagesToCheck; i++) {
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        sampleText += textContent.items.map((item: any) => item.str).join(' ');
+    }
+
+    // Heuristic: If a PDF has less than 50 chars of extractable text in the first 3 pages,
+    // it's almost certainly a scanned document.
+    const isLikelyScanned = sampleText.trim().length < 50 && file.size > 1024;
 
     if (isLikelyScanned) {
-      console.log("PDF appears to be scanned. Recommending OCR fallback.");
+      console.log("PDF appears to be scanned (Fail Fast Check). Recommending OCR fallback.");
       return { strategy: PdfProcessingStrategy.OCR_FALLBACK };
     } else {
+      // If the sample check passed, we extract the FULL text for analysis.
+      // We use the original extractPdfText to get the complete content.
+      const fullText = await extractPdfText(file);
       console.log("Text successfully extracted from PDF.");
-      return { strategy: PdfProcessingStrategy.TEXT_EXTRACTION, extractedText: text };
+      return { strategy: PdfProcessingStrategy.TEXT_EXTRACTION, extractedText: fullText };
     }
   } catch (error) {
     console.error("Failed to process PDF with pdf.js, defaulting to OCR.", error);
