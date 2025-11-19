@@ -86,7 +86,15 @@ export const generateResponseStream = async function* (
      return (msg.content && msg.content.trim() !== '') || (msg.filePreview !== undefined);
   });
 
-  let contents: Content[] = rawHistory.map(messageToContent);
+  // WEAKNESS FIX: Token Cost Management
+  // Implement a Sliding Window. 
+  // While Gemini 2.5 has a 1M token window, repeatedly sending massive Base64 image strings 
+  // (from live session history) drains quota/budget rapidly.
+  // We keep the last 30 turns, which is ample for clinical context.
+  const MAX_HISTORY_TURNS = 30;
+  const historyToProcess = rawHistory.slice(-MAX_HISTORY_TURNS);
+
+  let contents: Content[] = historyToProcess.map(messageToContent);
   contents = consolidateContents(contents);
 
   const currentMessageParts: Part[] = [];

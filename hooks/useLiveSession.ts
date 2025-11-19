@@ -142,6 +142,11 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
         accumulatedTranscriptRef.current = { userInput: '', modelOutput: '' };
 
         try {
+            // SAFETY CHECK: Check if mediaDevices API exists (it doesn't on insecure HTTP)
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                throw new Error("Media API not available. Secure context (HTTPS) required.");
+            }
+
             // 1. Initialize Audio Contexts (Singleton Pattern)
             if (!inputAudioContextRef.current || inputAudioContextRef.current.state === 'closed') {
                 inputAudioContextRef.current = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
@@ -154,14 +159,26 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
             if (inputAudioContextRef.current.state === 'suspended') await inputAudioContextRef.current.resume();
             if (outputAudioContextRef.current.state === 'suspended') await outputAudioContextRef.current.resume();
 
-            // 2. Get User Media
-            const stream = await navigator.mediaDevices.getUserMedia({ 
-                audio: {
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: true,
-                } 
-            });
+            // 2. Get User Media (Critical Failure Point for No Mic)
+            let stream: MediaStream;
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true,
+                    } 
+                });
+            } catch (mediaError: any) {
+                // Handle specific hardware errors here
+                if (mediaError.name === 'NotFoundError' || mediaError.name === 'DevicesNotFoundError') {
+                    throw new Error("No microphone found on this device.");
+                }
+                if (mediaError.name === 'NotAllowedError' || mediaError.name === 'PermissionDeniedError') {
+                    throw new Error("Microphone permission denied by user.");
+                }
+                throw mediaError; // Rethrow other errors to be caught by outer catch
+            }
             
             setIsLive(true);
             
@@ -277,15 +294,16 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
             
             let errMsg = "Microphone or connection failed.";
             const msg = e.message || e.toString();
-            const name = e.name || '';
-
-            // Handle missing hardware (device not found)
-            if (name === 'NotFoundError' || name === 'DevicesNotFoundError' || msg.includes('device not found')) {
-                errMsg = "No microphone found. Please connect a microphone to use Live mode.";
-            } 
-            // Handle permission denied
-            else if (name === 'NotAllowedError' || name === 'PermissionDeniedError' || msg.includes('permission denied')) {
-                errMsg = "Microphone permissions denied. Please allow microphone access in your browser address bar.";
+            
+            // Map error to friendly message
+            if (msg.includes('No microphone found')) {
+                errMsg = "No microphone detected. Please connect a microphone.";
+            } else if (msg.includes('permission denied')) {
+                errMsg = "Microphone access denied. Please allow permissions.";
+            } else if (msg.includes('Media API not available')) {
+                errMsg = "Voice is not supported in this browser context (HTTPS required).";
+            } else {
+                errMsg = "Live connection failed: " + msg;
             }
             
             setError(errMsg);

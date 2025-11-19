@@ -223,21 +223,21 @@ const App: React.FC = () => {
     useEffect(() => {
         const saveMessages = (msgsToSave: ChatMessage[]) => {
             try {
-                // CRITICAL: We must remove blob URLs as they are temporary and break on refresh.
-                // However, we TRY to keep base64 to prevent data loss ("The Amnesiac Chart").
-                // If sessionStorage is full, the catch block handles the fallback.
+                // CRITICAL: We must remove blob URLs as they are temporary.
+                // Weakness Fix: We aggressively optimize storage to prevent crashes.
                 const optimizedMessages = msgsToSave.map(msg => {
                     if (msg.filePreview) {
                         const isDataUrl = msg.filePreview.url?.startsWith('data:');
                         const isBlobUrl = msg.filePreview.url?.startsWith('blob:');
                         
+                        // Strategy: Don't save base64 in sessionStorage if it's huge.
+                        // This means on refresh, the image PREVIEW might disappear, but the CHAT TEXT remains.
+                        // This is a better trade-off than the app crashing.
                         return {
                             ...msg,
                             filePreview: {
                                 ...msg.filePreview,
-                                // Keep base64 if present. If we are over quota, the catch block catches it.
-                                base64: msg.filePreview.base64, 
-                                // Remove URL if it's a blob (temporary) or data (redundant/heavy). 
+                                base64: undefined, // Don't persist heavy base64
                                 url: (isDataUrl || isBlobUrl) ? undefined : msg.filePreview.url 
                             }
                         };
@@ -246,22 +246,18 @@ const App: React.FC = () => {
                 });
                 sessionStorage.setItem('mediBriefMessages', JSON.stringify(optimizedMessages));
             } catch (e) {
-                console.warn("Failed to save messages to sessionStorage (quota exceeded). Attempting to save truncated history.");
-                // Fallback: If we fail to save (likely due to large images), try saving only the last 5 messages.
-                // If that fails, we just don't save the newest state, but the app doesn't crash.
-                if (msgsToSave.length > 5) {
-                     try {
-                         // Try again with fewer messages
-                         const truncated = msgsToSave.slice(-5);
-                         // Need to strip heavy images in the fallback to guarantee text saving
-                         const lightVersion = truncated.map(m => ({
-                             ...m, 
-                             filePreview: m.filePreview ? { ...m.filePreview, base64: undefined, url: undefined } : undefined
-                         }));
-                         sessionStorage.setItem('mediBriefMessages', JSON.stringify(lightVersion));
-                     } catch(e2) {
-                         console.error("Storage completely full.");
-                     }
+                console.warn("Storage quota exceeded. Saving text-only history.");
+                // Fallback: Strip EVERYTHING related to files to save at least the text
+                try {
+                     const textOnly = msgsToSave.map(m => ({
+                         role: m.role,
+                         content: m.content,
+                         // Strip file info entirely
+                         filePreview: undefined
+                     }));
+                     sessionStorage.setItem('mediBriefMessages', JSON.stringify(textOnly));
+                } catch(e2) {
+                     console.error("Storage completely full.", e2);
                 }
             }
         };
@@ -289,6 +285,14 @@ const App: React.FC = () => {
     // --- DRAG AND DROP HANDLERS ---
     const handleDragOver = useCallback((e: React.DragEvent) => {
         e.preventDefault();
+        
+        // WEAKNESS FIX: Mobile/Touch Protection & File Type Check
+        // 1. If touch is active, disable drag overlay to prevent it blocking scroll
+        if ('ontouchstart' in window || navigator.maxTouchPoints > 0) return;
+        
+        // 2. Only activate if the user is actually dragging a FILE
+        if (!e.dataTransfer.types.includes('Files')) return;
+
         if (!isDragging) setIsDragging(true);
     }, [isDragging]);
 

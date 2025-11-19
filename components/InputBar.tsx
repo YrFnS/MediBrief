@@ -120,7 +120,7 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
 
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) {
-            alert("Speech recognition not supported.");
+            alert("Speech recognition not supported in this browser.");
             return;
         }
 
@@ -136,13 +136,15 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
             console.error('Speech error:', event.error);
             setIsListening(false);
             
-            // Handle specific hardware/permission errors
-            if (event.error === 'not-allowed') {
-                alert("Microphone access denied. Please check your browser permission settings.");
+            // Specific error handling for user feedback
+            if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+                alert("Microphone access denied. Please allow microphone permission in your browser settings.");
+            } else if (event.error === 'no-speech') {
+                // Usually ignore no-speech, but if it persists it might be hardware
             } else if (event.error === 'audio-capture') {
-                alert("No microphone found. Please ensure a microphone is connected and recognized.");
-            } else if (event.error === 'service-not-allowed') {
-                alert("Speech service not available.");
+                alert("No microphone was found. Ensure your microphone is connected.");
+            } else if (event.error === 'network') {
+                alert("Network error preventing speech recognition.");
             }
         };
 
@@ -156,7 +158,13 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
             }
             setPrompt(finalTranscript + interimTranscript);
         };
-        recognition.start();
+        
+        try {
+            recognition.start();
+        } catch (e) {
+            console.error("Failed to start recognition:", e);
+            alert("Could not start speech recognition. Please refresh and try again.");
+        }
 
     }, [isListening, prompt]);
     
