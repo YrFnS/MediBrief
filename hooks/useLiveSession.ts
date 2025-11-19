@@ -1,3 +1,4 @@
+
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality, Blob } from "@google/genai";
 import { MODEL_CONFIGS, SYSTEM_INSTRUCTION } from '../constants';
@@ -180,14 +181,17 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
                         if (message.toolCall) {
                              for (const fc of message.toolCall.functionCalls) {
                                 console.log('Function call received:', fc);
-                                // Simple simulation for the demo
-                                const result = "Appointment requested successfully.";
+                                const args = fc.args as any;
+                                // Dynamic response so the model knows EXACTLY what was booked
+                                const result = { 
+                                    result: `Appointment scheduled for patient ${args.patientId} on ${args.date} at ${args.time}.` 
+                                };
                                 sessionPromise.then((session) => {
                                     session.sendToolResponse({
                                         functionResponses: {
                                             id : fc.id,
                                             name: fc.name,
-                                            response: { result: result },
+                                            response: result,
                                         }
                                     })
                                 });

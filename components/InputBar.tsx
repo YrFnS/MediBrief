@@ -1,4 +1,5 @@
-import React, { useState, useRef, useCallback, ChangeEvent, KeyboardEvent, useEffect } from 'react';
+
+import React, { useState, useRef, useCallback, ChangeEvent, KeyboardEvent, useEffect, useLayoutEffect } from 'react';
 import type { UploadedFile, ChatMode } from '../types';
 import { ChatMode as ChatModeEnum } from '../types';
 import { PaperclipIcon, SendIcon, XCircleIcon, BriefingIcon, UserIcon, DrugsIcon, DownloadIcon, HelpIcon, DocumentTextIcon, MicrophoneIcon, CameraIcon, LiveIcon } from './icons';
@@ -90,21 +91,16 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onFileUpload, onClearFile, 
             onSend(prompt);
             setPrompt('');
             setShowCommands(false);
-            if (textareaRef.current) {
-                textareaRef.current.style.height = 'auto';
-            }
+            // Height reset is handled by the layout effect on prompt change
         }
     }, [isLoading, isLiveSessionActive, onSend, prompt]);
     
     const handleCommandSelect = (command: string) => {
         setPrompt(command);
         setShowCommands(false);
+        // Focus will happen, then LayoutEffect will resize
         setTimeout(() => {
-            if (textareaRef.current) {
-                textareaRef.current.style.height = 'auto';
-                textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
-                textareaRef.current.focus();
-            }
+            textareaRef.current?.focus();
         }, 0);
     };
 
@@ -128,7 +124,6 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onFileUpload, onClearFile, 
         const value = e.target.value;
         setPrompt(value);
         setShowCommands(value === '/');
-        resizeTextarea();
     };
 
     const handleSpeechToText = useCallback(() => {
@@ -186,7 +181,10 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onFileUpload, onClearFile, 
         }
     };
 
-    useEffect(() => {
+    // JITTER FIX: Use useLayoutEffect instead of useEffect.
+    // This fires synchronously after DOM mutations but BEFORE the paint.
+    // It prevents the textarea from visually collapsing to 'auto' and then popping back up.
+    useLayoutEffect(() => {
         resizeTextarea();
     }, [prompt]);
     
@@ -206,8 +204,8 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onFileUpload, onClearFile, 
         <footer className="flex-shrink-0 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 p-2 md:p-4 z-10">
             <div className="max-w-3xl mx-auto relative">
                  {showCommands && (
-                    <div className="absolute bottom-full left-0 right-0 mb-2 p-2 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 z-20">
-                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 px-2 pb-2">QUICK COMMANDS</p>
+                    <div className="absolute bottom-full left-0 right-0 mb-2 p-2 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 z-20 max-h-60 overflow-y-auto">
+                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 px-2 pb-2 sticky top-0 bg-white dark:bg-slate-800">QUICK COMMANDS</p>
                         <ul className="space-y-1">
                             {QUICK_COMMANDS.map(({ command, description, icon: Icon }) => (
                                 <li key={command}>

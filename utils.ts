@@ -4,8 +4,17 @@
  */
 
 export const cleanJsonOutput = (text: string): string => {
-    // Remove markdown code blocks (```json ... ``` or just ``` ... ```)
-    return text.replace(/```json\n?|```/g, '').trim();
+    // Robust cleaning: Find the first '{' and the last '}' and extract everything in between.
+    // This handles cases where the model adds preamble (e.g., "Here is the JSON: ...") or markdown code blocks.
+    const firstBrace = text.indexOf('{');
+    const lastBrace = text.lastIndexOf('}');
+
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        return text.substring(firstBrace, lastBrace + 1);
+    }
+    
+    // Fallback: Just return the text if no brackets found (will likely fail parsing, but better than empty)
+    return text.trim();
 };
 
 export const parseJsonSafe = <T>(content: string): T | null => {

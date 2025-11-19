@@ -15,73 +15,59 @@ export interface PdfProcessingResult {
   extractedText?: string; // Only present for TEXT_EXTRACTION
 }
 
-
 /**
- * Extracts text content from a PDF file using pdf.js.
- * @param file The PDF file object to process.
- * @returns A promise that resolves to the full text content of the PDF.
- */
-export const extractPdfText = async (file: File): Promise<string> => {
-    const arrayBuffer = await file.arrayBuffer();
-    let pdf = null;
-    try {
-        pdf = await getDocument(arrayBuffer).promise;
-        const numPages = pdf.numPages;
-        let fullText = '';
-
-        for (let i = 1; i <= numPages; i++) {
-            const page = await pdf.getPage(i);
-            const textContent = await page.getTextContent();
-            // item.str is the text, item.hasEOL indicates if there is a newline at the end.
-            // We use this to preserve the document structure.
-            const pageText = textContent.items.map((item: any) => {
-                return item.str + (item.hasEOL ? '\n' : ' ');
-            }).join('');
-            fullText += pageText + '\n\n';
-        }
-        return fullText;
-    } finally {
-        if (pdf) await pdf.destroy();
-    }
-};
-
-/**
- * Processes a PDF file to determine the best analysis strategy.
- * It first tries to extract text. If the text is sparse, it suggests falling back to OCR.
+ * Processes a PDF file to determine the best analysis strategy and extracts text if possible.
+ * Optimized to load the document only once.
  * @param file The PDF file object to process.
  * @returns A promise that resolves to an object indicating the strategy and any extracted text.
  */
 export const processPdf = async (file: File): Promise<PdfProcessingResult> => {
   let pdf = null;
   try {
-    // Fail Fast Strategy: Check first 3 pages for text density before processing the whole file.
     const arrayBuffer = await file.arrayBuffer();
+    // Load the document ONCE
     pdf = await getDocument(arrayBuffer).promise;
     
-    const maxPagesToCheck = Math.min(pdf.numPages, 3);
+    const totalPages = pdf.numPages;
+    const maxPagesToCheck = Math.min(totalPages, 3);
+    let fullText = '';
     let sampleText = '';
 
+    // Pass 1: Check the first few pages for text density (Fail Fast)
     for (let i = 1; i <= maxPagesToCheck; i++) {
         const page = await pdf.getPage(i);
         const textContent = await page.getTextContent();
-        sampleText += textContent.items.map((item: any) => item.str).join(' ');
+        
+        // item.str is the text, item.hasEOL indicates if there is a newline at the end.
+        const pageText = textContent.items.map((item: any) => {
+             return item.str + (item.hasEOL ? '\n' : ' ');
+        }).join('');
+        
+        sampleText += pageText;
+        fullText += pageText + '\n\n';
     }
 
     // Heuristic: If a PDF has less than 50 chars of extractable text in the first 3 pages,
     // it's almost certainly a scanned document.
     const isLikelyScanned = sampleText.trim().length < 50 && file.size > 1024;
 
-    // We must clean up this 'probe' instance before moving on
-    await pdf.destroy();
-    pdf = null;
-
     if (isLikelyScanned) {
       console.log("PDF appears to be scanned (Fail Fast Check). Recommending OCR fallback.");
       return { strategy: PdfProcessingStrategy.OCR_FALLBACK };
     } else {
-      // If the sample check passed, we extract the FULL text for analysis.
-      // We use the original extractPdfText to get the complete content.
-      const fullText = await extractPdfText(file);
+      // Pass 2: If the sample passed, continue extracting the REST of the pages (if any)
+      // using the SAME pdf document instance.
+      if (totalPages > maxPagesToCheck) {
+          for (let i = maxPagesToCheck + 1; i <= totalPages; i++) {
+              const page = await pdf.getPage(i);
+              const textContent = await page.getTextContent();
+              const pageText = textContent.items.map((item: any) => {
+                  return item.str + (item.hasEOL ? '\n' : ' ');
+              }).join('');
+              fullText += pageText + '\n\n';
+          }
+      }
+
       console.log("Text successfully extracted from PDF.");
       return { strategy: PdfProcessingStrategy.TEXT_EXTRACTION, extractedText: fullText };
     }

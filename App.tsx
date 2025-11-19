@@ -192,12 +192,14 @@ const App: React.FC = () => {
                 // CRITICAL: Strip heavy base64 data before saving to localStorage to avoid QuotaExceededError.
                 // We keep the metadata so the UI knows a file was there, but the content expires on reload.
                 const optimizedMessages = messages.map(msg => {
-                    if (msg.filePreview && msg.filePreview.base64) {
+                    if (msg.filePreview) {
+                        const isDataUrl = msg.filePreview.url?.startsWith('data:');
                         return {
                             ...msg,
                             filePreview: {
                                 ...msg.filePreview,
-                                base64: undefined // Remove the heavy blob
+                                base64: undefined, // Remove the heavy blob source
+                                url: isDataUrl ? undefined : msg.filePreview.url // Remove the URL if it contains data
                             }
                         };
                     }

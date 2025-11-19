@@ -1,3 +1,4 @@
+
 import React, { useMemo } from 'react';
 import { parse } from 'marked';
 import DOMPurify from 'dompurify';
@@ -23,21 +24,25 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast }) => {
 
     // Detect if we are likely streaming a JSON object but it's not complete/valid yet.
     // This prevents "flashing" raw JSON characters to the user.
-    // CRITICAL FIX: We only check this if the message is the LAST one and we are currently LOADING.
-    // If we are NOT loading, and the JSON is still broken, we show the raw text so the user sees the error
-    // instead of an eternal spinner.
+    // Improved logic handles cases where the model adds a preamble like "Certainly! Here is the JSON..."
     const isStreamingJson = useMemo(() => {
-        if (!isModel) return false;
+        if (!isModel || !isLoading || !isLast) return false;
+        const content = message.content;
         
-        // Only hide content if we are actively streaming this specific message
-        if (!isLoading || !isLast) return false;
+        // Check if there is an opening JSON code block
+        const hasJsonBlockStart = content.includes('```json');
+        // Check if there is a closing code block AFTER the opening one (allowing for some buffer)
+        const hasJsonBlockEnd = hasJsonBlockStart && content.includes('```', content.indexOf('```json') + 7);
+        
+        // If we started a block but haven't closed it, we are streaming
+        if (hasJsonBlockStart && !hasJsonBlockEnd) return true;
 
-        const content = message.content.trim();
-        const startsWithJson = content.startsWith('```json') || content.startsWith('{');
-        const endsWithJson = content.endsWith('```') || content.endsWith('}');
-        
-        // If it starts like JSON but doesn't end like JSON, we assume it's still generating
-        return startsWithJson && !endsWithJson;
+        // Check for raw object start (less common with polite models but possible)
+        // If it starts with { but doesn't end with }
+        const trimmed = content.trim();
+        if (trimmed.startsWith('{') && !trimmed.endsWith('}')) return true;
+
+        return false;
     }, [message.content, isModel, isLoading, isLast]);
 
     const parsedContent = useMemo(() => {
