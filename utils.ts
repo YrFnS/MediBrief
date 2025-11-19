@@ -38,14 +38,9 @@ export const cleanJsonOutput = (text: string): string => {
         }
     }
 
-    // Last Ditch: Just return the widest bracket range and hope the parser handles trailing garbage
-    const firstBrace = text.indexOf('{');
-    const lastBrace = text.lastIndexOf('}');
-    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-        return text.substring(firstBrace, lastBrace + 1);
-    }
-    
-    // Fallback: Just return the text
+    // Last Ditch: Just return the text.
+    // Removing the greedy "{ ... }" substring fallback because it's too aggressive
+    // and often captures invalid JSON when the model is "thinking" in text.
     return text.trim();
 };
 

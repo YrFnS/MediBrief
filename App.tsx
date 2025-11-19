@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect, useReducer } from 'react';
 import type { ChatMessage, ChatMode, UploadedFile, LiveTranscript } from './types';
 import { ChatMode as ChatModeEnum } from './types';
@@ -206,7 +205,9 @@ const App: React.FC = () => {
     useEffect(() => {
         const saveMessages = (msgsToSave: ChatMessage[]) => {
             try {
-                // CRITICAL: Strip heavy base64 data AND temporary blob URLs before saving.
+                // CRITICAL: We must remove blob URLs as they are temporary and break on refresh.
+                // However, we TRY to keep base64 to prevent data loss ("The Amnesiac Chart").
+                // If localStorage is full, the catch block handles the fallback.
                 const optimizedMessages = msgsToSave.map(msg => {
                     if (msg.filePreview) {
                         const isDataUrl = msg.filePreview.url?.startsWith('data:');
@@ -216,9 +217,9 @@ const App: React.FC = () => {
                             ...msg,
                             filePreview: {
                                 ...msg.filePreview,
-                                base64: undefined, // Remove the heavy blob source
-                                // Remove URL if it's a blob (temporary) or data (heavy). 
-                                // Only keep standard URLs if we ever support remote images.
+                                // Keep base64 if present. If we are over quota, the catch block catches it.
+                                base64: msg.filePreview.base64, 
+                                // Remove URL if it's a blob (temporary) or data (redundant/heavy). 
                                 url: (isDataUrl || isBlobUrl) ? undefined : msg.filePreview.url 
                             }
                         };
@@ -227,12 +228,22 @@ const App: React.FC = () => {
                 });
                 localStorage.setItem('mediBriefMessages', JSON.stringify(optimizedMessages));
             } catch (e) {
-                console.error("Failed to save messages to localStorage (quota exceeded?)", e);
-                // Fallback: If we fail to save, try saving only the last 10 messages
-                // This prevents the app from completely breaking due to full storage
-                if (msgsToSave.length > 10) {
-                     console.warn("Attempting to save truncated history...");
-                     saveMessages(msgsToSave.slice(-10));
+                console.warn("Failed to save messages to localStorage (quota exceeded). Attempting to save truncated history.");
+                // Fallback: If we fail to save (likely due to large images), try saving only the last 5 messages.
+                // If that fails, we just don't save the newest state, but the app doesn't crash.
+                if (msgsToSave.length > 5) {
+                     try {
+                         // Try again with fewer messages
+                         const truncated = msgsToSave.slice(-5);
+                         // Need to strip heavy images in the fallback to guarantee text saving
+                         const lightVersion = truncated.map(m => ({
+                             ...m, 
+                             filePreview: m.filePreview ? { ...m.filePreview, base64: undefined, url: undefined } : undefined
+                         }));
+                         localStorage.setItem('mediBriefMessages', JSON.stringify(lightVersion));
+                     } catch(e2) {
+                         console.error("Storage completely full.");
+                     }
                 }
             }
         };
@@ -307,7 +318,6 @@ const App: React.FC = () => {
 
         // --- FILE PROCESSING LOGIC ---
         // If a file is uploaded, we need to process it *before* determining the final prompt.
-        // This logic was previously split in handleFileUpload. Now we consolidate it here.
         
         let finalApiPrompt = trimmedPrompt;
         let historyContent = trimmedPrompt;
@@ -315,12 +325,15 @@ const App: React.FC = () => {
         let skipFileSending = false;
         let displayOverride = undefined;
 
+        // --- MODE SELECTION & COMMAND DETECTION ---
+        let modeForRequest: ChatMode;
+        let responseType: 'json' | 'text' = 'text';
+
+        const isBriefingCommand = BRIEFING_TRIGGERS.some(trigger => trimmedPrompt.toLowerCase().includes(trigger)) || trimmedPrompt.toLowerCase() === '/brief';
+
         if (uploadedFile) {
              try {
                 let analysisPrompt: string;
-                
-                // If user provided NO prompt, we assume they want an analysis.
-                // If user provided A prompt, we respect it but still append context if needed.
                 
                 if (uploadedFile.type === 'application/pdf') {
                     dispatch({ type: 'SET_LOADING', payload: true }); // Show loading while processing PDF
@@ -343,17 +356,27 @@ const App: React.FC = () => {
                      skipFileSending = true;
                 } else {
                     // Image or other format
-                    // If user didn't type anything, use the default image analysis prompt.
-                    // If they did type something, the model sees the image + their prompt.
                     if (!trimmedPrompt) {
                         analysisPrompt = FILE_ANALYSIS_PROMPT(uploadedFile.file.name);
-                        displayOverride = `Analyzing file: ${uploadedFile.file.name}`; // User friendly display
+                        displayOverride = `Analyzing file: ${uploadedFile.file.name}`; 
                     } else {
                         analysisPrompt = trimmedPrompt;
                     }
                 }
                 
                 finalApiPrompt = analysisPrompt;
+                
+                // FIX: "The Briefing Bulldozer"
+                // If user attached a file AND requested a briefing, we must append the briefing prompt
+                // to the analysis prompt, otherwise the analysis is overwritten/lost.
+                if (isBriefingCommand) {
+                    finalApiPrompt = `${finalApiPrompt}\n\nIMPORTANT: After analyzing the above document, ${SHIFT_BRIEFING_PROMPT()}`;
+                    // Ensure we use Deep reasoning for this combo
+                    modeForRequest = ChatModeEnum.Deep;
+                    responseType = 'json';
+                    historyContent = trimmedPrompt || "/brief (with file)";
+                }
+                
                 if(skipFileSending) fileForApi = undefined;
                 
              } catch (error) {
@@ -361,25 +384,23 @@ const App: React.FC = () => {
                  dispatch({ type: 'REQUEST_FAILED', payload: friendlyError });
                  return;
              }
-        }
-        
-        // --- MODE SELECTION ---
-        let modeForRequest: ChatMode;
-        let responseType: 'json' | 'text' = 'text';
-
-        const isBriefingCommand = BRIEFING_TRIGGERS.some(trigger => trimmedPrompt.toLowerCase().includes(trigger)) || trimmedPrompt.toLowerCase() === '/brief';
-
-        if (isBriefingCommand) {
+        } else if (isBriefingCommand) {
+            // Normal briefing without new file
             finalApiPrompt = SHIFT_BRIEFING_PROMPT();
             historyContent = "/brief"; 
             modeForRequest = ChatModeEnum.Deep;
             responseType = 'json';
-        } else if (trimmedPrompt.toLowerCase().startsWith('/patient')) {
-            modeForRequest = ChatModeEnum.Deep;
-        } else if (chatMode === ChatModeEnum.Live) {
-            modeForRequest = ChatModeEnum.Auto;
-        } else {
-            modeForRequest = chatMode;
+        }
+
+        // Standard Mode Logic (if not overridden by briefing logic above)
+        if (!modeForRequest!) { // If mode wasn't set by briefing logic
+             if (trimmedPrompt.toLowerCase().startsWith('/patient')) {
+                modeForRequest = ChatModeEnum.Deep;
+            } else if (chatMode === ChatModeEnum.Live) {
+                modeForRequest = ChatModeEnum.Auto;
+            } else {
+                modeForRequest = chatMode;
+            }
         }
 
         // --- UPDATE UI STATE ---
@@ -389,7 +410,6 @@ const App: React.FC = () => {
         }
         
         if (uploadedFile) {
-            // FIX: We use the base64 to create a data URI for the `url` property. 
             const persistenceUrl = uploadedFile.type.startsWith('image/') && uploadedFile.base64 
                 ? `data:${uploadedFile.type};base64,${uploadedFile.base64}` 
                 : undefined;

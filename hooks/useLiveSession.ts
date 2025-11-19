@@ -54,6 +54,7 @@ const createBlob = (data: Float32Array): Blob => {
   const int16 = new Int16Array(l);
   for (let i = 0; i < l; i++) {
     // CRITICAL FIX: Clamp values between -1 and 1 to prevent integer overflow (screeching noise)
+    // Audio inputs often exceed 1.0 due to gain settings or loud noises.
     const clamped = Math.max(-1, Math.min(1, data[i]));
     // Convert float to Int16 PCM (multiply by 32768)
     int16[i] = clamped < 0 ? clamped * 0x8000 : clamped * 0x7FFF;
