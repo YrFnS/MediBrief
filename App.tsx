@@ -206,16 +206,20 @@ const App: React.FC = () => {
     useEffect(() => {
         const saveMessages = (msgsToSave: ChatMessage[]) => {
             try {
-                // CRITICAL: Strip heavy base64 data before saving to localStorage to avoid QuotaExceededError.
+                // CRITICAL: Strip heavy base64 data AND temporary blob URLs before saving.
                 const optimizedMessages = msgsToSave.map(msg => {
                     if (msg.filePreview) {
                         const isDataUrl = msg.filePreview.url?.startsWith('data:');
+                        const isBlobUrl = msg.filePreview.url?.startsWith('blob:');
+                        
                         return {
                             ...msg,
                             filePreview: {
                                 ...msg.filePreview,
                                 base64: undefined, // Remove the heavy blob source
-                                url: isDataUrl ? undefined : msg.filePreview.url // Remove the URL if it contains data
+                                // Remove URL if it's a blob (temporary) or data (heavy). 
+                                // Only keep standard URLs if we ever support remote images.
+                                url: (isDataUrl || isBlobUrl) ? undefined : msg.filePreview.url 
                             }
                         };
                     }

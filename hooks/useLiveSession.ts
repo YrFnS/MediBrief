@@ -53,7 +53,10 @@ const createBlob = (data: Float32Array): Blob => {
   const l = data.length;
   const int16 = new Int16Array(l);
   for (let i = 0; i < l; i++) {
-    int16[i] = data[i] * 32768;
+    // CRITICAL FIX: Clamp values between -1 and 1 to prevent integer overflow (screeching noise)
+    const clamped = Math.max(-1, Math.min(1, data[i]));
+    // Convert float to Int16 PCM (multiply by 32768)
+    int16[i] = clamped < 0 ? clamped * 0x8000 : clamped * 0x7FFF;
   }
   return {
     data: encode(new Uint8Array(int16.buffer)),
@@ -201,8 +204,9 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
                              for (const fc of message.toolCall.functionCalls) {
                                 console.log('Function call received:', fc);
                                 const args = fc.args as any;
+                                // Echo specific arguments back to the model for better context confirmation
                                 const result = { 
-                                    result: `Appointment scheduled for patient ${args.patientId} on ${args.date} at ${args.time}.` 
+                                    result: `Appointment successfully scheduled. Details: Patient ID: ${args.patientId}, Date: ${args.date}, Time: ${args.time}.` 
                                 };
                                 sessionPromise.then((session) => {
                                     session.sendToolResponse({
