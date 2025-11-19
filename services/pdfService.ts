@@ -1,7 +1,9 @@
 
-// This service uses the pdf.js library, which is loaded from a CDN in index.html.
-// We declare the global variable to satisfy TypeScript.
-declare const pdfjsLib: any;
+import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
+
+// Configure the worker source globally for pdf.js
+// This matches the version imported in the importmap
+GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.5.136/pdf.worker.min.mjs';
 
 export enum PdfProcessingStrategy {
   TEXT_EXTRACTION = 'text',
@@ -20,19 +22,19 @@ export interface PdfProcessingResult {
  * @returns A promise that resolves to the full text content of the PDF.
  */
 export const extractPdfText = async (file: File): Promise<string> => {
-    if (!pdfjsLib) {
-        throw new Error("pdf.js library is not loaded.");
-    }
-
     const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+    const pdf = await getDocument(arrayBuffer).promise;
     const numPages = pdf.numPages;
     let fullText = '';
 
     for (let i = 1; i <= numPages; i++) {
         const page = await pdf.getPage(i);
         const textContent = await page.getTextContent();
-        const pageText = textContent.items.map((item: any) => item.str).join(' ');
+        // item.str is the text, item.hasEOL indicates if there is a newline at the end.
+        // We use this to preserve the document structure.
+        const pageText = textContent.items.map((item: any) => {
+            return item.str + (item.hasEOL ? '\n' : ' ');
+        }).join('');
         fullText += pageText + '\n\n';
     }
 

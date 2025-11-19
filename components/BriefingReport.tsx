@@ -1,12 +1,8 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
 import { AlertTriangleIcon, UsersIcon, PillIcon, ListChecksIcon, PhoneForwardedIcon, ClockIcon, DownloadIcon, ClipboardCheckIcon, ClipboardIcon } from './icons';
-
-declare global {
-  interface Window {
-    jspdf: any;
-  }
-}
+import { exportBriefingToPdf } from '../services/exportService';
+import { parseJsonSafe } from '../utils';
 
 interface BriefingReportProps {
     content: string; // Expects a JSON string
@@ -37,18 +33,7 @@ const BriefingReport: React.FC<BriefingReportProps> = ({ content }) => {
     const [isExporting, setIsExporting] = useState(false);
 
     const parsedBriefing = useMemo<ParsedBriefing | null>(() => {
-        try {
-            // Clean up potential markdown code blocks
-            const cleaned = content.replace(/```json\n?|```/g, '').trim();
-            const data: ParsedBriefing = JSON.parse(cleaned);
-            if (data && data.briefingTitle && Array.isArray(data.sections)) {
-                return data;
-            }
-            return null;
-        } catch (error) {
-            console.error("Failed to parse briefing JSON:", error);
-            return null;
-        }
+        return parseJsonSafe<ParsedBriefing>(content);
     }, [content]);
 
     const handleCopy = useCallback(() => {
@@ -70,67 +55,8 @@ const BriefingReport: React.FC<BriefingReportProps> = ({ content }) => {
         if (!parsedBriefing || isExporting) return;
         
         setIsExporting(true);
-        
         try {
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
-
-            const pageW = doc.internal.pageSize.getWidth();
-            const margin = 40;
-            const maxW = pageW - margin * 2;
-            let y = margin;
-            
-            const checkPageBreak = (requiredHeight: number) => {
-                if (y + requiredHeight > doc.internal.pageSize.getHeight() - margin) {
-                    doc.addPage();
-                    y = margin;
-                    return true;
-                }
-                return false;
-            };
-
-            // Title
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(18);
-            doc.text(parsedBriefing.briefingTitle, pageW / 2, y, { align: 'center' });
-            y += 40;
-
-            // Sections
-            for (const section of parsedBriefing.sections) {
-                if (!section.items || section.items.length === 0) continue;
-
-                checkPageBreak(40); // Space for section header
-                
-                doc.setFont('helvetica', 'bold');
-                doc.setFontSize(14);
-                doc.text(section.title, margin, y);
-                y += 20;
-
-                doc.setFont('helvetica', 'normal');
-                doc.setFontSize(10);
-                
-                for (const item of section.items) {
-                    const lines = doc.splitTextToSize(`• ${item}`, maxW - 15);
-                    const requiredHeight = lines.length * 12;
-
-                    if (checkPageBreak(requiredHeight)) {
-                        // Redraw section header on new page if it's a long list
-                        doc.setFont('helvetica', 'bold');
-                        doc.setFontSize(12);
-                        doc.text(`${section.title} (continued)`, margin, y);
-                        y += 20;
-                        doc.setFont('helvetica', 'normal');
-                        doc.setFontSize(10);
-                    }
-                    
-                    doc.text(lines, margin + 15, y);
-                    y += requiredHeight + 4; // line height + small gap
-                }
-                y += 20; // Extra space between sections
-            }
-            
-            doc.save(`MediBrief-Shift-Briefing-${new Date().toISOString().split('T')[0]}.pdf`);
-
+            await exportBriefingToPdf(parsedBriefing);
         } catch (error) {
             console.error("Error exporting PDF:", error);
             alert("Sorry, there was an error exporting the PDF. Please try again.");

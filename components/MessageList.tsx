@@ -1,14 +1,9 @@
+
 import React, { useEffect, useRef } from 'react';
-import type { ChatMessage } from '../types';
+import type { ChatMessage, LiveTranscript } from '../types';
 import Message from './Message';
 import WelcomeScreen from './WelcomeScreen';
 import { BotIcon, UserIcon } from './icons';
-
-interface LiveTranscript {
-    userInput: string;
-    modelOutput: string;
-    isUserInputFinal: boolean;
-}
 
 interface LiveTranscriptDisplayProps {
     transcript: LiveTranscript;
@@ -21,7 +16,7 @@ const LiveTranscriptDisplay: React.FC<LiveTranscriptDisplayProps> = ({ transcrip
                 <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-slate-400">
                     <UserIcon className="w-5 h-5 text-white" />
                 </div>
-                <p className={`pt-1.5 prose prose-sm dark:prose-invert max-w-none ${transcript.isUserInputFinal ? 'text-slate-800 dark:text-slate-200' : 'text-slate-500 dark:text-slate-400'}`}>
+                <p className="pt-1.5 prose prose-sm dark:prose-invert max-w-none text-slate-800 dark:text-slate-200">
                     {transcript.userInput || "Listening..."}
                 </p>
             </div>

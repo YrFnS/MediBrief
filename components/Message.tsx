@@ -1,40 +1,12 @@
 
 import React, { useMemo } from 'react';
+import { parse } from 'marked';
+import DOMPurify from 'dompurify';
 import type { ChatMessage } from '../types';
 import { UserIcon, BotIcon, LinkIcon, DocumentTextIcon } from './icons';
 import BriefingReport from './BriefingReport';
 import ImageAnalysisReport from './ImageAnalysisReport';
-
-// TypeScript declaration for the 'marked' library loaded from CDN
-declare const marked: any;
-
-// Helper to check if a message content is a valid JSON briefing
-const isJsonBriefing = (content: string): boolean => {
-    try {
-        // Clean up potential markdown code blocks
-        const cleaned = content.replace(/```json\n?|```/g, '').trim();
-        const data = JSON.parse(cleaned);
-        return typeof data === 'object' && data !== null && 'briefingTitle' in data && 'sections' in data;
-    } catch (e) {
-        return false;
-    }
-};
-
-// Helper to check if the message content is a medical image analysis
-// Now checks for the JSON structure defined in FILE_ANALYSIS_PROMPT
-const isImageAnalysis = (content: string): boolean => {
-    try {
-         const cleaned = content.replace(/```json\n?|```/g, '').trim();
-         // Quick check if it looks like JSON before expensive parse
-         if (!cleaned.startsWith('{')) return false;
-         
-         const data = JSON.parse(cleaned);
-         return typeof data === 'object' && data !== null && data.reportType === 'medical-image';
-    } catch (e) {
-        return false;
-    }
-};
-
+import { isJsonBriefing, isImageAnalysis } from '../utils';
 
 const Message: React.FC<{ message: ChatMessage }> = ({ message }) => {
     const isModel = message.role === 'model';
@@ -44,14 +16,11 @@ const Message: React.FC<{ message: ChatMessage }> = ({ message }) => {
     const isBriefing = isModel && isJsonBriefing(message.content);
     const isAnalysis = isModel && isImageAnalysis(message.content);
 
-    // Use the 'marked' library for robust markdown parsing
     const parsedContent = useMemo(() => {
-        if (typeof marked === 'undefined') {
-            // Fallback for when marked is not loaded yet
-            return contentToDisplay.replace(/\n/g, '<br>');
-        }
         // Configure marked to treat newlines as <br> tags
-        return marked.parse(contentToDisplay, { breaks: true, gfm: true });
+        // parse can be async if configured, but defaults to sync string return
+        const html = parse(contentToDisplay, { breaks: true, gfm: true }) as string;
+        return DOMPurify.sanitize(html);
     }, [contentToDisplay]);
 
     return (

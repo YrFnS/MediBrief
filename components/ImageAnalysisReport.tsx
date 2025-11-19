@@ -1,6 +1,7 @@
 
 import React, { useMemo } from 'react';
 import { ImageIcon, UserIcon, CalendarIcon, ClipboardListIcon, EyeIcon, LightbulbIcon, AlertTriangleIcon } from './icons';
+import { parseJsonSafe } from '../utils';
 
 interface ImageAnalysisReportProps {
     content: string;
@@ -17,17 +18,6 @@ interface ParsedAnalysis {
     nextSteps?: string;
     note?: string;
 }
-
-const parseAnalysisContent = (content: string): ParsedAnalysis => {
-    try {
-        const cleaned = content.replace(/```json\n?|```/g, '').trim();
-        const data = JSON.parse(cleaned);
-        return data;
-    } catch (e) {
-        console.error("Failed to parse Image Analysis JSON", e);
-        return {};
-    }
-};
 
 interface ReportSectionProps {
     Icon: React.FC<{className: string}>;
@@ -56,7 +46,7 @@ const ReportSection: React.FC<ReportSectionProps> = ({ Icon, title, content, isC
 };
 
 const ImageAnalysisReport: React.FC<ImageAnalysisReportProps> = ({ content }) => {
-    const analysis = useMemo(() => parseAnalysisContent(content), [content]);
+    const analysis = useMemo(() => parseJsonSafe<ParsedAnalysis>(content), [content]);
 
     if (!analysis || Object.keys(analysis).length === 0) {
         return <div className="text-red-500 text-sm">Error analyzing image data.</div>;

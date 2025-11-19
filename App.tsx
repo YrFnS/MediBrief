@@ -1,116 +1,22 @@
 
 import React, { useState, useCallback, useEffect, useReducer, useRef } from 'react';
-import { GoogleGenAI, LiveSession, LiveServerMessage, Modality, Blob } from "@google/genai";
-import type { ChatMessage, ChatMode, UploadedFile } from './types';
+import { GoogleGenAI, LiveServerMessage, Modality, Blob } from "@google/genai";
+import type { ChatMessage, ChatMode, UploadedFile, LiveTranscript } from './types';
 import { ChatMode as ChatModeEnum } from './types';
 import Header from './components/Header';
 import MessageList from './components/MessageList';
 import InputBar from './components/InputBar';
 import { generateResponseStream } from './services/geminiService';
 import { processPdf, PdfProcessingStrategy } from './services/pdfService';
+import { exportBriefingToPdf } from './services/exportService';
+import { cleanJsonOutput, isJsonBriefing } from './utils';
 import { FILE_ANALYSIS_PROMPT, FILE_TEXT_ANALYSIS_PROMPT, BRIEFING_TRIGGERS, SHIFT_BRIEFING_PROMPT, HELP_COMMAND_RESPONSE, SYSTEM_INSTRUCTION, MODEL_CONFIGS } from './constants';
 
 declare global {
     interface Window {
-        pdfjsLib: any;
         webkitAudioContext: typeof AudioContext;
-        jspdf: any;
     }
 }
-
-// --- PDF & Briefing Helpers ---
-interface ParsedSection {
-    title: string;
-    items: string[];
-}
-
-interface ParsedBriefing {
-    briefingTitle: string;
-    sections: ParsedSection[];
-}
-
-const cleanJsonOutput = (text: string): string => {
-    // Remove markdown code blocks (```json ... ``` or just ``` ... ```)
-    let cleaned = text.replace(/```json\n?|```/g, '').trim();
-    return cleaned;
-};
-
-const isJsonBriefing = (content: string): boolean => {
-    try {
-        const cleaned = cleanJsonOutput(content);
-        const data = JSON.parse(cleaned);
-        return typeof data === 'object' && data !== null && 'briefingTitle' in data && 'sections' in data;
-    } catch (e) {
-        return false;
-    }
-};
-
-const exportBriefingToPdf = async (briefing: ParsedBriefing): Promise<void> => {
-    try {
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
-
-        const pageW = doc.internal.pageSize.getWidth();
-        const margin = 40;
-        const maxW = pageW - margin * 2;
-        let y = margin;
-        
-        const checkPageBreak = (requiredHeight: number) => {
-            if (y + requiredHeight > doc.internal.pageSize.getHeight() - margin) {
-                doc.addPage();
-                y = margin;
-                return true;
-            }
-            return false;
-        };
-
-        // Title
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(18);
-        doc.text(briefing.briefingTitle, pageW / 2, y, { align: 'center' });
-        y += 40;
-
-        // Sections
-        for (const section of briefing.sections) {
-            if (!section.items || section.items.length === 0) continue;
-
-            checkPageBreak(40);
-            
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(14);
-            doc.text(section.title, margin, y);
-            y += 20;
-
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(10);
-            
-            for (const item of section.items) {
-                const lines = doc.splitTextToSize(`• ${item}`, maxW - 15);
-                const requiredHeight = lines.length * 12;
-
-                if (checkPageBreak(requiredHeight)) {
-                    doc.setFont('helvetica', 'bold');
-                    doc.setFontSize(12);
-                    doc.text(`${section.title} (continued)`, margin, y);
-                    y += 20;
-                    doc.setFont('helvetica', 'normal');
-                    doc.setFontSize(10);
-                }
-                
-                doc.text(lines, margin + 15, y);
-                y += requiredHeight + 4;
-            }
-            y += 20;
-        }
-        
-        doc.save(`MediBrief-Shift-Briefing-${new Date().toISOString().split('T')[0]}.pdf`);
-
-    } catch (error) {
-        console.error("Error exporting PDF:", error);
-        throw new Error("Failed to generate PDF document.");
-    }
-};
-
 
 // --- Audio & Live Session Utilities ---
 const encode = (bytes: Uint8Array) => {
@@ -199,11 +105,8 @@ const getFriendlyErrorMessage = (error: unknown): string => {
 
 // --- State Management (useReducer) ---
 
-interface LiveTranscript {
-    userInput: string;
-    modelOutput: string;
-    isUserInputFinal: boolean;
-}
+// Correctly infer the LiveSession type from the instance method
+type LiveSession = Awaited<ReturnType<InstanceType<typeof GoogleGenAI>['live']['connect']>>;
 
 interface AppState {
     messages: ChatMessage[];
@@ -247,7 +150,7 @@ const getInitialMessages = (): ChatMessage[] => {
     return [];
 };
 
-const initialLiveTranscript: LiveTranscript = { userInput: '', modelOutput: '', isUserInputFinal: false };
+const initialLiveTranscript: LiveTranscript = { userInput: '', modelOutput: '' };
 
 const initialState: AppState = {
     messages: getInitialMessages(),
@@ -357,12 +260,6 @@ const App: React.FC = () => {
     const nextStartTimeRef = useRef<number>(0);
     const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
     const mediaStreamSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
-
-    useEffect(() => {
-        if (window.pdfjsLib) {
-            window.pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.5.136/pdf.worker.min.mjs`;
-        }
-    }, []);
     
     useEffect(() => {
         if (messages.length > 0) {
@@ -376,32 +273,13 @@ const App: React.FC = () => {
         dispatch({ type: 'RESET_CHAT' });
     }, []);
 
-    const handleFileUpload = useCallback(async (file: UploadedFile) => {
-        try {
-            let analysisPrompt: string;
-            let displayMessage = `Analyzing file: ${file.file.name}`;
-            const userMessage: ChatMessage = { role: 'user', content: '', displayContent: displayMessage, filePreview: { name: file.file.name, type: file.type, url: file.url }};
-
-            if (file.type === 'application/pdf') {
-                const pdfResult = await processPdf(file.file);
-                if (pdfResult.strategy === PdfProcessingStrategy.TEXT_EXTRACTION && pdfResult.extractedText) {
-                    analysisPrompt = FILE_TEXT_ANALYSIS_PROMPT(file.file.name, pdfResult.extractedText);
-                } else {
-                    analysisPrompt = FILE_ANALYSIS_PROMPT(file.file.name); // Fallback to OCR
-                }
-            } else {
-                analysisPrompt = FILE_ANALYSIS_PROMPT(file.file.name);
-            }
-            userMessage.content = analysisPrompt;
-            await handleSend(analysisPrompt, file, displayMessage);
-
-        } catch (error) {
-            const friendlyError = getFriendlyErrorMessage(error);
-            dispatch({ type: 'REQUEST_FAILED', payload: friendlyError });
-        }
-    }, []);
-
-    const handleSend = useCallback(async (prompt: string, fileOverride?: UploadedFile, displayOverride?: string) => {
+    /**
+     * @param prompt The text prompt to send.
+     * @param fileOverride Optional file to use instead of the state's uploadedFile.
+     * @param displayOverride Optional text to display in the user's chat bubble instead of the prompt.
+     * @param skipFileSending If true, the file is shown in the UI preview but NOT sent to the API (used when we extract text client-side to save tokens).
+     */
+    const handleSend = useCallback(async (prompt: string, fileOverride?: UploadedFile, displayOverride?: string, skipFileSending: boolean = false) => {
         const trimmedPrompt = prompt.trim();
         const currentFile = fileOverride || uploadedFile;
 
@@ -464,8 +342,6 @@ const App: React.FC = () => {
             modeForRequest = ChatModeEnum.Auto;
         } else {
             // Respect user's manual mode selection if no command is found
-            // Note: Auto mode now has tool usage enabled by default in constants.ts,
-            // so we don't need to force Web mode for drug queries anymore.
             modeForRequest = chatMode;
         }
 
@@ -475,7 +351,13 @@ const App: React.FC = () => {
         }
         
         if (currentFile) {
-            userMessage.filePreview = { name: currentFile.file.name, type: currentFile.type, url: currentFile.url };
+            // Store the base64 data in the message history so the model can see it later
+            userMessage.filePreview = { 
+                name: currentFile.file.name, 
+                type: currentFile.type, 
+                url: currentFile.url,
+                base64: currentFile.base64 
+            };
         }
         
         dispatch({ type: 'START_REQUEST', payload: { userMessage } });
@@ -484,7 +366,9 @@ const App: React.FC = () => {
 
         try {
             const history = [...messages];
-            const stream = generateResponseStream(finalPrompt, history, modeForRequest, { file: currentFile, responseType });
+            // Optimization: If skipFileSending is true, we pass undefined for the file so it isn't sent to the API.
+            const fileToSend = skipFileSending ? undefined : currentFile;
+            const stream = generateResponseStream(finalPrompt, history, modeForRequest, { file: fileToSend, responseType });
             
             for await (const chunk of stream) {
                 const sources = chunk.candidates?.[0]?.groundingMetadata?.groundingChunks;
@@ -497,6 +381,41 @@ const App: React.FC = () => {
             dispatch({ type: 'REQUEST_FINISH' });
         }
     }, [chatMode, messages, uploadedFile]);
+
+    const handleFileUpload = useCallback(async (file: UploadedFile) => {
+        try {
+            let analysisPrompt: string;
+            let displayMessage = `Analyzing file: ${file.file.name}`;
+            let skipFileSending = false;
+
+            if (file.type === 'application/pdf') {
+                const pdfResult = await processPdf(file.file);
+                if (pdfResult.strategy === PdfProcessingStrategy.TEXT_EXTRACTION && pdfResult.extractedText) {
+                    // Token Optimization: If we extracted text, sending the text is enough.
+                    // We do NOT need to send the PDF bytes, saving massive amounts of tokens.
+                    analysisPrompt = FILE_TEXT_ANALYSIS_PROMPT(file.file.name, pdfResult.extractedText);
+                    skipFileSending = true;
+                } else {
+                    analysisPrompt = FILE_ANALYSIS_PROMPT(file.file.name); // Fallback to OCR
+                }
+            } else if (file.type === 'text/plain' || file.file.name.endsWith('.txt') || file.file.name.endsWith('.md') || file.file.name.endsWith('.csv') || file.file.name.endsWith('.json')) {
+                 // Text File Optimization: Read directly and send as text part.
+                 const textContent = await file.file.text();
+                 analysisPrompt = FILE_TEXT_ANALYSIS_PROMPT(file.file.name, textContent);
+                 skipFileSending = true;
+            } else {
+                analysisPrompt = FILE_ANALYSIS_PROMPT(file.file.name);
+            }
+            
+            // We pass the file to handleSend so it shows the UI preview, 
+            // but we use skipFileSending=true to prevent sending bytes to the API if we already extracted text.
+            await handleSend(analysisPrompt, file, displayMessage, skipFileSending);
+
+        } catch (error) {
+            const friendlyError = getFriendlyErrorMessage(error);
+            dispatch({ type: 'REQUEST_FAILED', payload: friendlyError });
+        }
+    }, [handleSend]);
     
     const handleExportChat = useCallback(() => {
         handleSend('/export');
@@ -586,9 +505,9 @@ const App: React.FC = () => {
                     },
                     onmessage: async (message: LiveServerMessage) => {
                         if (message.serverContent?.inputTranscription) {
-                            const { text, isFinal } = message.serverContent.inputTranscription;
+                            const { text } = message.serverContent.inputTranscription;
                             currentInput = text;
-                            dispatch({ type: 'LIVE_TRANSCRIPT_UPDATE', payload: { userInput: text, isUserInputFinal: isFinal } });
+                            dispatch({ type: 'LIVE_TRANSCRIPT_UPDATE', payload: { userInput: text } });
                         }
                         if (message.serverContent?.outputTranscription) {
                             currentOutput += message.serverContent.outputTranscription.text;

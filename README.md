@@ -1,48 +1,46 @@
-# 🩺 MediBrief - AI Shift Briefing for Healthcare Workers
 
-MediBrief is a powerful AI assistant designed to help doctors, nurses, and healthcare workers stay organized and efficient during their shifts. It processes medical documents, patient notes, lab results, and medical images to generate clear, actionable briefings, freeing up valuable time for patient care.
+# 🩺 MediBrief - The AI Shift Partner
 
-## ✨ Key Features
+MediBrief isn't just a chatbot; it's a proactive AI partner for healthcare professionals. Built on Google's **Gemini 2.5 Multimodal** and **Live API** models, it turns a mountain of patient data into actionable intelligence in seconds.
 
--   **📄 Multi-Document Analysis**: Upload and analyze PDFs, images (JPG, PNG), and text files.
--   **👁️ Advanced OCR**: Extracts text from scanned documents and handwritten notes using Optical Character Recognition.
--   **🔬 Specialized Medical Image Analysis**: Provides detailed reports for medical images like X-rays, CT scans, and prescriptions, including visual observations and extracted text.
--   **🤖 Multiple Chat Modes**:
-    -   **Auto**: AI intelligently selects the best model for your query.
-    -   **Standard**: Balanced performance for general tasks.
-    -   **Quick Query**: Optimized for speed and simple questions.
-    -   **Deep Analysis**: Maximum reasoning for complex tasks like generating comprehensive briefings.
-    -   **Web Search**: Accesses Google Search for up-to-date information, perfect for drug lookups.
--   **🎤 Voice Input**: Use the microphone for hands-free interaction, ideal for busy clinical environments.
--   **⚡ Quick Commands**: Use slash commands for fast access to common actions like generating briefings or looking up patient info.
--   **💾 Persistent Chat History**: Your conversation is saved locally, so you can pick up right where you left off, even after a page refresh.
--   **📤 Export to PDF**: Generate and download professional, print-ready shift briefings with a single click.
--   **📱 Responsive Design**: A clean, intuitive interface that works seamlessly on desktop and mobile devices.
+## 🔥 Why This Matters
+Healthcare is chaotic. You have 15 documents to read, 3 consults to call, and 2 minutes to do it. MediBrief cuts through the noise. It reads the messy handwriting, double-checks the drug interactions you might miss when tired, and briefs you like a seasoned resident.
 
-## 🚀 Getting Started
+## 🎙️ Real-Time Voice Intelligence (Live Mode)
+MediBrief features **Gemini Live**, enabling a real-time, low-latency voice conversation.
+- **Hands-Free**: Talk to the app while you scrub in or walk between wards.
+- **Interruptible**: It handles natural interruptions and back-and-forth dialogue.
+- **Tool Integrated**: It can check schedules or look up info seamlessly during the conversation.
 
-1.  **Upload Files**: Click the paperclip icon to upload patient notes, schedules, lab results, or medical images. You can upload multiple files.
-2.  **Ask Questions**: Type your questions in the input bar or use the microphone to speak your query.
-3.  **Generate a Briefing**: Type `/brief` to get a consolidated shift briefing based on all uploaded documents and conversation history.
-4.  **Switch Modes**: Use the mode selector at the top right to tailor the AI's performance to your specific needs.
-5.  **Clear Chat**: Click the trash icon in the header to start a new session.
+## ✨ Key Capabilities
 
-## ⌨️ Quick Commands
+-   **📄 Multi-Document Synthesis**: Upload PDFs, images, and text. The app extracts text from digital files instantly and uses **Advanced OCR** for scanned docs and handwriting.
+-   **👁️ Visual Intelligence**: Drop in an X-ray, EKG, or photo of a skin lesion. MediBrief provides structured analysis including visual observations, abnormalities, and next steps.
+-   **🚀 Intelligent Modes**:
+    -   **Auto**: Smart routing. Uses Google Search for drugs/facts, internal knowledge for summaries.
+    -   **Live**: Real-time voice conversation.
+    -   **Deep Analysis**: Uses Gemini Pro for complex reasoning and briefing generation.
+    -   **Web Search**: Grounded answers for "What is the latest protocol for X?"
+-   **💾 Local-First & Private**: Your chat history is stored in your browser's local storage. PDF processing happens client-side via `pdf.js`. We don't hoard your data.
+-   **📤 One-Click Briefing Export**: Generate a beautifully formatted PDF shift briefing with one command: `/export`.
 
-Use these commands in the input bar for faster workflows:
+## 🚀 How to Use
 
-| Command           | Description                                       |
-| ----------------- | ------------------------------------------------- |
-| `/brief`          | Generates a comprehensive shift briefing.         |
-| `/patient [ID]`   | Gets a detailed summary for a specific patient.   |
-| `/drugs [name]`   | Looks up medication information via web search.   |
-| `/export`         | Generates a briefing and downloads it as a PDF.   |
-| `/help`           | Displays a detailed help message with all commands.|
+1.  **Auth**: The app uses your Google Gemini API Key. It's your key, your limits.
+2.  **Upload**: Drag & Drop patient notes.
+3.  **Voice**: Click the **Live Icon** (Waveform) to start a real-time call.
+4.  **Commands**:
+    - `/brief` -> Generates the master shift briefing.
+    - `/patient [ID]` -> Specific patient deep dive.
+    - `/drugs [name]` -> Web-grounded pharmacology check.
+    - `/export` -> Download the PDF report.
 
-## 🛠️ Technology Stack
+## 🛠️ Under The Hood
 
--   **Frontend**: React, TypeScript
--   **AI**: Google Gemini API (`@google/genai`)
--   **Styling**: Tailwind CSS
--   **PDF Processing**: `pdf.js` (for client-side text extraction)
--   **Voice Input**: Web Speech API
+-   **Frontend**: React 19, Tailwind CSS
+-   **AI Core**: Google Gemini API (`@google/genai`)
+-   **Real-Time**: WebSocket-based Live API with PCM audio streaming.
+-   **Processing**: Client-side PDF extraction & Markdown rendering.
+
+---
+*Disclaimer: MediBrief is an AI assistant for educational and organizational purposes. It does not replace professional medical judgment.*

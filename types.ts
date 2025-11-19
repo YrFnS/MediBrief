@@ -16,6 +16,7 @@ export interface ChatMessage {
     url?: string; // Optional, only for image previews
     name: string;
     type: string;
+    base64?: string; // Persisted data for multi-turn history
   };
   sources?: any[]; 
 }
@@ -25,4 +26,9 @@ export interface UploadedFile {
   base64: string;
   type: string;
   url?: string; // Optional, only for images
+}
+
+export interface LiveTranscript {
+    userInput: string;
+    modelOutput: string;
 }

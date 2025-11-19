@@ -1,6 +1,6 @@
 
 import { ChatMode } from './types';
-import { Type } from '@google/genai';
+import { Type, Modality } from '@google/genai';
 
 export const WELCOME_CONTENT = {
     title: "Welcome to MediBrief",
@@ -107,7 +107,7 @@ export const MODEL_CONFIGS = {
     description: "Optimized for speed and low-latency responses."
   },
   [ChatMode.Deep]: {
-    model: 'gemini-2.5-pro',
+    model: 'gemini-3-pro-preview',
     config: {
       thinkingConfig: { thinkingBudget: 32768 },
     },
@@ -123,7 +123,7 @@ export const MODEL_CONFIGS = {
   [ChatMode.Live]: {
     model: 'gemini-2.5-flash-native-audio-preview-09-2025',
     config: {
-      responseModalities: ['AUDIO'],
+      responseModalities: [Modality.AUDIO],
       outputAudioTranscription: {},
       inputAudioTranscription: {},
       tools: [{ functionDeclarations: [scheduleAppointmentFunctionDeclaration] }],
