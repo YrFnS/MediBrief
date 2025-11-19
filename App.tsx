@@ -381,7 +381,8 @@ const App: React.FC = () => {
             abortControllerRef.current = new AbortController();
 
             try {
-                const modeForRequest = ChatModeEnum.Deep;
+                // Cost Optimization: Use Standard (Flash) for exports instead of Deep (Pro)
+                const modeForRequest = ChatModeEnum.Standard;
                 const briefingPrompt = SHIFT_BRIEFING_PROMPT();
 
                 const stream = generateResponseStream(briefingPrompt, history, modeForRequest, { responseType: 'json' });
@@ -473,7 +474,8 @@ const App: React.FC = () => {
                 
                 if (isBriefingCommand) {
                     finalApiPrompt = `${finalApiPrompt}\n\nIMPORTANT: After analyzing the above document, ${SHIFT_BRIEFING_PROMPT()}`;
-                    modeForRequest = ChatModeEnum.Deep;
+                    // Cost Optimization: Briefing should be Standard, not Deep, unless explicitly set
+                    modeForRequest = ChatModeEnum.Standard;
                     responseType = 'json';
                     if (!displayOverride) historyContent = trimmedPrompt || "/brief (with file)";
                 }
@@ -486,13 +488,15 @@ const App: React.FC = () => {
         } else if (isBriefingCommand) {
             finalApiPrompt = SHIFT_BRIEFING_PROMPT();
             historyContent = "/brief"; 
-            modeForRequest = ChatModeEnum.Deep;
+            // Cost Optimization: Briefing is a summarization task, Flash (Standard) is proficient and cheaper than Pro (Deep)
+            modeForRequest = ChatModeEnum.Standard;
             responseType = 'json';
         }
 
         if (!modeForRequest!) {
              if (trimmedPrompt.toLowerCase().startsWith('/patient')) {
-                modeForRequest = ChatModeEnum.Deep;
+                 // Cost Optimization: Patient summaries use Standard (Flash)
+                modeForRequest = ChatModeEnum.Standard;
             } else if (chatMode === ChatModeEnum.Live) {
                 modeForRequest = ChatModeEnum.Auto;
             } else {

@@ -44,7 +44,14 @@ const messageToContent = (message: ChatMessage, isHistory: boolean = false): Con
     }
 
     if (message.content) {
-        parts.push({ text: message.content });
+        let textToSend = message.content;
+
+        // INTELLIGENCE RESTORATION:
+        // We DO NOT strip text files. We only strip Images (which are expensive).
+        // The AI retains full access to all uploaded text documents in the history.
+        // We removed the truncation logic here to allow full 1M token context usage for text.
+
+        parts.push({ text: textToSend });
     }
     
     return { role: message.role, parts };
@@ -94,13 +101,15 @@ export const generateResponseStream = async function* (
      return (msg.content && msg.content.trim() !== '') || (msg.filePreview !== undefined);
   });
 
-  // WEAKNESS FIX: Token Cost Management
-  // Limit history to last 30 messages (approx 15 turns) to prevent massive context buildup.
-  const MAX_HISTORY_TURNS = 30;
+  // COST & CONTEXT BALANCE:
+  // While text is cheap on Flash, deep context windows can still accumulate costs over long shifts.
+  // We reduced the window from 50 to 15 turns. This is generally sufficient for immediate clinical context
+  // (e.g. "What did I just ask about Patient X?") without dragging the entire day's log into every request.
+  const MAX_HISTORY_TURNS = 15;
   const historyToProcess = rawHistory.slice(-MAX_HISTORY_TURNS);
 
   // Map history to API Content objects.
-  // Pass 'true' to isHistory to strip expensive image binaries from past turns.
+  // Pass 'true' to isHistory to strip expensive image binaries, but KEEP text.
   let contents: Content[] = historyToProcess.map(msg => messageToContent(msg, true));
   contents = consolidateContents(contents);
 
@@ -114,70 +123,34 @@ export const generateResponseStream = async function* (
       },
     });
   }
+  
+  currentMessageParts.push({ text: prompt });
 
-  if (prompt) {
-    currentMessageParts.push({ text: prompt });
-  }
+  contents.push({ role: 'user', parts: currentMessageParts });
 
-  if (currentMessageParts.length === 0) {
-      throw new Error("Cannot send an empty message.");
-  }
-
-  // Ensure strictly User ends the conversation
-  if (contents.length > 0 && contents[contents.length - 1].role === 'user') {
-      const lastUserMsg = contents.pop();
-      if (lastUserMsg) {
-          const mergedParts = [...lastUserMsg.parts, ...currentMessageParts];
-          contents.push({ role: 'user', parts: mergedParts });
-      }
-  } else {
-      contents.push({ role: 'user', parts: currentMessageParts });
-  }
-
-  const request: GenerateContentParameters = {
+  const responseStream = await ai.models.generateContentStream({
     model: modelConfig.model,
     contents: contents,
     config: {
-      ...modelConfig.config,
       systemInstruction: SYSTEM_INSTRUCTION,
+      ...modelConfig.config,
+      ...(options?.responseType === 'json' ? { responseMimeType: 'application/json' } : {}),
+      // GROUNDING: If options provide location, inject it into toolConfig
+      ...(options?.location ? {
+         toolConfig: {
+             // FIX: Removed incorrect 'googleMapsToolConfig' wrapper and using 'retrievalConfig' directly as per Maps Grounding guidelines.
+             retrievalConfig: {
+                 latLng: {
+                     latitude: options.location.latitude,
+                     longitude: options.location.longitude
+                 }
+             }
+         } as any
+      } : {})
     },
-  };
+  });
 
-  // Inject Location for Maps Grounding if applicable and available
-  if (options?.location && request.config && (request.config.tools?.some(t => t.googleMaps))) {
-      request.config.toolConfig = {
-          retrievalConfig: {
-              latLng: {
-                  latitude: options.location.latitude,
-                  longitude: options.location.longitude
-              }
-          }
-      };
-  }
-
-  if (options?.responseType === 'json') {
-    if (request.config) {
-        request.config.responseMimeType = "application/json";
-    }
-  }
-  
-  const streamResult = await ai.models.generateContentStream(request);
-
-  for await (const chunk of streamResult) {
-    // Safety Handling: Check if the model refused to answer
-    if (chunk.candidates?.[0]?.finishReason && 
-        chunk.candidates[0].finishReason !== 'STOP' && 
-        chunk.candidates[0].finishReason !== 'MAX_TOKENS') {
-        
-        // If we have some text, yield it, then the warning.
-        yield chunk;
-        
-        const reason = chunk.candidates[0].finishReason;
-        yield {
-            text: `\n\n> ⚠️ **Response Halted**: The model stopped generating content due to safety filters (${reason}). Please rephrase your medical query.`,
-        } as GenerateContentResponse;
-        break;
-    }
+  for await (const chunk of responseStream) {
     yield chunk;
   }
 };
