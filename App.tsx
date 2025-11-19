@@ -1,6 +1,6 @@
 
 import React, { useState, useCallback, useEffect, useReducer, useRef } from 'react';
-import type { ChatMessage, ChatMode, UploadedFile, LiveTranscript } from './types';
+import type { ChatMessage, ChatMode, UploadedFile, LiveTranscript, GroundingSource } from './types';
 import { ChatMode as ChatModeEnum } from './types';
 import Header from './components/Header';
 import MessageList from './components/MessageList';
@@ -58,7 +58,7 @@ interface AppState {
 type AppAction =
     | { type: 'START_REQUEST'; payload: { userMessage: ChatMessage } }
     | { type: 'ADD_RESPONSE_PLACEHOLDER' }
-    | { type: 'APPEND_TO_LAST_MESSAGE'; payload: { chunk: string, sources?: any[] } }
+    | { type: 'APPEND_TO_LAST_MESSAGE'; payload: { chunk: string, sources?: GroundingSource[] } }
     | { type: 'REQUEST_FINISH' }
     | { type: 'ADD_FULL_RESPONSE'; payload: { message: ChatMessage; consumesFile?: boolean } }
     | { type: 'UPDATE_LAST_MESSAGE_CONTENT'; payload: string }
@@ -126,8 +126,17 @@ const appReducer = (state: AppState, action: AppAction): AppState => {
             const lastMessage = newMessages[newMessages.length - 1];
             if (lastMessage && lastMessage.role === 'model') {
                 lastMessage.content += action.payload.chunk || '';
+                // Merge sources (Web + Maps)
                 if(action.payload.sources && action.payload.sources.length > 0) {
-                    lastMessage.sources = action.payload.sources;
+                    const existingSources = lastMessage.sources || [];
+                    // Simple dedup based on URI
+                    const newSources = action.payload.sources.filter(ns => 
+                        !existingSources.some(es => 
+                            (es.web?.uri === ns.web?.uri && es.web?.uri) || 
+                            (es.maps?.uri === ns.maps?.uri && es.maps?.uri)
+                        )
+                    );
+                    lastMessage.sources = [...existingSources, ...newSources];
                 }
             }
             return { ...state, messages: newMessages };
@@ -185,7 +194,26 @@ const App: React.FC = () => {
     const { messages, isLoading, chatMode } = state;
     const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null);
     const [isDragging, setIsDragging] = useState(false);
+    const [userLocation, setUserLocation] = useState<{latitude: number, longitude: number} | undefined>(undefined);
     const abortControllerRef = useRef<AbortController | null>(null);
+
+    // --- Geolocation for Maps Grounding ---
+    useEffect(() => {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    setUserLocation({
+                        latitude: position.coords.latitude,
+                        longitude: position.coords.longitude
+                    });
+                },
+                (err) => {
+                    console.debug("Location access denied or failed:", err.message);
+                    // We fail silently; the app just won't use local context.
+                }
+            );
+        }
+    }, []);
 
     // --- Live Session Hook Integration ---
     const handleLiveTurnComplete = useCallback((userInput: string, modelOutput: string) => {
@@ -205,7 +233,6 @@ const App: React.FC = () => {
     // --- SYNC: Chat Mode <-> Live Session State ---
     
     // 1. If user manually switches mode AWAY from Live using the UI selector, STOP the session.
-    // This prevents the "Creepy Ex" bug where the AI listens while the user thinks they are in Standard mode.
     useEffect(() => {
         if (chatMode !== ChatModeEnum.Live && isLive) {
             stopSession();
@@ -219,20 +246,15 @@ const App: React.FC = () => {
         }
     }, [isLive, chatMode]);
 
-    // --- Persistence Logic with Quota Protection ---
+    // --- Persistence Logic ---
     useEffect(() => {
         const saveMessages = (msgsToSave: ChatMessage[]) => {
             try {
-                // CRITICAL: We must remove blob URLs as they are temporary.
-                // Weakness Fix: We aggressively optimize storage to prevent crashes.
                 const optimizedMessages = msgsToSave.map(msg => {
                     if (msg.filePreview) {
                         const isDataUrl = msg.filePreview.url?.startsWith('data:');
                         const isBlobUrl = msg.filePreview.url?.startsWith('blob:');
                         
-                        // Strategy: Don't save base64 in sessionStorage if it's huge.
-                        // This means on refresh, the image PREVIEW might disappear, but the CHAT TEXT remains.
-                        // This is a better trade-off than the app crashing.
                         return {
                             ...msg,
                             filePreview: {
@@ -247,12 +269,10 @@ const App: React.FC = () => {
                 sessionStorage.setItem('mediBriefMessages', JSON.stringify(optimizedMessages));
             } catch (e) {
                 console.warn("Storage quota exceeded. Saving text-only history.");
-                // Fallback: Strip EVERYTHING related to files to save at least the text
                 try {
                      const textOnly = msgsToSave.map(m => ({
                          role: m.role,
                          content: m.content,
-                         // Strip file info entirely
                          filePreview: undefined
                      }));
                      sessionStorage.setItem('mediBriefMessages', JSON.stringify(textOnly));
@@ -285,20 +305,13 @@ const App: React.FC = () => {
     // --- DRAG AND DROP HANDLERS ---
     const handleDragOver = useCallback((e: React.DragEvent) => {
         e.preventDefault();
-        
-        // WEAKNESS FIX: Mobile/Touch Protection & File Type Check
-        // 1. If touch is active, disable drag overlay to prevent it blocking scroll
         if ('ontouchstart' in window || navigator.maxTouchPoints > 0) return;
-        
-        // 2. Only activate if the user is actually dragging a FILE
         if (!e.dataTransfer.types.includes('Files')) return;
-
         if (!isDragging) setIsDragging(true);
     }, [isDragging]);
 
     const handleDragLeave = useCallback((e: React.DragEvent) => {
         e.preventDefault();
-        // Only set false if we are leaving the main window (relatedTarget is null)
         if (e.currentTarget.contains(e.relatedTarget as Node)) return;
         setIsDragging(false);
     }, []);
@@ -313,7 +326,6 @@ const App: React.FC = () => {
                 alert("File is too large. Please select a file smaller than 4MB.");
                 return;
             }
-            // Check for supported types (Image, PDF, Text)
             const isSupported = file.type.startsWith('image/') || file.type === 'application/pdf' || file.type === 'text/plain' || file.name.endsWith('.md') || file.name.endsWith('.txt');
             if (!isSupported) {
                  alert("Unsupported file type. Please upload Images, PDFs, or Text files.");
@@ -337,9 +349,6 @@ const App: React.FC = () => {
     const handleStop = useCallback(() => {
         if (abortControllerRef.current) {
             abortControllerRef.current.abort();
-            // Do NOT set to null here. Doing so causes the loop in handleSend to 
-            // lose reference to the aborted signal and continue processing.
-            // The controller will be cleaned up in the finally block of the generator.
         }
         dispatch({ type: 'REQUEST_FINISH' });
     }, []);
@@ -350,21 +359,15 @@ const App: React.FC = () => {
     const handleSend = useCallback(async (userPrompt: string) => {
         const trimmedPrompt = userPrompt.trim();
         
-        // If we have neither text nor a file, do nothing.
         if (!trimmedPrompt && !uploadedFile) return;
 
-        // CRITICAL UX FIX: If the user decides to TYPE a message while a Live Voice session is active,
-        // we must Stop the voice session immediately.
         if (isLive) {
             stopSession();
-            // VISUAL FIX: explicitly revert to Auto mode so the user knows they are no longer in Live mode.
             dispatch({ type: 'SET_CHAT_MODE', payload: ChatModeEnum.Auto });
         }
         
-        // Command to directly export the briefing as a PDF
+        // Command: Export
         if (trimmedPrompt.toLowerCase() === '/export') {
-             // FIX: Prevent hallucinations on empty chat
-             // We check if there are ANY messages with actual content (excluding welcome/system messages)
             const history = messages.filter(m => !isJsonBriefing(m.content));
             
             if (history.length === 0) {
@@ -390,7 +393,6 @@ const App: React.FC = () => {
                     fullResponseText += chunk.text;
                 }
                 
-                // Handle NO DATA case if the model followed instruction
                 if (fullResponseText.includes("NO DATA")) {
                     throw new Error("Insufficient clinical data found to generate a briefing.");
                 }
@@ -403,7 +405,6 @@ const App: React.FC = () => {
                 
                 const parsedBriefing = JSON.parse(cleanedJson);
                 
-                // Double check for empty title or NO DATA flag in JSON
                 if (parsedBriefing.briefingTitle && parsedBriefing.briefingTitle.includes("NO DATA")) {
                     throw new Error("Insufficient clinical data found to generate a briefing.");
                 }
@@ -432,18 +433,12 @@ const App: React.FC = () => {
              return;
         }
 
-        // --- FILE PROCESSING LOGIC ---
-        // If a file is uploaded, we need to process it *before* determining the final prompt.
-        
+        // --- FILE PROCESSING ---
         let finalApiPrompt = trimmedPrompt;
         let historyContent = trimmedPrompt;
-        // By default, we send the file. 
-        // We NO LONGER do client-side extraction for PDFs ("The OCR Lobotomy").
-        // Gemini Native Multimodal is superior for medical charts/tables.
         let fileForApi: UploadedFile | undefined = uploadedFile || undefined;
         let displayOverride = undefined;
 
-        // --- MODE SELECTION & COMMAND DETECTION ---
         let modeForRequest: ChatMode;
         let responseType: 'json' | 'text' = 'text';
 
@@ -454,31 +449,18 @@ const App: React.FC = () => {
                 let analysisPrompt: string;
                 
                 if (uploadedFile.type === 'application/pdf') {
-                    // PDF Logic: Pass file directly to Gemini.
-                    // We still use a structured prompt to guide the analysis.
                     const promptBase = trimmedPrompt ? `User Query: ${trimmedPrompt}` : `Analyze this medical document.`;
                     analysisPrompt = FILE_ANALYSIS_PROMPT(uploadedFile.file.name) + `\n\n${promptBase}`;
                 } else if (uploadedFile.type === 'text/plain' || uploadedFile.file.name.endsWith('.txt') || uploadedFile.file.name.endsWith('.md')) {
-                     // Text files: AMNESIA FIX
-                     // We read the content and EMBED it into the history.
-                     // This ensures that in future turns, the model still has access to the text.
                      const textContent = await uploadedFile.file.text();
-                     
                      const promptBase = trimmedPrompt ? `User Query: ${trimmedPrompt}` : `Analyze this document.`;
-                     
-                     // This huge string goes to the API and History
                      const fullEmbeddedContent = `*** BEGIN FILE CONTENT: ${uploadedFile.file.name} ***\n${textContent}\n*** END FILE CONTENT ***\n\n${promptBase}`;
                      
                      analysisPrompt = fullEmbeddedContent;
                      historyContent = fullEmbeddedContent;
-                     
-                     // This clean string is what the user sees
                      displayOverride = `📄 **Uploaded ${uploadedFile.file.name}**\n\n${trimmedPrompt || "Requested analysis."}`;
-                     
-                     // We do not need to send the file blob, as we embedded the text
                      fileForApi = undefined; 
                 } else {
-                    // Images
                     if (!trimmedPrompt) {
                         analysisPrompt = FILE_ANALYSIS_PROMPT(uploadedFile.file.name);
                         displayOverride = `Analyzing file: ${uploadedFile.file.name}`; 
@@ -489,12 +471,10 @@ const App: React.FC = () => {
                 
                 finalApiPrompt = analysisPrompt;
                 
-                // FIX: "The Briefing Bulldozer"
                 if (isBriefingCommand) {
                     finalApiPrompt = `${finalApiPrompt}\n\nIMPORTANT: After analyzing the above document, ${SHIFT_BRIEFING_PROMPT()}`;
                     modeForRequest = ChatModeEnum.Deep;
                     responseType = 'json';
-                    // For text files, historyContent is already set above. For PDFs/Images, we update it here.
                     if (!displayOverride) historyContent = trimmedPrompt || "/brief (with file)";
                 }
                 
@@ -504,19 +484,16 @@ const App: React.FC = () => {
                  return;
              }
         } else if (isBriefingCommand) {
-            // Normal briefing without new file
             finalApiPrompt = SHIFT_BRIEFING_PROMPT();
             historyContent = "/brief"; 
             modeForRequest = ChatModeEnum.Deep;
             responseType = 'json';
         }
 
-        // Standard Mode Logic (if not overridden by briefing logic above)
-        if (!modeForRequest!) { // If mode wasn't set by briefing logic
+        if (!modeForRequest!) {
              if (trimmedPrompt.toLowerCase().startsWith('/patient')) {
                 modeForRequest = ChatModeEnum.Deep;
             } else if (chatMode === ChatModeEnum.Live) {
-                // If we were in Live mode but are sending text, fallback to Auto
                 modeForRequest = ChatModeEnum.Auto;
             } else {
                 modeForRequest = chatMode;
@@ -538,32 +515,47 @@ const App: React.FC = () => {
                 name: uploadedFile.file.name, 
                 type: uploadedFile.type, 
                 url: persistenceUrl,
-                // Only persist base64 if we actually sent it to API (i.e. not a text file we extracted)
                 base64: fileForApi ? uploadedFile.base64 : undefined 
             };
         }
         
         dispatch({ type: 'START_REQUEST', payload: { userMessage } });
         dispatch({ type: 'ADD_RESPONSE_PLACEHOLDER' });
-        setUploadedFile(null); // Clear file from input
+        setUploadedFile(null);
 
         // --- SEND API REQUEST ---
         abortControllerRef.current = new AbortController();
 
         try {
             const history = [...messages];
-            const stream = generateResponseStream(finalApiPrompt, history, modeForRequest, { file: fileForApi, responseType });
+            // Pass user location for Maps grounding if available
+            const stream = generateResponseStream(finalApiPrompt, history, modeForRequest, { 
+                file: fileForApi, 
+                responseType,
+                location: userLocation 
+            });
             
             for await (const chunk of stream) {
                 if (abortControllerRef.current?.signal.aborted) {
                     throw new Error("Aborted");
                 }
-                const sources = chunk.candidates?.[0]?.groundingMetadata?.groundingChunks;
+                // GROUNDING EXTRACTION (Web + Maps)
+                const groundingMetadata = chunk.candidates?.[0]?.groundingMetadata;
+                let sources: GroundingSource[] | undefined = undefined;
+
+                if (groundingMetadata && groundingMetadata.groundingChunks) {
+                    sources = groundingMetadata.groundingChunks.map(chunk => {
+                        if (chunk.web) return { web: chunk.web };
+                        // Handle Maps chunks which might be specific to "nearby" queries
+                        if ((chunk as any).maps) return { maps: (chunk as any).maps };
+                        return undefined;
+                    }).filter(Boolean) as GroundingSource[];
+                }
+
                 dispatch({ type: 'APPEND_TO_LAST_MESSAGE', payload: { chunk: chunk.text || '', sources } });
             }
         } catch (e) {
              if (e.message === "Aborted") {
-                 // Append " [Stopped]" to the message
                  dispatch({ type: 'APPEND_TO_LAST_MESSAGE', payload: { chunk: " [Stopped]" } });
             } else {
                 const friendlyError = getFriendlyErrorMessage(e);
@@ -573,7 +565,7 @@ const App: React.FC = () => {
             dispatch({ type: 'REQUEST_FINISH' });
             abortControllerRef.current = null;
         }
-    }, [chatMode, messages, uploadedFile, isLive, stopSession]);
+    }, [chatMode, messages, uploadedFile, isLive, stopSession, userLocation]);
 
     const handleExportChat = useCallback(() => {
         handleSend('/export');
@@ -583,7 +575,6 @@ const App: React.FC = () => {
         if (isLive) {
             stopSession();
         } else {
-            // PASS CONTEXT: Inject the current chat history into the live session
             startSession(messages);
         }
     }, [isLive, stopSession, startSession, messages]);
@@ -609,7 +600,6 @@ const App: React.FC = () => {
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
         >
-            {/* Drag and Drop Overlay */}
             {isDragging && (
                 <div className="absolute inset-0 z-50 bg-blue-500/10 backdrop-blur-sm flex items-center justify-center border-4 border-blue-500 border-dashed m-4 rounded-xl animate-pulse pointer-events-none">
                     <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-xl flex flex-col items-center text-blue-500">

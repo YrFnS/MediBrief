@@ -68,6 +68,7 @@ const consolidateContents = (contents: Content[]): Content[] => {
 interface GenerateResponseOptions {
   file?: UploadedFile;
   responseType?: 'json' | 'text';
+  location?: { latitude: number; longitude: number };
 }
 
 export const generateResponseStream = async function* (
@@ -87,10 +88,6 @@ export const generateResponseStream = async function* (
   });
 
   // WEAKNESS FIX: Token Cost Management
-  // Implement a Sliding Window. 
-  // While Gemini 2.5 has a 1M token window, repeatedly sending massive Base64 image strings 
-  // (from live session history) drains quota/budget rapidly.
-  // We keep the last 30 turns, which is ample for clinical context.
   const MAX_HISTORY_TURNS = 30;
   const historyToProcess = rawHistory.slice(-MAX_HISTORY_TURNS);
 
@@ -136,6 +133,18 @@ export const generateResponseStream = async function* (
     },
   };
 
+  // Inject Location for Maps Grounding if applicable and available
+  if (options?.location && request.config && (request.config.tools?.some(t => t.googleMaps))) {
+      request.config.toolConfig = {
+          retrievalConfig: {
+              latLng: {
+                  latitude: options.location.latitude,
+                  longitude: options.location.longitude
+              }
+          }
+      };
+  }
+
   if (options?.responseType === 'json') {
     if (request.config) {
         request.config.responseMimeType = "application/json";
@@ -145,6 +154,20 @@ export const generateResponseStream = async function* (
   const streamResult = await ai.models.generateContentStream(request);
 
   for await (const chunk of streamResult) {
+    // Safety Handling: Check if the model refused to answer
+    if (chunk.candidates?.[0]?.finishReason && 
+        chunk.candidates[0].finishReason !== 'STOP' && 
+        chunk.candidates[0].finishReason !== 'MAX_TOKENS') {
+        
+        // If we have some text, yield it, then the warning.
+        yield chunk;
+        
+        const reason = chunk.candidates[0].finishReason;
+        yield {
+            text: `\n\n> ⚠️ **Response Halted**: The model stopped generating content due to safety filters (${reason}). Please rephrase your medical query.`,
+        } as GenerateContentResponse;
+        break;
+    }
     yield chunk;
   }
 };

@@ -3,6 +3,7 @@
   "description": "An AI assistant that helps doctors, nurses, and healthcare workers stay organized during their shifts. It processes medical documents, patient notes, lab results, and medical images to generate clear, actionable briefings.",
   "requestFramePermissions": [
     "microphone",
-    "camera"
+    "camera",
+    "geolocation"
   ]
 }

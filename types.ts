@@ -8,6 +8,18 @@ export enum ChatMode {
   Live = 'Live',
 }
 
+export interface GroundingSource {
+  web?: {
+    uri: string;
+    title: string;
+  };
+  maps?: {
+    uri: string;
+    title: string;
+    placeId?: string;
+  };
+}
+
 export interface ChatMessage {
   role: 'user' | 'model';
   content: string;
@@ -18,7 +30,7 @@ export interface ChatMessage {
     type: string;
     base64?: string; // Persisted data for multi-turn history
   };
-  sources?: any[]; 
+  sources?: GroundingSource[]; 
 }
 
 export interface UploadedFile {

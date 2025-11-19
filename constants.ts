@@ -11,6 +11,7 @@ export const WELCOME_CONTENT = {
         { icon: "📄", text: "Chart Analysis: extracting vitals & labs from raw documents" },
         { icon: "📋", text: "Shift Briefings: Generating structured handoff reports" },
         { icon: "💊", text: "Pharmacology: Verifying dosing & interactions via Search" },
+        { icon: "📍", text: "Local Resources: Finding nearby pharmacies & specialists" },
         { icon: "🎙️", text: "Live Consult: Hands-free voice assistance" }
     ],
     getStarted: {
@@ -39,7 +40,7 @@ export const HELP_COMMAND_RESPONSE = `🔧 **MediBrief Clinical Commands**
 - **Red Alerts:** Critical contraindications are highlighted in Red Boxes (Text) or Vocalized (Audio).
 
 **Chat Modes:**
-- **Auto:** Smart routing (Search for facts, Reasoning for charts).
+- **Auto:** Smart routing (Search for facts, Maps for locations, Reasoning for charts).
 - **Standard:** Balanced analysis.
 - **Quick Query:** Low latency responses.
 - **Deep Analysis:** High-reasoning (Gemini Pro) for complex diagnostics.
@@ -82,11 +83,11 @@ export const MODEL_CONFIGS = {
   [ChatMode.Auto]: {
     model: 'gemini-2.5-flash',
     config: {
-      // Smart Auto Mode: We enable Google Search by default.
-      // The model will decide when to use it based on the System Instruction.
-      tools: [{ googleSearch: {} }],
+      // Smart Auto Mode: We enable Google Search AND Google Maps.
+      // The model will decide when to use them based on the query (e.g., "Pharmacy nearby" vs "Dosage").
+      tools: [{ googleSearch: {} }, { googleMaps: {} }],
     },
-    description: "Smart AI: Automatically searches the web to verify facts and drugs."
+    description: "Smart AI: Verifies facts via Search and finds locations via Maps."
   },
   [ChatMode.Standard]: {
     model: 'gemini-2.5-flash',
@@ -108,9 +109,9 @@ export const MODEL_CONFIGS = {
   [ChatMode.Web]: {
     model: 'gemini-2.5-flash',
     config: {
-      tools: [{ googleSearch: {} }],
+      tools: [{ googleSearch: {} }, { googleMaps: {} }],
     },
-    description: "Accesses up-to-date information from Google Search."
+    description: "Accesses up-to-date information and location services."
   },
   [ChatMode.Live]: {
     model: 'gemini-2.5-flash-native-audio-preview-09-2025',
@@ -169,12 +170,12 @@ Example Spoken Output:
 
 **SMART AGENT PROTOCOLS (TOOL USE & AUTO MODE):**
 
-You are equipped with Google Search tools.
-**YOU MUST USE GOOGLE SEARCH IN THE FOLLOWING SCENARIOS:**
+You are equipped with Google Search and Google Maps.
+**YOU MUST USE THESE TOOLS IN THE FOLLOWING SCENARIOS:**
 
 1.  **Uncertainty & Fact-Checking**: If you are unsure about an answer, protocol, or drug, **do not guess**. Search.
 2.  **Drug Information**: For ANY question involving medications, dosages, brand names, or interactions, you **MUST** use Google Search to verify the latest data.
-3.  **Broad Applicability**: If a user asks "What is the dose for X?" or "Check interactions", use the search tool automatically.
+3.  **Location Services**: If a user asks about "nearby" facilities (pharmacies, specialists, hospitals), **USE GOOGLE MAPS**.
 
 **QUESTION ANSWERING PROTOCOL:**
 
@@ -187,9 +188,9 @@ You are equipped with Google Search tools.
     *   Response: Class, Indications, Dosing, Side Effects, **Contraindications**.
     *   *Disclaimer:* "⚠️ Verify with hospital formulary."
 
-3.  **DRUG INTERACTION CHECKS:**
-    *   Action: USE GOOGLE SEARCH.
-    *   Response: State severity clearly. If severe, use the **CRITICAL WARNING FORMAT**.
+3.  **LOCATION / RESOURCE QUERIES:**
+    *   Action: USE GOOGLE MAPS.
+    *   Response: List the top relevant locations with distance and rating if available.
 
 **PROACTIVE FEATURES:**
 
