@@ -76,7 +76,10 @@ export const exportBriefingToPdf = async (briefing: ParsedBriefing): Promise<voi
             y += 20;
         }
         
-        doc.save(`MediBrief-Shift-Briefing-${new Date().toISOString().split('T')[0]}.pdf`);
+        // FIX: Windows does not allow colons in filenames. Replace : with -
+        const safeDate = new Date().toISOString().split('T')[0];
+        const safeTimestamp = new Date().toISOString().replace(/:/g, '-').split('.')[0];
+        doc.save(`MediBrief-Shift-Briefing-${safeTimestamp}.pdf`);
 
     } catch (error) {
         console.error("Error exporting PDF:", error);

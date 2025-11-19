@@ -53,15 +53,17 @@ const MessageList: React.FC<MessageListProps> = ({ messages, isLoading, isLive, 
         setIsAtBottom(atBottom);
     };
 
-    const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+        messagesEndRef.current?.scrollIntoView({ behavior });
     };
 
     useEffect(() => {
         // Smart Scroll: Only auto-scroll if the user was already at the bottom
         // or if a new message just started coming in (which forces attention)
         if (isAtBottom) {
-            scrollToBottom();
+            // JITTER FIX: Use 'auto' (instant) scrolling when loading/streaming to prevent
+            // the "wobbly" visual effect. Only use smooth for initial render or manual jumps.
+            scrollToBottom(isLoading ? 'auto' : 'smooth');
         }
     }, [messages, isLoading, liveTranscript, isAtBottom]);
 

@@ -67,7 +67,7 @@ export interface UseLiveSessionReturn {
     isLive: boolean;
     transcript: { userInput: string; modelOutput: string };
     startSession: () => Promise<void>;
-    stopSession: () => void;
+    stopSession: () => Promise<void>;
     error: string | null;
 }
 
@@ -86,39 +86,57 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
     const nextStartTimeRef = useRef<number>(0);
     const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
     const mediaStreamSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+    const isStoppingRef = useRef(false);
 
-    const stopSession = useCallback(() => {
-        liveSessionRef.current?.close();
-        liveSessionRef.current = null;
+    const stopSession = useCallback(async () => {
+        if (isStoppingRef.current) return;
+        isStoppingRef.current = true;
 
-        scriptProcessorRef.current?.disconnect();
-        mediaStreamSourceRef.current?.disconnect();
-        scriptProcessorRef.current = null;
-        mediaStreamSourceRef.current = null;
+        try {
+            liveSessionRef.current?.close();
+            liveSessionRef.current = null;
 
-        inputAudioContextRef.current?.close();
-        outputAudioContextRef.current?.close();
-        inputAudioContextRef.current = null;
-        outputAudioContextRef.current = null;
+            scriptProcessorRef.current?.disconnect();
+            mediaStreamSourceRef.current?.disconnect();
+            scriptProcessorRef.current = null;
+            mediaStreamSourceRef.current = null;
 
-        audioSourcesRef.current.forEach(source => source.stop());
-        audioSourcesRef.current.clear();
-        nextStartTimeRef.current = 0;
-        
-        // CRITICAL FIX: Save any partial transcript that was in progress when stopped
-        if ((accumulatedTranscriptRef.current.userInput || accumulatedTranscriptRef.current.modelOutput) && onTurnComplete) {
-            onTurnComplete(accumulatedTranscriptRef.current.userInput, accumulatedTranscriptRef.current.modelOutput);
+            audioSourcesRef.current.forEach(source => {
+                try { source.stop(); } catch(e) {}
+            });
+            audioSourcesRef.current.clear();
+
+            // CRITICAL FIX: Properly await close to release hardware audio contexts
+            // to prevent hitting browser limits (typically 6 contexts).
+            if (inputAudioContextRef.current) {
+                await inputAudioContextRef.current.close();
+                inputAudioContextRef.current = null;
+            }
+            if (outputAudioContextRef.current) {
+                await outputAudioContextRef.current.close();
+                outputAudioContextRef.current = null;
+            }
+
+            nextStartTimeRef.current = 0;
+            
+            // Save any partial transcript that was in progress when stopped
+            if ((accumulatedTranscriptRef.current.userInput || accumulatedTranscriptRef.current.modelOutput) && onTurnComplete) {
+                onTurnComplete(accumulatedTranscriptRef.current.userInput, accumulatedTranscriptRef.current.modelOutput);
+            }
+            
+            // Reset refs
+            accumulatedTranscriptRef.current = { userInput: '', modelOutput: '' };
+            setTranscript({ userInput: '', modelOutput: '' });
+        } catch (e) {
+            console.error("Error during session stop:", e);
+        } finally {
+            setIsLive(false);
+            isStoppingRef.current = false;
         }
-        
-        // Reset refs
-        accumulatedTranscriptRef.current = { userInput: '', modelOutput: '' };
-
-        setIsLive(false);
-        setTranscript({ userInput: '', modelOutput: '' });
     }, [onTurnComplete]);
 
     const startSession = useCallback(async () => {
-        if (isLive) return;
+        if (isLive || isStoppingRef.current) return;
 
         setError(null);
         accumulatedTranscriptRef.current = { userInput: '', modelOutput: '' };
@@ -133,7 +151,7 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
 
             setIsLive(true);
 
-            // FIX: Enable echo cancellation to prevent feedback loop
+            // Enable echo cancellation to prevent feedback loop
             const stream = await navigator.mediaDevices.getUserMedia({ 
                 audio: {
                     echoCancellation: true,
@@ -156,6 +174,9 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
                         scriptProcessorRef.current = inputAudioContextRef.current.createScriptProcessor(4096, 1, 1);
                         
                         scriptProcessorRef.current.onaudioprocess = (audioProcessingEvent) => {
+                            // Guard against zombie processes sending data after context is closed
+                            if (!inputAudioContextRef.current || inputAudioContextRef.current.state === 'closed') return;
+                            
                             const inputData = audioProcessingEvent.inputBuffer.getChannelData(0);
                             const pcmBlob = createBlob(inputData);
                             sessionPromise.then((session) => {
@@ -168,13 +189,11 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
                     onmessage: async (message: LiveServerMessage) => {
                         if (message.serverContent?.inputTranscription) {
                             const { text } = message.serverContent.inputTranscription;
-                            accumulatedTranscriptRef.current.userInput += text; // Append to ref
-                            // Update state for UI
+                            accumulatedTranscriptRef.current.userInput += text; 
                             setTranscript(prev => ({ ...prev, userInput: accumulatedTranscriptRef.current.userInput }));
                         }
                         if (message.serverContent?.outputTranscription) {
-                            accumulatedTranscriptRef.current.modelOutput += message.serverContent.outputTranscription.text; // Append to ref
-                            // Update state for UI
+                            accumulatedTranscriptRef.current.modelOutput += message.serverContent.outputTranscription.text;
                             setTranscript(prev => ({ ...prev, modelOutput: accumulatedTranscriptRef.current.modelOutput }));
                         }
 
@@ -182,7 +201,6 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
                              for (const fc of message.toolCall.functionCalls) {
                                 console.log('Function call received:', fc);
                                 const args = fc.args as any;
-                                // Dynamic response so the model knows EXACTLY what was booked
                                 const result = { 
                                     result: `Appointment scheduled for patient ${args.patientId} on ${args.date} at ${args.time}.` 
                                 };
@@ -199,10 +217,14 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
                         }
 
                         const audioData = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
-                        if (audioData && outputAudioContextRef.current) {
+                        if (audioData && outputAudioContextRef.current && outputAudioContextRef.current.state !== 'closed') {
                             const outCtx = outputAudioContextRef.current;
                             nextStartTimeRef.current = Math.max(nextStartTimeRef.current, outCtx.currentTime);
                             const audioBuffer = await decodeAudioData(decode(audioData), outCtx, 24000, 1);
+                            
+                            // Check context state again before creating source
+                            if (outCtx.state === 'closed') return;
+                            
                             const source = outCtx.createBufferSource();
                             source.buffer = audioBuffer;
                             source.connect(outCtx.destination);
@@ -213,7 +235,9 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
                         }
                         
                          if (message.serverContent?.interrupted) {
-                            audioSourcesRef.current.forEach(source => source.stop());
+                            audioSourcesRef.current.forEach(source => {
+                                try { source.stop(); } catch (e) {}
+                            });
                             audioSourcesRef.current.clear();
                             nextStartTimeRef.current = 0;
                         }
@@ -222,7 +246,6 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
                             if (onTurnComplete) {
                                 onTurnComplete(accumulatedTranscriptRef.current.userInput, accumulatedTranscriptRef.current.modelOutput);
                             }
-                            // Reset for next turn
                             accumulatedTranscriptRef.current = { userInput: '', modelOutput: '' };
                             setTranscript({ userInput: '', modelOutput: '' });
                         }
@@ -241,9 +264,8 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
 
             // RACE CONDITION FIX:
             // If stopSession() was called while we were awaiting the connection,
-            // inputAudioContextRef.current will be null (cleaned up).
-            // We must close this new orphaned session immediately.
-            if (!inputAudioContextRef.current) {
+            // clean up the new orphaned session immediately.
+            if (isStoppingRef.current || !inputAudioContextRef.current) {
                 console.log("Session connected after stop was called. Closing orphaned session.");
                 session.close();
                 return;
@@ -264,6 +286,7 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
 
     useEffect(() => {
         return () => {
+            // Ensure we cleanup if component unmounts
             if (isLive) stopSession();
         };
     }, [stopSession]);
