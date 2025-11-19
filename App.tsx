@@ -185,13 +185,29 @@ const App: React.FC = () => {
         }
     }, [liveError]);
 
+    // --- SYNC: Chat Mode <-> Live Session State ---
+    
+    // 1. If user manually switches mode AWAY from Live using the UI selector, STOP the session.
+    // This prevents the "Creepy Ex" bug where the AI listens while the user thinks they are in Standard mode.
+    useEffect(() => {
+        if (chatMode !== ChatModeEnum.Live && isLive) {
+            stopSession();
+        }
+    }, [chatMode, isLive, stopSession]);
+
+    // 2. If the session starts (e.g. via Mic button), visually update the UI mode to Live.
+    useEffect(() => {
+        if (isLive && chatMode !== ChatModeEnum.Live) {
+            dispatch({ type: 'SET_CHAT_MODE', payload: ChatModeEnum.Live });
+        }
+    }, [isLive, chatMode]);
+
     // --- Persistence Logic with Quota Protection ---
     useEffect(() => {
-        if (messages.length > 0) {
+        const saveMessages = (msgsToSave: ChatMessage[]) => {
             try {
                 // CRITICAL: Strip heavy base64 data before saving to localStorage to avoid QuotaExceededError.
-                // We keep the metadata so the UI knows a file was there, but the content expires on reload.
-                const optimizedMessages = messages.map(msg => {
+                const optimizedMessages = msgsToSave.map(msg => {
                     if (msg.filePreview) {
                         const isDataUrl = msg.filePreview.url?.startsWith('data:');
                         return {
@@ -208,7 +224,17 @@ const App: React.FC = () => {
                 localStorage.setItem('mediBriefMessages', JSON.stringify(optimizedMessages));
             } catch (e) {
                 console.error("Failed to save messages to localStorage (quota exceeded?)", e);
+                // Fallback: If we fail to save, try saving only the last 10 messages
+                // This prevents the app from completely breaking due to full storage
+                if (msgsToSave.length > 10) {
+                     console.warn("Attempting to save truncated history...");
+                     saveMessages(msgsToSave.slice(-10));
+                }
             }
+        };
+
+        if (messages.length > 0) {
+            saveMessages(messages);
         } else {
             localStorage.removeItem('mediBriefMessages');
         }

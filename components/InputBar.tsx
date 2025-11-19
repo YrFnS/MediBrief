@@ -85,9 +85,16 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onFileUpload, onClearFile, 
         const canSend = !isLoading || isLiveSessionActive;
         
         if (canSend) {
+            // CRITICAL FIX: Stop speech recognition AND prevent it from writing ghost text
             if (recognitionRef.current) {
+                // Nullify handlers so 'onresult' doesn't fire with the final fragment
+                // after we have already sent the message.
+                recognitionRef.current.onresult = null;
+                recognitionRef.current.onend = null; 
                 recognitionRef.current.stop();
+                setIsListening(false);
             }
+            
             onSend(prompt);
             setPrompt('');
             setShowCommands(false);
@@ -128,7 +135,9 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onFileUpload, onClearFile, 
 
     const handleSpeechToText = useCallback(() => {
         if (isListening) {
-            recognitionRef.current?.stop();
+            if (recognitionRef.current) {
+                recognitionRef.current.stop();
+            }
             return;
         }
 
