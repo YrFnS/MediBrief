@@ -72,12 +72,12 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLo
     `;
 
     return (
-        <div className={`flex items-start gap-3 md:gap-4 ${isModel ? '' : 'flex-row-reverse'} group animate-in fade-in slide-up duration-500`}>
-            <div className={`flex-shrink-0 w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center shadow-md ring-2 ring-white dark:ring-slate-800 ${isModel ? 'bg-gradient-to-br from-medical-500 to-medical-600' : 'bg-slate-200 dark:bg-slate-700'}`}>
-                {isModel ? <BotIcon className="w-5 h-5 md:w-6 md:h-6 text-white" /> : <UserIcon className="w-5 h-5 md:w-6 md:h-6 text-slate-500 dark:text-slate-300" />}
+        <div className={`flex items-start gap-2 md:gap-4 ${isModel ? '' : 'flex-row-reverse'} group animate-in fade-in slide-up duration-500`}>
+            <div className={`flex-shrink-0 w-7 h-7 md:w-10 md:h-10 rounded-full flex items-center justify-center shadow-md ring-2 ring-white dark:ring-slate-800 ${isModel ? 'bg-gradient-to-br from-medical-500 to-medical-600' : 'bg-slate-200 dark:bg-slate-700'}`}>
+                {isModel ? <BotIcon className="w-4 h-4 md:w-6 md:h-6 text-white" /> : <UserIcon className="w-4 h-4 md:w-6 md:h-6 text-slate-500 dark:text-slate-300" />}
             </div>
             
-            <div className={`w-full max-w-full md:max-w-[85%] rounded-2xl p-4 md:p-6 relative shadow-sm border transition-all ${isModel ? 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700' : 'bg-medical-50/50 dark:bg-medical-900/10 border-medical-100 dark:border-medical-900/30'}`}>
+            <div className={`w-full max-w-full md:max-w-[85%] rounded-2xl p-3 md:p-6 relative shadow-sm border transition-all ${isModel ? 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700' : 'bg-medical-50/50 dark:bg-medical-900/10 border-medical-100 dark:border-medical-900/30'}`}>
                 
                 {isModel && !isBriefing && !isAnalysis && !isStreamingJson && (
                     <button 
