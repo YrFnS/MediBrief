@@ -9,6 +9,8 @@ const messageToContent = (message: ChatMessage): Content => {
 
     // If the message has a persistent file attached
     if (message.filePreview) {
+        // CHECK: Only send inlineData if we actually have the base64 string.
+        // In 'App.tsx', we strip base64 from old messages to save storage.
         if (message.filePreview.base64 && message.filePreview.type) {
             parts.push({
                 inlineData: {
@@ -18,22 +20,19 @@ const messageToContent = (message: ChatMessage): Content => {
             });
         } else {
             // "Zombie" Fix:
-            // If base64 is missing (expired from storage or optimized away for text files),
-            // we must NOT send an empty inlineData part.
+            // If base64 is missing, we must NOT send an empty inlineData part (API error).
+            // We instead inject a system note so the model knows context is missing but existed previously.
+            
             const isImage = message.filePreview.type.startsWith('image/');
-            const hasTextContent = message.content && message.content.trim().length > 0;
-
-            // Only add a placeholder text if there is absolutely no other content to represent this message,
-            // or if it was specifically an image that is now missing.
+            
+            // We only inject a text placeholder if this was an image.
+            // Text files are already embedded in `message.content` by App.tsx logic, so they don't need this.
             if (isImage) {
                  parts.push({ 
-                    text: `[System Note: The user attached an image named "${message.filePreview.name}" here, but the file data is no longer available in this session history. Rely on previous analysis if available.]` 
+                    text: `[System Note: The user attached an image named "${message.filePreview.name}" in a previous turn. The image data is no longer available in this session context. Please rely on your previous analysis of this image.]` 
                 });
-            } else if (!hasTextContent) {
-                 parts.push({ 
-                    text: `[System Note: Attachment "${message.filePreview.name}" content missing.]` 
-                });
-            }
+            } 
+            // If it's a text file/pdf, the content was likely extracted into message.content, so we do nothing.
         }
     }
 

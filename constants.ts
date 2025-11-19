@@ -332,7 +332,13 @@ export const SHIFT_BRIEFING_PROMPT = () => `Based on all the documents and conve
 
 **IMPORTANT**: You MUST respond with ONLY a valid JSON object that adheres to the following schema. Do not include any other text or markdown formatting outside of the JSON.
 
-**JSON Schema:**
+**CRITICAL**: If the conversation history is empty, trivial, or does NOT contain any specific patient data, medical issues, or clinical documents, respond with the following specific JSON:
+\`\`\`json
+{ "briefingTitle": "NO DATA", "sections": [] }
+\`\`\`
+DO NOT invent, hallucinate, or create fake patient data if none exists in the context.
+
+**JSON Schema (Only if data exists):**
 \`\`\`json
 {
   "briefingTitle": "SHIFT BRIEFING - [Date and Time]",

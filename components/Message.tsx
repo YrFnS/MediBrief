@@ -28,19 +28,19 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLo
 
     const contentToDisplay = (message.role === 'user' && message.displayContent) ? message.displayContent : message.content;
     
-    // Improved detection for complete JSON responses
+    // Detection for complete JSON responses
     const isBriefing = isModel && isJsonBriefing(message.content);
     const isAnalysis = isModel && isImageAnalysis(message.content);
 
-    // Improved detection for IN-PROGRESS JSON streaming
-    // We assume it's streaming a report if it looks like code or starts with { but isn't complete yet
+    // Robust detection for IN-PROGRESS JSON streaming
+    // We hide the "raw" text while it's building the JSON structure
     const isStreamingJson = useMemo(() => {
         if (!isModel || !isLoading || !isLast) return false;
         const content = message.content.trim();
         
-        // Strong indicator of streaming JSON
+        // If we see the start of a code block or object, but haven't finished, assume streaming.
+        // Or if we have the triggers but parsing failed (via util checks).
         const hasJsonStart = content.includes('```json') || content.startsWith('{');
-        // If we have the start but NOT a clean finish (valid JSON), we are streaming
         const isComplete = isBriefing || isAnalysis; 
         
         return hasJsonStart && !isComplete;
@@ -57,25 +57,27 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLo
         setTimeout(() => setIsCopied(false), 2000);
     };
 
+    // Refined typography for medical readability
     const typographyClasses = `
-        prose prose-sm dark:prose-invert max-w-none text-slate-800 dark:text-slate-200 leading-relaxed
-        prose-headings:font-bold prose-headings:text-slate-900 dark:prose-headings:text-slate-100
+        prose prose-sm dark:prose-invert max-w-none text-slate-700 dark:text-slate-300 leading-relaxed font-sans
+        prose-headings:font-bold prose-headings:tracking-tight prose-headings:text-slate-900 dark:prose-headings:text-white
         prose-p:my-2 prose-ul:my-2 prose-li:my-0.5
-        prose-blockquote:bg-red-50 dark:prose-blockquote:bg-red-900/10 
+        prose-strong:font-semibold prose-strong:text-slate-900 dark:prose-strong:text-white
+        prose-blockquote:bg-red-50 dark:prose-blockquote:bg-red-900/20 
         prose-blockquote:border-l-4 prose-blockquote:border-red-500 
-        prose-blockquote:text-red-700 dark:prose-blockquote:text-red-300 
-        prose-blockquote:py-2 prose-blockquote:px-4 prose-blockquote:rounded-r-lg
-        prose-blockquote:not-italic prose-blockquote:font-medium
-        prose-strong:font-semibold
+        prose-blockquote:text-red-800 dark:prose-blockquote:text-red-200 
+        prose-blockquote:py-3 prose-blockquote:px-4 prose-blockquote:rounded-r-lg
+        prose-blockquote:not-italic prose-blockquote:font-medium prose-blockquote:shadow-sm
+        prose-code:font-mono prose-code:text-xs prose-code:bg-slate-100 dark:prose-code:bg-slate-800 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-slate-800 dark:prose-code:text-slate-200
     `;
 
     return (
-        <div className={`flex items-start gap-3 md:gap-4 ${isModel ? '' : 'flex-row-reverse'} group animate-in fade-in slide-in-from-bottom-2 duration-300`}>
-            <div className={`flex-shrink-0 w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center shadow-sm ${isModel ? 'bg-gradient-to-br from-medical-500 to-medical-600' : 'bg-slate-200 dark:bg-slate-700'}`}>
+        <div className={`flex items-start gap-3 md:gap-4 ${isModel ? '' : 'flex-row-reverse'} group animate-in fade-in slide-up duration-500`}>
+            <div className={`flex-shrink-0 w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center shadow-md ring-2 ring-white dark:ring-slate-800 ${isModel ? 'bg-gradient-to-br from-medical-500 to-medical-600' : 'bg-slate-200 dark:bg-slate-700'}`}>
                 {isModel ? <BotIcon className="w-5 h-5 md:w-6 md:h-6 text-white" /> : <UserIcon className="w-5 h-5 md:w-6 md:h-6 text-slate-500 dark:text-slate-300" />}
             </div>
             
-            <div className={`w-full max-w-full md:max-w-[85%] rounded-2xl p-4 md:p-5 relative shadow-sm border ${isModel ? 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700' : 'bg-medical-50 dark:bg-medical-900/20 border-medical-100 dark:border-medical-800/30'}`}>
+            <div className={`w-full max-w-full md:max-w-[85%] rounded-2xl p-4 md:p-6 relative shadow-sm border transition-all ${isModel ? 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700' : 'bg-medical-50/50 dark:bg-medical-900/10 border-medical-100 dark:border-medical-900/30'}`}>
                 
                 {isModel && !isBriefing && !isAnalysis && !isStreamingJson && (
                     <button 
@@ -90,52 +92,57 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLo
                 {message.filePreview && (
                     <div className="mb-4">
                         {message.filePreview.type.startsWith('image/') && message.filePreview.url ? (
-                            <img 
-                                src={message.filePreview.url} 
-                                alt={message.filePreview.name} 
-                                onLoad={onImageLoad}
-                                className="max-w-full md:max-w-sm rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm object-cover" 
-                            />
+                            <div className="relative group inline-block rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm">
+                                <img 
+                                    src={message.filePreview.url} 
+                                    alt={message.filePreview.name} 
+                                    onLoad={onImageLoad}
+                                    className="max-w-full md:max-w-sm object-cover block" 
+                                />
+                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors"></div>
+                            </div>
                         ) : (
-                             <div className="flex items-center gap-3 p-3 rounded-lg bg-white dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 w-fit">
+                             <div className="flex items-center gap-3 p-3 rounded-lg bg-white dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 w-fit shadow-sm">
                                 <div className="p-2 bg-slate-100 dark:bg-slate-600 rounded-md">
                                     <DocumentTextIcon className="w-6 h-6 text-slate-500 dark:text-slate-400" />
                                 </div>
                                 <div>
                                     <p className="font-medium text-sm text-slate-700 dark:text-slate-200 line-clamp-1">{message.filePreview.name}</p>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider">{message.filePreview.type.split('/')[1] || 'FILE'}</p>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider font-semibold">{message.filePreview.type.split('/')[1] || 'FILE'}</p>
                                  </div>
                             </div>
                         )}
                     </div>
                 )}
 
+                {/* Rendering Logic Switch */}
                 {isBriefing ? (
                     <BriefingReport content={message.content} />
                 ) : isAnalysis ? (
                     <ImageAnalysisReport content={message.content} />
                 ) : isStreamingJson ? (
-                     <div className="flex flex-col gap-3 p-2 w-full">
-                        <div className="flex items-center gap-2 text-medical-600 dark:text-medical-400 animate-pulse">
+                     /* Skeleton Loader for Streaming State */
+                     <div className="flex flex-col gap-4 p-2 w-full min-w-[300px]">
+                        <div className="flex items-center gap-3 text-medical-600 dark:text-medical-400">
                             <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
-                            <span className="font-mono text-sm font-medium">Analyzing Clinical Data...</span>
+                            <span className="font-mono text-sm font-medium tracking-wide animate-pulse">ANALYZING CLINICAL DATA...</span>
                         </div>
-                        {/* Skeleton UI for the report */}
-                        <div className="space-y-2 opacity-50">
-                            <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4"></div>
-                            <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-1/2"></div>
-                            <div className="h-20 bg-slate-100 dark:bg-slate-700/50 rounded-lg w-full mt-2 border border-dashed border-slate-300 dark:border-slate-600"></div>
+                        <div className="space-y-3 opacity-60">
+                            <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4 animate-pulse"></div>
+                            <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-1/2 animate-pulse delay-75"></div>
+                            <div className="h-32 bg-slate-100 dark:bg-slate-700/50 rounded-lg w-full mt-2 border border-dashed border-slate-300 dark:border-slate-600"></div>
                         </div>
                     </div>
                 ) : (
                     <div className={typographyClasses} dangerouslySetInnerHTML={{ __html: parsedContent }}></div>
                 )}
                 
+                {/* Citations */}
                 {message.sources && message.sources.length > 0 && (
-                    <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-700/50">
-                        <div className="flex items-center gap-2 mb-2">
-                            <div className="w-1.5 h-1.5 rounded-full bg-medical-500"></div>
-                            <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Citations</h4>
+                    <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-700/50">
+                        <div className="flex items-center gap-2 mb-3">
+                            <div className="w-1 h-4 bg-medical-500 rounded-full"></div>
+                            <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">References</h4>
                         </div>
                         <div className="flex flex-wrap gap-2">
                             {message.sources.map((source, i) => source.web && (
@@ -144,7 +151,7 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLo
                                     href={source.web.uri} 
                                     target="_blank" 
                                     rel="noopener noreferrer"
-                                    className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-700/50 hover:bg-medical-50 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 hover:border-medical-200 px-2.5 py-1.5 rounded-md text-xs text-slate-600 dark:text-slate-300 transition-colors"
+                                    className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-700/50 hover:bg-medical-50 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 hover:border-medical-200 px-3 py-1.5 rounded-md text-xs font-medium text-slate-600 dark:text-slate-300 transition-all shadow-sm hover:shadow"
                                 >
                                     <LinkIcon className="w-3 h-3 flex-shrink-0 text-medical-500" />
                                     <span className="truncate max-w-[200px]">{source.web.title || new URL(source.web.uri).hostname}</span>

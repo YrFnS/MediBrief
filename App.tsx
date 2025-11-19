@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback, useEffect, useReducer } from 'react';
+import React, { useState, useCallback, useEffect, useReducer, useRef } from 'react';
 import type { ChatMessage, ChatMode, UploadedFile, LiveTranscript } from './types';
 import { ChatMode as ChatModeEnum } from './types';
 import Header from './components/Header';
@@ -185,6 +185,7 @@ const App: React.FC = () => {
     const { messages, isLoading, chatMode } = state;
     const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null);
     const [isDragging, setIsDragging] = useState(false);
+    const abortControllerRef = useRef<AbortController | null>(null);
 
     // --- Live Session Hook Integration ---
     const handleLiveTurnComplete = useCallback((userInput: string, modelOutput: string) => {
@@ -328,6 +329,17 @@ const App: React.FC = () => {
         }
     }, []);
 
+    // --- STOP GENERATION HANDLER ---
+    const handleStop = useCallback(() => {
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+            // Do NOT set to null here. Doing so causes the loop in handleSend to 
+            // lose reference to the aborted signal and continue processing.
+            // The controller will be cleaned up in the finally block of the generator.
+        }
+        dispatch({ type: 'REQUEST_FINISH' });
+    }, []);
+
     /**
      * @param userPrompt The text prompt to send.
      */
@@ -347,20 +359,38 @@ const App: React.FC = () => {
         
         // Command to directly export the briefing as a PDF
         if (trimmedPrompt.toLowerCase() === '/export') {
+             // FIX: Prevent hallucinations on empty chat
+             // We check if there are ANY messages with actual content (excluding welcome/system messages)
+            const history = messages.filter(m => !isJsonBriefing(m.content));
+            
+            if (history.length === 0) {
+                 dispatch({ type: 'ADD_INTERIM_MESSAGE', payload: { role: 'model', content: '⚠️ **Cannot Export:** There is no patient data or conversation history to summarize yet. Please upload a chart or discuss a case first.' } });
+                 return;
+            }
+
             dispatch({ type: 'ADD_INTERIM_MESSAGE', payload: { role: 'model', content: '📥 Generating your briefing for PDF export. This may take a moment...' } });
             dispatch({ type: 'SET_LOADING', payload: true });
             
+            abortControllerRef.current = new AbortController();
+
             try {
-                const history = messages.filter(m => !isJsonBriefing(m.content));
                 const modeForRequest = ChatModeEnum.Deep;
                 const briefingPrompt = SHIFT_BRIEFING_PROMPT();
 
                 const stream = generateResponseStream(briefingPrompt, history, modeForRequest, { responseType: 'json' });
                 let fullResponseText = '';
                 for await (const chunk of stream) {
+                    if (abortControllerRef.current?.signal.aborted) {
+                         throw new Error("Aborted");
+                    }
                     fullResponseText += chunk.text;
                 }
                 
+                // Handle NO DATA case if the model followed instruction
+                if (fullResponseText.includes("NO DATA")) {
+                    throw new Error("Insufficient clinical data found to generate a briefing.");
+                }
+
                 const cleanedJson = cleanJsonOutput(fullResponseText);
 
                 if (!cleanedJson.startsWith('{')) {
@@ -368,15 +398,26 @@ const App: React.FC = () => {
                 }
                 
                 const parsedBriefing = JSON.parse(cleanedJson);
+                
+                // Double check for empty title or NO DATA flag in JSON
+                if (parsedBriefing.briefingTitle && parsedBriefing.briefingTitle.includes("NO DATA")) {
+                    throw new Error("Insufficient clinical data found to generate a briefing.");
+                }
+
                 await exportBriefingToPdf(parsedBriefing);
 
                 dispatch({ type: 'UPDATE_LAST_MESSAGE_CONTENT', payload: '✅ Your shift briefing PDF has been downloaded successfully.' });
             } catch (e) {
-                const friendlyError = getFriendlyErrorMessage(e);
-                const finalMessage = `Sorry, I couldn't generate the PDF. Please try again.\n\n**Error:** ${friendlyError}`;
-                dispatch({ type: 'UPDATE_LAST_MESSAGE_CONTENT', payload: finalMessage });
+                if (e.message === "Aborted") {
+                     dispatch({ type: 'UPDATE_LAST_MESSAGE_CONTENT', payload: '🛑 Export cancelled.' });
+                } else {
+                    const friendlyError = getFriendlyErrorMessage(e);
+                    const finalMessage = `Sorry, I couldn't generate the PDF. Please try again.\n\n**Reason:** ${friendlyError}`;
+                    dispatch({ type: 'UPDATE_LAST_MESSAGE_CONTENT', payload: finalMessage });
+                }
             } finally {
                 dispatch({ type: 'SET_LOADING', payload: false });
+                abortControllerRef.current = null;
             }
             return;
         }
@@ -503,19 +544,30 @@ const App: React.FC = () => {
         setUploadedFile(null); // Clear file from input
 
         // --- SEND API REQUEST ---
+        abortControllerRef.current = new AbortController();
+
         try {
             const history = [...messages];
             const stream = generateResponseStream(finalApiPrompt, history, modeForRequest, { file: fileForApi, responseType });
             
             for await (const chunk of stream) {
+                if (abortControllerRef.current?.signal.aborted) {
+                    throw new Error("Aborted");
+                }
                 const sources = chunk.candidates?.[0]?.groundingMetadata?.groundingChunks;
                 dispatch({ type: 'APPEND_TO_LAST_MESSAGE', payload: { chunk: chunk.text || '', sources } });
             }
         } catch (e) {
-            const friendlyError = getFriendlyErrorMessage(e);
-            dispatch({ type: 'REQUEST_FAILED', payload: friendlyError });
+             if (e.message === "Aborted") {
+                 // Append " [Stopped]" to the message
+                 dispatch({ type: 'APPEND_TO_LAST_MESSAGE', payload: { chunk: " [Stopped]" } });
+            } else {
+                const friendlyError = getFriendlyErrorMessage(e);
+                dispatch({ type: 'REQUEST_FAILED', payload: friendlyError });
+            }
         } finally {
             dispatch({ type: 'REQUEST_FINISH' });
+            abortControllerRef.current = null;
         }
     }, [chatMode, messages, uploadedFile, isLive, stopSession]);
 
@@ -580,6 +632,7 @@ const App: React.FC = () => {
                 currentMode={chatMode}
                 toggleLiveSession={toggleLiveSession}
                 isLiveSessionActive={isLive}
+                onStop={handleStop}
             />
         </div>
     );

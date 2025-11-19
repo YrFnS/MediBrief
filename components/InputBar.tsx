@@ -2,7 +2,7 @@
 import React, { useState, useRef, useCallback, ChangeEvent, KeyboardEvent, useEffect, useLayoutEffect } from 'react';
 import type { UploadedFile, ChatMode } from '../types';
 import { ChatMode as ChatModeEnum } from '../types';
-import { PaperclipIcon, SendIcon, XCircleIcon, BriefingIcon, UserIcon, DrugsIcon, DownloadIcon, HelpIcon, DocumentTextIcon, MicrophoneIcon, CameraIcon, LiveIcon } from './icons';
+import { PaperclipIcon, SendIcon, XCircleIcon, BriefingIcon, UserIcon, DrugsIcon, DownloadIcon, DocumentTextIcon, MicrophoneIcon, CameraIcon, LiveIcon, StopIcon } from './icons';
 
 interface InputBarProps {
     onSend: (prompt: string) => void;
@@ -13,6 +13,7 @@ interface InputBarProps {
     uploadedFile: UploadedFile | null;
     toggleLiveSession: () => void;
     isLiveSessionActive: boolean;
+    onStop?: () => void;
 }
 
 declare global {
@@ -23,13 +24,13 @@ declare global {
 }
 
 const QUICK_COMMANDS = [
-  { command: '/brief', description: 'Generate shift briefing', icon: BriefingIcon },
+  { command: '/brief', description: 'Shift briefing', icon: BriefingIcon },
   { command: '/patient ', description: 'Patient summary', icon: UserIcon },
-  { command: '/drugs ', description: 'Medication check', icon: DrugsIcon },
-  { command: '/export', description: 'Export to PDF', icon: DownloadIcon },
+  { command: '/drugs ', description: 'Check drugs', icon: DrugsIcon },
+  { command: '/export', description: 'Export PDF', icon: DownloadIcon },
 ];
 
-const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFile, isLoading, currentMode, uploadedFile, toggleLiveSession, isLiveSessionActive }) => {
+const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFile, isLoading, currentMode, uploadedFile, toggleLiveSession, isLiveSessionActive, onStop }) => {
     const [prompt, setPrompt] = useState('');
     const [showCommands, setShowCommands] = useState(false);
     const [isListening, setIsListening] = useState(false);
@@ -108,7 +109,7 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
     const handleTextareaInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const value = e.target.value;
         setPrompt(value);
-        setShowCommands(value === '/');
+        setShowCommands(value.trim() === '/' || value.endsWith(' /'));
     };
 
     const handleSpeechToText = useCallback(() => {
@@ -151,42 +152,40 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
     }, [isListening, prompt]);
     
     const handleLiveToggle = () => {
-        if (currentMode === ChatModeEnum.Live) {
-            toggleLiveSession();
-        } else {
-            // If in another mode, maybe warn or just switch? 
-            // For now, let the parent handle the mode switch visualization
-            toggleLiveSession();
-        }
+        toggleLiveSession();
     };
 
     useLayoutEffect(() => { resizeTextarea(); }, [prompt]);
     
-    const handleBlur = () => { setTimeout(() => setShowCommands(false), 150); };
+    const handleBlur = () => { setTimeout(() => setShowCommands(false), 200); };
 
     const isInputDisabled = isLoading && !isLiveSessionActive;
-    const placeholderText = isLiveSessionActive ? 'Listening...' : 'Message MediBrief...';
+    const placeholderText = isLiveSessionActive ? 'Listening to conversation...' : 'Type a message or enter / for commands...';
+
+    const showStopButton = isLoading && !isLiveSessionActive && onStop;
 
     return (
-        <footer className="flex-shrink-0 bg-white/80 dark:bg-slate-900/90 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 p-3 md:p-4 z-10">
+        <footer className="flex-shrink-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 p-4 z-20 transition-all duration-300">
             <div className="max-w-3xl mx-auto relative">
+                 
+                 {/* Quick Command Popover */}
                  {showCommands && (
-                    <div className="absolute bottom-full left-0 right-0 mb-2 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-100 dark:border-slate-700 z-20 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200">
+                    <div className="absolute bottom-full left-0 mb-3 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-100 dark:border-slate-700 overflow-hidden animate-slide-up w-64 z-30">
                         <div className="bg-slate-50 dark:bg-slate-700/50 px-3 py-2 border-b border-slate-100 dark:border-slate-700">
-                             <p className="text-xs font-bold tracking-wider text-slate-500 dark:text-slate-400">QUICK ACTIONS</p>
+                             <p className="text-[10px] font-bold tracking-widest uppercase text-slate-400 dark:text-slate-500">Quick Actions</p>
                         </div>
                         <ul className="p-1">
                             {QUICK_COMMANDS.map(({ command, description, icon: Icon }) => (
                                 <li key={command}>
                                     <button
                                         onClick={() => handleCommandSelect(command)}
-                                        className="w-full text-left flex items-center gap-3 p-2.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/70 transition-colors group"
+                                        className="w-full text-left flex items-center gap-3 p-2 rounded-lg hover:bg-medical-50 dark:hover:bg-slate-700/70 transition-colors group"
                                     >
-                                        <div className="bg-blue-50 dark:bg-slate-700 p-2 rounded-md text-blue-500 group-hover:bg-blue-500 group-hover:text-white transition-colors">
+                                        <div className="text-medical-500 dark:text-medical-400">
                                             <Icon className="w-4 h-4" />
                                         </div>
                                         <div>
-                                            <p className="font-mono text-sm font-semibold text-slate-800 dark:text-slate-200">{command.trim()}</p>
+                                            <p className="font-mono text-xs font-bold text-slate-700 dark:text-slate-200">{command.trim()}</p>
                                             <p className="text-xs text-slate-500 dark:text-slate-400">{description}</p>
                                         </div>
                                     </button>
@@ -196,109 +195,129 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
                     </div>
                 )}
 
+                {/* File Attachment Preview */}
                  {uploadedFile && (
-                    <div className="absolute bottom-full left-0 mb-2 animate-in fade-in slide-in-from-bottom-2">
-                         <div className="relative group inline-block">
+                    <div className="absolute bottom-full left-0 mb-3 animate-slide-up z-20">
+                         <div className="relative group flex items-center gap-3 bg-white dark:bg-slate-800 p-2 pr-4 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700">
                             {uploadedFile.url && uploadedFile.type.startsWith('image/') ? (
-                                 <img src={uploadedFile.url} alt="Attachment" className="w-20 h-20 object-cover rounded-lg border-2 border-white dark:border-slate-700 shadow-lg" />
+                                 <img src={uploadedFile.url} alt="Attachment" className="w-10 h-10 object-cover rounded-lg" />
                             ) : (
-                                <div className="w-20 h-20 flex flex-col items-center justify-center bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-lg">
-                                    <DocumentTextIcon className="w-8 h-8 text-slate-400" />
-                                    <span className="text-[10px] text-slate-500 max-w-[90%] truncate px-1">{uploadedFile.file.name}</span>
+                                <div className="w-10 h-10 flex items-center justify-center bg-slate-100 dark:bg-slate-700 rounded-lg">
+                                    <DocumentTextIcon className="w-5 h-5 text-slate-500" />
                                 </div>
                             )}
+                            <div className="flex flex-col">
+                                <span className="text-xs font-medium text-slate-700 dark:text-slate-200 max-w-[150px] truncate">{uploadedFile.file.name}</span>
+                                <span className="text-[10px] text-slate-400 uppercase">{uploadedFile.type.split('/')[1]}</span>
+                            </div>
                             <button 
                                 onClick={onClearFile}
-                                className="absolute -top-2 -right-2 bg-slate-800 text-white rounded-full p-0.5 shadow-md hover:bg-red-500 transition-colors"
+                                className="ml-2 text-slate-400 hover:text-red-500 transition-colors"
                             >
-                                <XCircleIcon className="w-4 h-4" />
+                                <XCircleIcon className="w-5 h-5" />
                             </button>
                         </div>
                     </div>
                 )}
 
-                <div className={`flex items-end gap-2 p-1.5 rounded-2xl bg-slate-100/50 dark:bg-slate-800/50 border transition-all duration-300 ${isListening || isLiveSessionActive ? 'border-red-400 ring-1 ring-red-400/30 bg-red-50/30 dark:bg-red-900/10' : 'border-slate-200 dark:border-slate-700 focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500 focus-within:bg-white dark:focus-within:bg-slate-800'}`}>
+                {/* Main Input Container */}
+                <div className={`flex items-end gap-2 transition-all duration-300`}>
                     
-                    {/* Attachment Actions Group */}
-                    <div className="flex gap-1 pb-0.5 pl-1">
-                        <button
-                            onClick={() => fileInputRef.current?.click()}
+                    {/* Input Box Area */}
+                    <div className={`flex-1 flex items-end gap-2 p-1.5 rounded-2xl border bg-slate-50 dark:bg-slate-800/50 focus-within:bg-white dark:focus-within:bg-slate-800 focus-within:ring-2 focus-within:border-medical-500/50 focus-within:ring-medical-500/20 transition-all shadow-sm ${
+                        isListening ? 'ring-2 ring-red-500/30 border-red-500/50 bg-red-50/50' : 'border-slate-200 dark:border-slate-700'
+                    }`}>
+                        
+                        {/* Attachment Button Group */}
+                        <div className="flex items-center gap-0.5 pb-1 pl-1">
+                            <button
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={isInputDisabled}
+                                className="p-2 rounded-xl text-slate-400 hover:text-medical-600 hover:bg-medical-50 dark:hover:bg-slate-700 transition-all disabled:opacity-50"
+                                title="Attach File"
+                            >
+                                <PaperclipIcon className="w-5 h-5" />
+                            </button>
+                             <button
+                                onClick={() => cameraInputRef.current?.click()}
+                                disabled={isInputDisabled}
+                                className="p-2 rounded-xl text-slate-400 hover:text-medical-600 hover:bg-medical-50 dark:hover:bg-slate-700 transition-all disabled:opacity-50"
+                                title="Camera"
+                            >
+                                <CameraIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*,application/pdf,.txt,.md" className="hidden" />
+                        <input type="file" ref={cameraInputRef} onChange={handleFileChange} accept="image/*" capture="environment" className="hidden" />
+
+                        {/* Text Input */}
+                        <textarea
+                            ref={textareaRef}
+                            value={prompt}
+                            onChange={handleTextareaInput}
+                            onKeyDown={handleKeyDown}
+                            onBlur={handleBlur}
+                            placeholder={placeholderText}
+                            rows={1}
+                            className="flex-1 bg-transparent resize-none outline-none text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 disabled:cursor-not-allowed py-2.5 text-sm leading-relaxed max-h-32"
                             disabled={isInputDisabled}
-                            className="p-2 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-200/70 dark:hover:bg-slate-700/70 transition-colors disabled:opacity-30"
-                            title="Attach File"
-                        >
-                            <PaperclipIcon className="w-5 h-5" />
-                        </button>
-                         <button
-                            onClick={() => cameraInputRef.current?.click()}
-                            disabled={isInputDisabled}
-                            className="p-2 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-200/70 dark:hover:bg-slate-700/70 transition-colors disabled:opacity-30"
-                            title="Use Camera"
-                        >
-                            <CameraIcon className="w-5 h-5" />
-                        </button>
-                    </div>
-
-                    <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*,application/pdf,.txt,.md" className="hidden" />
-                    <input type="file" ref={cameraInputRef} onChange={handleFileChange} accept="image/*" capture="environment" className="hidden" />
-
-                    <div className="w-px h-8 bg-slate-200 dark:bg-slate-700 self-center mx-1"></div>
-
-                    <textarea
-                        ref={textareaRef}
-                        value={prompt}
-                        onChange={handleTextareaInput}
-                        onKeyDown={handleKeyDown}
-                        onBlur={handleBlur}
-                        placeholder={placeholderText}
-                        rows={1}
-                        className="flex-1 bg-transparent resize-none outline-none text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 disabled:cursor-not-allowed py-2.5 text-[15px] leading-relaxed"
-                        disabled={isInputDisabled}
-                    />
-
-                    {/* Voice & Live Group */}
-                    <div className="flex gap-2 pb-1 pr-1">
-                        {/* Standard STT Mic - Only show if NOT live mode to reduce confusion */}
+                        />
+                        
+                        {/* Standard Dictation Mic (Text Mode) */}
                         {currentMode !== ChatModeEnum.Live && (
                              <button
                                 onClick={handleSpeechToText}
                                 disabled={isLoading}
-                                className={`p-2 rounded-xl transition-all ${isListening ? 'text-red-500 bg-red-100 animate-pulse' : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700'}`}
+                                className={`mb-1 p-2 rounded-xl transition-all ${
+                                    isListening 
+                                    ? 'text-red-500 bg-red-100 dark:bg-red-900/20 animate-pulse' 
+                                    : 'text-slate-400 hover:text-medical-600 hover:bg-medical-50 dark:hover:bg-slate-700'
+                                }`}
+                                title="Dictate"
                             >
                                 <MicrophoneIcon className="w-5 h-5" />
                             </button>
                         )}
+                    </div>
 
-                        {/* Live Toggle - The Big Button */}
-                        {currentMode === ChatModeEnum.Live && (
-                             <button
-                                onClick={handleLiveToggle}
-                                className={`flex items-center justify-center w-10 h-10 rounded-xl transition-all shadow-sm ${isLiveSessionActive 
-                                    ? 'bg-red-500 text-white shadow-red-500/30 animate-pulse' 
-                                    : 'bg-slate-200 text-slate-600 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-300'}`}
-                                title="Toggle Live Session"
+                    {/* Right Action Buttons */}
+                    <div className="flex items-end gap-2">
+                        {/* Live Toggle Button */}
+                         <button
+                            onClick={handleLiveToggle}
+                            className={`h-[50px] w-[50px] rounded-2xl flex items-center justify-center transition-all duration-300 shadow-sm border ${
+                                isLiveSessionActive 
+                                ? 'bg-red-500 border-red-600 text-white shadow-red-500/40 animate-pulse' 
+                                : currentMode === ChatModeEnum.Live 
+                                    ? 'bg-white dark:bg-slate-800 border-red-200 text-red-500 hover:bg-red-50'
+                                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400 hover:text-slate-600 hover:border-slate-300'
+                            }`}
+                            title={isLiveSessionActive ? "End Live Session" : "Start Live Session"}
+                        >
+                            <LiveIcon className={isLiveSessionActive ? "w-6 h-6" : "w-5 h-5"} />
+                        </button>
+
+                        {/* Send or Stop Button */}
+                        {(!isLiveSessionActive && currentMode !== ChatModeEnum.Live) && (
+                            <button 
+                                onClick={showStopButton ? onStop : handleSendClick} 
+                                disabled={!showStopButton && (isInputDisabled || (!prompt.trim() && !uploadedFile))}
+                                className={`h-[50px] w-[50px] rounded-2xl text-white shadow-lg transition-all duration-200 flex items-center justify-center ${
+                                    showStopButton 
+                                    ? 'bg-slate-700 hover:bg-slate-800 dark:bg-slate-600 dark:hover:bg-slate-500 shadow-slate-500/30' 
+                                    : 'bg-medical-600 hover:bg-medical-500 hover:scale-105 active:scale-95 shadow-medical-500/30 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:shadow-none disabled:scale-100 disabled:cursor-not-allowed'
+                                }`}
                             >
-                                <LiveIcon className="w-5 h-5" />
+                                {showStopButton ? (
+                                    <StopIcon className="w-5 h-5" />
+                                ) : (
+                                    <SendIcon className="w-5 h-5 ml-0.5" />
+                                )}
                             </button>
                         )}
-
-                        {/* Send Button */}
-                        <button 
-                            onClick={handleSendClick} 
-                            disabled={isInputDisabled || (!prompt.trim() && !uploadedFile)}
-                            className="flex items-center justify-center w-10 h-10 rounded-xl bg-medical-600 text-white shadow-lg shadow-blue-500/30 hover:bg-medical-500 hover:scale-105 active:scale-95 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:shadow-none disabled:scale-100 disabled:cursor-not-allowed transition-all duration-200"
-                        >
-                            {isLoading && !isLiveSessionActive ? (
-                                <div className="w-4 h-4 border-2 border-white/80 border-t-transparent rounded-full animate-spin"></div>
-                            ) : (
-                                <SendIcon className="w-5 h-5 ml-0.5" />
-                            )}
-                        </button>
                     </div>
                 </div>
-                 <p className="text-center text-[10px] text-slate-400 dark:text-slate-600 mt-2">
-                    AI can make mistakes. Verify important clinical details.
-                </p>
             </div>
         </footer>
     );

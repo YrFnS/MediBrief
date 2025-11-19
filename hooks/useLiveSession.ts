@@ -91,35 +91,42 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
         isStoppingRef.current = true;
 
         try {
-            liveSessionRef.current?.close();
-            liveSessionRef.current = null;
+            // 1. Close the session socket first
+            if (liveSessionRef.current) {
+                liveSessionRef.current.close();
+                liveSessionRef.current = null;
+            }
 
+            // 2. Disconnect audio nodes
             scriptProcessorRef.current?.disconnect();
             mediaStreamSourceRef.current?.disconnect();
             scriptProcessorRef.current = null;
             mediaStreamSourceRef.current = null;
 
+            // 3. Stop all playing audio
             audioSourcesRef.current.forEach(source => {
                 try { source.stop(); } catch(e) {}
             });
             audioSourcesRef.current.clear();
 
-            // Robust context suspension
-            if (inputAudioContextRef.current && inputAudioContextRef.current.state !== 'closed') {
-                await inputAudioContextRef.current.suspend();
+            // 4. Suspend AudioContexts cleanly
+            if (inputAudioContextRef.current && inputAudioContextRef.current.state === 'running') {
+                try { await inputAudioContextRef.current.suspend(); } catch(e) { console.warn("Input suspend failed", e); }
             }
-            if (outputAudioContextRef.current && outputAudioContextRef.current.state !== 'closed') {
-                await outputAudioContextRef.current.suspend();
+            if (outputAudioContextRef.current && outputAudioContextRef.current.state === 'running') {
+                try { await outputAudioContextRef.current.suspend(); } catch(e) { console.warn("Output suspend failed", e); }
             }
 
             nextStartTimeRef.current = 0;
             
+            // 5. Finalize transcript
             if ((accumulatedTranscriptRef.current.userInput || accumulatedTranscriptRef.current.modelOutput) && onTurnComplete) {
                 onTurnComplete(accumulatedTranscriptRef.current.userInput, accumulatedTranscriptRef.current.modelOutput);
             }
             
             accumulatedTranscriptRef.current = { userInput: '', modelOutput: '' };
             setTranscript({ userInput: '', modelOutput: '' });
+            
         } catch (e) {
             console.error("Error during session stop:", e);
         } finally {
@@ -135,7 +142,7 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
         accumulatedTranscriptRef.current = { userInput: '', modelOutput: '' };
 
         try {
-            // Re-use contexts or create new ones
+            // 1. Initialize Audio Contexts (Singleton Pattern)
             if (!inputAudioContextRef.current || inputAudioContextRef.current.state === 'closed') {
                 inputAudioContextRef.current = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
             }
@@ -143,11 +150,11 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
                 outputAudioContextRef.current = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
             }
             
+            // Resume if suspended
             if (inputAudioContextRef.current.state === 'suspended') await inputAudioContextRef.current.resume();
             if (outputAudioContextRef.current.state === 'suspended') await outputAudioContextRef.current.resume();
 
-            setIsLive(true);
-
+            // 2. Get User Media
             const stream = await navigator.mediaDevices.getUserMedia({ 
                 audio: {
                     echoCancellation: true,
@@ -156,19 +163,21 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
                 } 
             });
             
+            setIsLive(true);
+            
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
+            // 3. Build Context String
             let contextString = "";
             if (history.length > 0) {
-                // Simplified context string to reduce token load
                 const recentHistory = history.slice(-6).filter(m => m.content).map(m => {
                     const content = m.content.length > 200 ? m.content.substring(0, 200) + "..." : m.content;
                     return `${m.role.toUpperCase()}: ${content}`;
                 }).join("\n");
-                
                 contextString = `\n\n[CONTEXT: ${recentHistory}]`;
             }
 
+            // 4. Connect to Live API
             const sessionPromise = ai.live.connect({
                 model: MODEL_CONFIGS[ChatMode.Live].model,
                 config: {
@@ -178,6 +187,7 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
                 callbacks: {
                     onopen: async () => {
                         if (!inputAudioContextRef.current) return;
+                        // Setup Input Stream
                         mediaStreamSourceRef.current = inputAudioContextRef.current.createMediaStreamSource(stream);
                         scriptProcessorRef.current = inputAudioContextRef.current.createScriptProcessor(4096, 1, 1);
                         
@@ -204,7 +214,6 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
 
                         if (message.toolCall) {
                              for (const fc of message.toolCall.functionCalls) {
-                                // Mock function execution
                                 const result = { result: "Success" };
                                 sessionPromise.then((session) => {
                                     if (liveSessionRef.current) {
@@ -219,7 +228,7 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
                         const audioData = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
                         if (audioData && outputAudioContextRef.current) {
                             const outCtx = outputAudioContextRef.current;
-                            if (outCtx.state !== 'running') await outCtx.resume();
+                            if (outCtx.state === 'suspended') await outCtx.resume();
                             
                             nextStartTimeRef.current = Math.max(nextStartTimeRef.current, outCtx.currentTime);
                             const audioBuffer = await decodeAudioData(decode(audioData), outCtx, 24000, 1);
