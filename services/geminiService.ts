@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, GenerateContentResponse, Content, Part, GenerateContentParameters } from "@google/genai";
 import type { ChatMessage, ChatMode, UploadedFile } from '../types';
 import { MODEL_CONFIGS, SYSTEM_INSTRUCTION } from '../constants';
@@ -6,8 +7,7 @@ import { MODEL_CONFIGS, SYSTEM_INSTRUCTION } from '../constants';
 const messageToContent = (message: ChatMessage): Content => {
     const parts: Part[] = [];
 
-    // If the message has a persistent file attached (from history), add it.
-    // This ensures the model can "see" images from previous turns.
+    // If the message has a persistent file attached
     if (message.filePreview) {
         if (message.filePreview.base64 && message.filePreview.type) {
             parts.push({
@@ -17,25 +17,26 @@ const messageToContent = (message: ChatMessage): Content => {
                 }
             });
         } else {
-            // "Zombie" Fix & Optimization:
-            // If base64 is missing, it's either because it expired from localStorage OR we intentionally
-            // optimized it away because we extracted the text (for PDFs/Text files).
-            
+            // "Zombie" Fix:
+            // If base64 is missing (expired from storage or optimized away for text files),
+            // we must NOT send an empty inlineData part.
             const isImage = message.filePreview.type.startsWith('image/');
             const hasTextContent = message.content && message.content.trim().length > 0;
 
-            // If it's an image and data is missing, we MUST warn the model.
-            // If it's a document but we have no text content, we MUST warn the model.
-            // If it's a document AND we have text content, we assume the text is sufficient and don't spam the model.
-            if (isImage || !hasTextContent) {
-                parts.push({ 
-                    text: `[Attachment: ${message.filePreview.name} - (File data not available)]` 
+            // Only add a placeholder text if there is absolutely no other content to represent this message,
+            // or if it was specifically an image that is now missing.
+            if (isImage) {
+                 parts.push({ 
+                    text: `[System Note: The user attached an image named "${message.filePreview.name}" here, but the file data is no longer available in this session history. Rely on previous analysis if available.]` 
+                });
+            } else if (!hasTextContent) {
+                 parts.push({ 
+                    text: `[System Note: Attachment "${message.filePreview.name}" content missing.]` 
                 });
             }
         }
     }
 
-    // Add the text content if it exists
     if (message.content) {
         parts.push({ text: message.content });
     }
@@ -43,10 +44,6 @@ const messageToContent = (message: ChatMessage): Content => {
     return { role: message.role, parts };
 };
 
-/**
- * Consolidates the history to ensure strict User -> Model -> User alternation.
- * Merges consecutive messages of the same role.
- */
 const consolidateContents = (contents: Content[]): Content[] => {
     if (contents.length === 0) return [];
 
@@ -57,22 +54,13 @@ const consolidateContents = (contents: Content[]): Content[] => {
     for (let i = 1; i < contents.length; i++) {
         const msg = contents[i];
         if (msg.role === currentRole) {
-            // Merge consecutive messages of the same role
-            // Add a separator if both parts have text to prevent run-on sentences
-            if (currentParts.length > 0 && msg.parts.length > 0) {
-                 // Optional: Add a visual break if needed, but standard newlines are usually enough
-                 // for the model to understand it's a continuation.
-            }
             currentParts = [...currentParts, ...msg.parts];
         } else {
-            // Push the completed group
             consolidated.push({ role: currentRole, parts: currentParts });
-            // Start new group
             currentRole = msg.role;
             currentParts = [...msg.parts];
         }
     }
-    // Push the final group
     consolidated.push({ role: currentRole, parts: currentParts });
 
     return consolidated;
@@ -94,21 +82,16 @@ export const generateResponseStream = async function* (
   const modelConfig = MODEL_CONFIGS[mode];
   const file = options?.file;
   
-  // Filter out extremely empty messages, but keep those with file previews (even zombie ones)
+  // Filter out empty messages, but keep those with file previews
   const rawHistory = history.filter(msg => {
      return (msg.content && msg.content.trim() !== '') || (msg.filePreview !== undefined);
   });
 
-  // Convert to Gemini Format
   let contents: Content[] = rawHistory.map(messageToContent);
-
-  // Consolidate to fix any broken alternation (e.g. User -> [Error Removed] -> User)
   contents = consolidateContents(contents);
 
-  // Construct the parts for the CURRENT user message.
   const currentMessageParts: Part[] = [];
 
-  // Add the file first if it exists (for the new request)
   if (file) {
     currentMessageParts.push({
       inlineData: {
@@ -118,31 +101,22 @@ export const generateResponseStream = async function* (
     });
   }
 
-  // Then add the text prompt.
   if (prompt) {
     currentMessageParts.push({ text: prompt });
   }
 
   if (currentMessageParts.length === 0) {
-      throw new Error("Cannot send an empty message. Please provide a prompt or a file.");
+      throw new Error("Cannot send an empty message.");
   }
 
-  // Final Alternation Check:
-  // If the history ends with USER, we must merge our new message into that last USER message
-  // because Gemini expects the last message in `contents` to be the one triggering the response,
-  // but standard `generateContent` API usually handles the "history + new prompt" logic by 
-  // treating `contents` as the FULL conversation.
-  
+  // Ensure strictly User ends the conversation
   if (contents.length > 0 && contents[contents.length - 1].role === 'user') {
-      const lastUserMsg = contents.pop(); // Remove it
+      const lastUserMsg = contents.pop();
       if (lastUserMsg) {
-          // Merge its parts with the new parts
-          // We put the OLD parts first, then the NEW parts
           const mergedParts = [...lastUserMsg.parts, ...currentMessageParts];
           contents.push({ role: 'user', parts: mergedParts });
       }
   } else {
-      // Normal case: History ends with Model (or is empty), so we append a new User message
       contents.push({ role: 'user', parts: currentMessageParts });
   }
 
@@ -155,7 +129,6 @@ export const generateResponseStream = async function* (
     },
   };
 
-  // Explicitly set the response MIME type if requested.
   if (options?.responseType === 'json') {
     if (request.config) {
         request.config.responseMimeType = "application/json";

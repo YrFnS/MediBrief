@@ -1,3 +1,4 @@
+
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality, Blob } from "@google/genai";
 import { MODEL_CONFIGS, SYSTEM_INSTRUCTION } from '../constants';
@@ -9,7 +10,6 @@ declare global {
   }
 }
 
-// --- Audio Utilities ---
 const encode = (bytes: Uint8Array) => {
   let binary = '';
   const len = bytes.byteLength;
@@ -52,9 +52,7 @@ const createBlob = (data: Float32Array): Blob => {
   const l = data.length;
   const int16 = new Int16Array(l);
   for (let i = 0; i < l; i++) {
-    // CRITICAL FIX: Clamp values between -1 and 1 to prevent integer overflow (screeching noise)
     const clamped = Math.max(-1, Math.min(1, data[i]));
-    // Convert float to Int16 PCM (multiply by 32768)
     int16[i] = clamped < 0 ? clamped * 0x8000 : clamped * 0x7FFF;
   }
   return {
@@ -78,9 +76,7 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
     const [transcript, setTranscript] = useState({ userInput: '', modelOutput: '' });
     const [error, setError] = useState<string | null>(null);
 
-    // Refs to track accumulating text across closures
     const accumulatedTranscriptRef = useRef({ userInput: '', modelOutput: '' });
-
     const liveSessionRef = useRef<LiveSession | null>(null);
     const inputAudioContextRef = useRef<AudioContext | null>(null);
     const outputAudioContextRef = useRef<AudioContext | null>(null);
@@ -108,25 +104,20 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
             });
             audioSourcesRef.current.clear();
 
-            // CRITICAL FIX: "Zombie Audio Hardware"
-            // Do NOT close the context. Browsers have a hardware limit (often 6 contexts).
-            // If we close and recreate rapidly, we hit the limit and the mic dies.
-            // Instead, we just suspend them to save CPU, but keep the instance alive.
-            if (inputAudioContextRef.current && inputAudioContextRef.current.state === 'running') {
+            // Robust context suspension
+            if (inputAudioContextRef.current && inputAudioContextRef.current.state !== 'closed') {
                 await inputAudioContextRef.current.suspend();
             }
-            if (outputAudioContextRef.current && outputAudioContextRef.current.state === 'running') {
+            if (outputAudioContextRef.current && outputAudioContextRef.current.state !== 'closed') {
                 await outputAudioContextRef.current.suspend();
             }
 
             nextStartTimeRef.current = 0;
             
-            // Save any partial transcript that was in progress when stopped
             if ((accumulatedTranscriptRef.current.userInput || accumulatedTranscriptRef.current.modelOutput) && onTurnComplete) {
                 onTurnComplete(accumulatedTranscriptRef.current.userInput, accumulatedTranscriptRef.current.modelOutput);
             }
             
-            // Reset refs
             accumulatedTranscriptRef.current = { userInput: '', modelOutput: '' };
             setTranscript({ userInput: '', modelOutput: '' });
         } catch (e) {
@@ -144,21 +135,19 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
         accumulatedTranscriptRef.current = { userInput: '', modelOutput: '' };
 
         try {
-            // SINGLETON PATTERN: Reuse existing context if valid, or create new only if null.
-            if (!inputAudioContextRef.current) {
+            // Re-use contexts or create new ones
+            if (!inputAudioContextRef.current || inputAudioContextRef.current.state === 'closed') {
                 inputAudioContextRef.current = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
             }
-            if (!outputAudioContextRef.current) {
+            if (!outputAudioContextRef.current || outputAudioContextRef.current.state === 'closed') {
                 outputAudioContextRef.current = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
             }
             
-            // Resume contexts if they were suspended (which they are by default or by stopSession)
             if (inputAudioContextRef.current.state === 'suspended') await inputAudioContextRef.current.resume();
             if (outputAudioContextRef.current.state === 'suspended') await outputAudioContextRef.current.resume();
 
             setIsLive(true);
 
-            // Enable echo cancellation to prevent feedback loop
             const stream = await navigator.mediaDevices.getUserMedia({ 
                 audio: {
                     echoCancellation: true,
@@ -166,29 +155,18 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
                     autoGainControl: true,
                 } 
             });
+            
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-            // CONTEXT INJECTION: Convert history to a context string
-            // OPTIMIZATION: "The Context Cleaner"
-            // We strip out massive JSON blobs AND very short/empty phatic messages
             let contextString = "";
             if (history.length > 0) {
-                const sanitizedHistory = history.slice(-10).map(m => {
-                    let content = m.content || "";
-                    // If it starts with a curly brace or markdown json block, it's likely a report.
-                    if (content.trim().startsWith('{') || content.includes('```json')) {
-                        content = "[Structured Data Report Generated]";
-                    }
-                    return { role: m.role.toUpperCase(), content };
-                })
-                // Filter out empty messages or "Listening..." placeholders that might have leaked
-                .filter(m => m.content.length > 2 && m.content !== "Listening...")
-                .map(m => `${m.role}: ${m.content}`)
-                .join("\n");
-
-                contextString = "\n\nCONTEXT FROM PREVIOUS CHAT HISTORY:\n" + 
-                    sanitizedHistory +
-                    "\n\n(Use this context to answer questions about previously discussed patients or documents.)";
+                // Simplified context string to reduce token load
+                const recentHistory = history.slice(-6).filter(m => m.content).map(m => {
+                    const content = m.content.length > 200 ? m.content.substring(0, 200) + "..." : m.content;
+                    return `${m.role.toUpperCase()}: ${content}`;
+                }).join("\n");
+                
+                contextString = `\n\n[CONTEXT: ${recentHistory}]`;
             }
 
             const sessionPromise = ai.live.connect({
@@ -204,9 +182,7 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
                         scriptProcessorRef.current = inputAudioContextRef.current.createScriptProcessor(4096, 1, 1);
                         
                         scriptProcessorRef.current.onaudioprocess = (audioProcessingEvent) => {
-                            // Guard against zombie processes sending data after context is closed/suspended
                             if (!inputAudioContextRef.current || inputAudioContextRef.current.state !== 'running') return;
-                            
                             const inputData = audioProcessingEvent.inputBuffer.getChannelData(0);
                             const pcmBlob = createBlob(inputData);
                             sessionPromise.then((session) => {
@@ -218,8 +194,7 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
                     },
                     onmessage: async (message: LiveServerMessage) => {
                         if (message.serverContent?.inputTranscription) {
-                            const { text } = message.serverContent.inputTranscription;
-                            accumulatedTranscriptRef.current.userInput += text; 
+                            accumulatedTranscriptRef.current.userInput += message.serverContent.inputTranscription.text;
                             setTranscript(prev => ({ ...prev, userInput: accumulatedTranscriptRef.current.userInput }));
                         }
                         if (message.serverContent?.outputTranscription) {
@@ -229,20 +204,12 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
 
                         if (message.toolCall) {
                              for (const fc of message.toolCall.functionCalls) {
-                                const args = fc.args as any;
-                                // Echo specific arguments back to the model for better context confirmation
-                                const result = { 
-                                    result: `Appointment successfully scheduled. Details: Patient ID: ${args.patientId}, Date: ${args.date}, Time: ${args.time}.` 
-                                };
+                                // Mock function execution
+                                const result = { result: "Success" };
                                 sessionPromise.then((session) => {
-                                    // CRITICAL FIX: Check if session is still active before sending
                                     if (liveSessionRef.current) {
                                         session.sendToolResponse({
-                                            functionResponses: [{
-                                                id : fc.id,
-                                                name: fc.name,
-                                                response: result,
-                                            }]
+                                            functionResponses: [{ id: fc.id, name: fc.name, response: result }]
                                         });
                                     }
                                 });
@@ -252,7 +219,6 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
                         const audioData = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
                         if (audioData && outputAudioContextRef.current) {
                             const outCtx = outputAudioContextRef.current;
-                            // Audio safety check
                             if (outCtx.state !== 'running') await outCtx.resume();
                             
                             nextStartTimeRef.current = Math.max(nextStartTimeRef.current, outCtx.currentTime);
@@ -268,22 +234,13 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
                         }
                         
                          if (message.serverContent?.interrupted) {
-                            // DATA LOSS FIX: Save the partial turn before wiping audio
-                            if (onTurnComplete && (accumulatedTranscriptRef.current.userInput || accumulatedTranscriptRef.current.modelOutput)) {
-                                onTurnComplete(accumulatedTranscriptRef.current.userInput, accumulatedTranscriptRef.current.modelOutput);
-                                accumulatedTranscriptRef.current = { userInput: '', modelOutput: '' };
-                                setTranscript({ userInput: '', modelOutput: '' });
-                            }
-
-                            audioSourcesRef.current.forEach(source => {
-                                try { source.stop(); } catch (e) {}
-                            });
+                            audioSourcesRef.current.forEach(source => { try { source.stop(); } catch (e) {} });
                             audioSourcesRef.current.clear();
                             nextStartTimeRef.current = 0;
                         }
 
                         if (message.serverContent?.turnComplete) {
-                            if (onTurnComplete) {
+                             if (onTurnComplete) {
                                 onTurnComplete(accumulatedTranscriptRef.current.userInput, accumulatedTranscriptRef.current.modelOutput);
                             }
                             accumulatedTranscriptRef.current = { userInput: '', modelOutput: '' };
@@ -292,43 +249,28 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
                     },
                     onerror: (e: ErrorEvent) => {
                         console.error('Live session error:', e);
-                        setError(e.message || 'Live session error');
                         stopSession();
                     },
-                    onclose: () => {
-                         stopSession();
-                    },
+                    onclose: () => { stopSession(); },
                 },
             });
+            
             const session = await sessionPromise;
-
-            // RACE CONDITION FIX:
-            // If stopSession() was called while we were awaiting the connection,
-            // clean up the new orphaned session immediately.
             if (isStoppingRef.current) {
-                console.log("Session connected after stop was called. Closing orphaned session.");
                 session.close();
                 return;
             }
-            
             liveSessionRef.current = session;
 
         } catch (e: any) {
-            console.error("Live session start error", e);
-            let msg = e.message || "Unknown error starting live session";
-            if (msg.includes('Permission denied') || msg.includes('Microphone')) {
-                msg = "Microphone access denied. Please allow permissions.";
-            }
-            setError(msg);
+            console.error("Live start failed", e);
             stopSession();
+            setError("Microphone or connection failed.");
         }
     }, [isLive, stopSession, onTurnComplete]);
 
     useEffect(() => {
-        return () => {
-            // Ensure we cleanup if component unmounts
-            if (isLive) stopSession();
-        };
+        return () => { if (isLive) stopSession(); };
     }, [stopSession]);
 
     return { isLive, transcript, startSession, stopSession, error };
