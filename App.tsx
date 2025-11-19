@@ -249,20 +249,16 @@ const App: React.FC = () => {
     }, []);
 
     /**
-     * @param prompt The text prompt to send.
-     * @param fileOverride Optional file to use instead of the state's uploadedFile.
-     * @param displayOverride Optional text to display in the user's chat bubble instead of the prompt.
-     * @param skipFileSending If true, the file is shown in the UI preview but NOT sent to the API (used when we extract text client-side to save tokens).
+     * @param userPrompt The text prompt to send.
      */
-    const handleSend = useCallback(async (prompt: string, fileOverride?: UploadedFile, displayOverride?: string, skipFileSending: boolean = false) => {
-        const trimmedPrompt = prompt.trim();
-        const currentFile = fileOverride || uploadedFile;
-
-        if (!trimmedPrompt && !currentFile) return;
+    const handleSend = useCallback(async (userPrompt: string) => {
+        const trimmedPrompt = userPrompt.trim();
+        
+        // If we have neither text nor a file, do nothing.
+        if (!trimmedPrompt && !uploadedFile) return;
 
         // CRITICAL UX FIX: If the user decides to TYPE a message while a Live Voice session is active,
-        // we must Stop the voice session immediately. Otherwise, we have "Schizophrenic AI" 
-        // (Voice AI listening while Text AI replies separately).
+        // we must Stop the voice session immediately.
         if (isLive) {
             stopSession();
         }
@@ -270,7 +266,7 @@ const App: React.FC = () => {
         // Command to directly export the briefing as a PDF
         if (trimmedPrompt.toLowerCase() === '/export') {
             dispatch({ type: 'ADD_INTERIM_MESSAGE', payload: { role: 'model', content: '📥 Generating your briefing for PDF export. This may take a moment...' } });
-            dispatch({ type: 'SET_LOADING', payload: true }); // FIX: Show loading state during export
+            dispatch({ type: 'SET_LOADING', payload: true });
             
             try {
                 const history = messages.filter(m => !isJsonBriefing(m.content));
@@ -309,72 +305,111 @@ const App: React.FC = () => {
              return;
         }
 
-        // Decouple the Prompt sent to API from the Content stored in History
-        // This prevents "The Magician's Reveal" where internal prompts are shown to the user
-        let apiPrompt = trimmedPrompt;
+        // --- FILE PROCESSING LOGIC ---
+        // If a file is uploaded, we need to process it *before* determining the final prompt.
+        // This logic was previously split in handleFileUpload. Now we consolidate it here.
+        
+        let finalApiPrompt = trimmedPrompt;
         let historyContent = trimmedPrompt;
+        let fileForApi: UploadedFile | undefined = uploadedFile || undefined;
+        let skipFileSending = false;
+        let displayOverride = undefined;
 
+        if (uploadedFile) {
+             try {
+                let analysisPrompt: string;
+                
+                // If user provided NO prompt, we assume they want an analysis.
+                // If user provided A prompt, we respect it but still append context if needed.
+                
+                if (uploadedFile.type === 'application/pdf') {
+                    dispatch({ type: 'SET_LOADING', payload: true }); // Show loading while processing PDF
+                    const pdfResult = await processPdf(uploadedFile.file);
+                    
+                    if (pdfResult.strategy === PdfProcessingStrategy.TEXT_EXTRACTION && pdfResult.extractedText) {
+                        // Client-side text extraction (saves tokens)
+                        const promptBase = trimmedPrompt ? `User Query: ${trimmedPrompt}` : `Analyze this document.`;
+                        analysisPrompt = FILE_TEXT_ANALYSIS_PROMPT(uploadedFile.file.name, pdfResult.extractedText) + `\n\n${promptBase}`;
+                        skipFileSending = true;
+                    } else {
+                        // OCR Fallback
+                        const promptBase = trimmedPrompt || FILE_ANALYSIS_PROMPT(uploadedFile.file.name);
+                        analysisPrompt = promptBase;
+                    }
+                } else if (uploadedFile.type === 'text/plain' || uploadedFile.file.name.endsWith('.txt') || uploadedFile.file.name.endsWith('.md')) {
+                     const textContent = await uploadedFile.file.text();
+                     const promptBase = trimmedPrompt ? `User Query: ${trimmedPrompt}` : `Analyze this document.`;
+                     analysisPrompt = FILE_TEXT_ANALYSIS_PROMPT(uploadedFile.file.name, textContent) + `\n\n${promptBase}`;
+                     skipFileSending = true;
+                } else {
+                    // Image or other format
+                    // If user didn't type anything, use the default image analysis prompt.
+                    // If they did type something, the model sees the image + their prompt.
+                    if (!trimmedPrompt) {
+                        analysisPrompt = FILE_ANALYSIS_PROMPT(uploadedFile.file.name);
+                        displayOverride = `Analyzing file: ${uploadedFile.file.name}`; // User friendly display
+                    } else {
+                        analysisPrompt = trimmedPrompt;
+                    }
+                }
+                
+                finalApiPrompt = analysisPrompt;
+                if(skipFileSending) fileForApi = undefined;
+                
+             } catch (error) {
+                 const friendlyError = getFriendlyErrorMessage(error);
+                 dispatch({ type: 'REQUEST_FAILED', payload: friendlyError });
+                 return;
+             }
+        }
+        
+        // --- MODE SELECTION ---
         let modeForRequest: ChatMode;
         let responseType: 'json' | 'text' = 'text';
 
         const isBriefingCommand = BRIEFING_TRIGGERS.some(trigger => trimmedPrompt.toLowerCase().includes(trigger)) || trimmedPrompt.toLowerCase() === '/brief';
 
-        // Determine mode and prompt based on commands or user selection
         if (isBriefingCommand) {
-            apiPrompt = SHIFT_BRIEFING_PROMPT();
-            historyContent = "/brief"; // Keep history clean
+            finalApiPrompt = SHIFT_BRIEFING_PROMPT();
+            historyContent = "/brief"; 
             modeForRequest = ChatModeEnum.Deep;
             responseType = 'json';
         } else if (trimmedPrompt.toLowerCase().startsWith('/patient')) {
             modeForRequest = ChatModeEnum.Deep;
         } else if (chatMode === ChatModeEnum.Live) {
-            // If user sends text while in Live mode (which is audio-centric), 
-            // fall back to the smart Auto mode so they get a text response with tools if needed.
             modeForRequest = ChatModeEnum.Auto;
         } else {
-            // Respect user's manual mode selection if no command is found
             modeForRequest = chatMode;
         }
 
+        // --- UPDATE UI STATE ---
         const userMessage: ChatMessage = { role: 'user', content: historyContent };
-        if(displayOverride) {
+        if (displayOverride) {
             userMessage.displayContent = displayOverride;
         }
         
-        if (currentFile) {
-            // Store the base64 data in the message history so the model can see it later.
-            // OPTIMIZATION: If skipFileSending is true (we extracted text), we do NOT store the base64.
-            // This prevents sending both the PDF bytes AND the extracted text in future history turns.
-            
+        if (uploadedFile) {
             // FIX: We use the base64 to create a data URI for the `url` property. 
-            // We cannot rely on `currentFile.url` (Blob URL) because InputBar revokes it immediately after sending.
-            const persistenceUrl = currentFile.type.startsWith('image/') && currentFile.base64 
-                ? `data:${currentFile.type};base64,${currentFile.base64}` 
+            const persistenceUrl = uploadedFile.type.startsWith('image/') && uploadedFile.base64 
+                ? `data:${uploadedFile.type};base64,${uploadedFile.base64}` 
                 : undefined;
 
             userMessage.filePreview = { 
-                name: currentFile.file.name, 
-                type: currentFile.type, 
+                name: uploadedFile.file.name, 
+                type: uploadedFile.type, 
                 url: persistenceUrl,
-                base64: skipFileSending ? undefined : currentFile.base64 
+                base64: skipFileSending ? undefined : uploadedFile.base64 
             };
         }
         
         dispatch({ type: 'START_REQUEST', payload: { userMessage } });
         dispatch({ type: 'ADD_RESPONSE_PLACEHOLDER' });
-        if(!fileOverride) setUploadedFile(null);
+        setUploadedFile(null); // Clear file from input
 
+        // --- SEND API REQUEST ---
         try {
-            // We use the current state messages (which includes the just-added userMessage with CLEAN historyContent)
-            // But we need to send the API_PROMPT for the last turn, not historyContent.
-            
-            const history = [...messages]; // Messages *before* the current user message
-            const fileToSend = skipFileSending ? undefined : currentFile;
-            
-            // Note: generateResponseStream appends apiPrompt to the history we pass it.
-            // We pass 'history' (previous messages) and 'apiPrompt' (current instruction).
-            // This ensures Gemini sees the full instruction, but our UI/State only sees the clean command.
-            const stream = generateResponseStream(apiPrompt, history, modeForRequest, { file: fileToSend, responseType });
+            const history = [...messages];
+            const stream = generateResponseStream(finalApiPrompt, history, modeForRequest, { file: fileForApi, responseType });
             
             for await (const chunk of stream) {
                 const sources = chunk.candidates?.[0]?.groundingMetadata?.groundingChunks;
@@ -388,43 +423,6 @@ const App: React.FC = () => {
         }
     }, [chatMode, messages, uploadedFile, isLive, stopSession]);
 
-    const handleFileUpload = useCallback(async (file: UploadedFile) => {
-        try {
-            let analysisPrompt: string;
-            let displayMessage = `Analyzing file: ${file.file.name}`;
-            let skipFileSending = false;
-
-            if (file.type === 'application/pdf') {
-                const pdfResult = await processPdf(file.file);
-                if (pdfResult.strategy === PdfProcessingStrategy.TEXT_EXTRACTION && pdfResult.extractedText) {
-                    // Token Optimization: If we extracted text, sending the text is enough.
-                    // We do NOT need to send the PDF bytes, saving massive amounts of tokens.
-                    analysisPrompt = FILE_TEXT_ANALYSIS_PROMPT(file.file.name, pdfResult.extractedText);
-                    skipFileSending = true;
-                } else {
-                    analysisPrompt = FILE_ANALYSIS_PROMPT(file.file.name); // Fallback to OCR
-                }
-            } else if (file.type === 'text/plain' || file.file.name.endsWith('.txt') || file.file.name.endsWith('.md') || file.file.name.endsWith('.csv') || file.file.name.endsWith('.json')) {
-                 // Text File Optimization: Read directly and send as text part.
-                 const textContent = await file.file.text();
-                 analysisPrompt = FILE_TEXT_ANALYSIS_PROMPT(file.file.name, textContent);
-                 skipFileSending = true;
-            } else {
-                analysisPrompt = FILE_ANALYSIS_PROMPT(file.file.name);
-            }
-            
-            // We pass the file to handleSend so it shows the UI preview, 
-            // but we use skipFileSending=true to prevent sending bytes to the API if we already extracted text.
-            // NOTE: The 'analysisPrompt' will be used as the API Prompt.
-            // We should keep the displayMessage as provided to prevent "The Wall of Text".
-            await handleSend(analysisPrompt, file, displayMessage, skipFileSending);
-
-        } catch (error) {
-            const friendlyError = getFriendlyErrorMessage(error);
-            dispatch({ type: 'REQUEST_FAILED', payload: friendlyError });
-        }
-    }, [handleSend]);
-    
     const handleExportChat = useCallback(() => {
         handleSend('/export');
     }, [handleSend]);
@@ -462,7 +460,6 @@ const App: React.FC = () => {
             <MessageList messages={messages} isLoading={isLoading} isLive={isLive} liveTranscript={transcript} />
             <InputBar
                 onSend={handleSend}
-                onFileUpload={handleFileUpload}
                 onClearFile={() => setUploadedFile(null)}
                 setUploadedFile={setUploadedFile}
                 uploadedFile={uploadedFile}

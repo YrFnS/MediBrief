@@ -126,6 +126,9 @@ export const MODEL_CONFIGS = {
       responseModalities: [Modality.AUDIO],
       outputAudioTranscription: {},
       inputAudioTranscription: {},
+      speechConfig: {
+        voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } }
+      },
       tools: [{ functionDeclarations: [scheduleAppointmentFunctionDeclaration] }],
     },
     description: "Real-time voice conversation with the AI assistant."

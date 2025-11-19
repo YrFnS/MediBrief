@@ -6,7 +6,7 @@ import { PaperclipIcon, SendIcon, XCircleIcon, BriefingIcon, UserIcon, DrugsIcon
 
 interface InputBarProps {
     onSend: (prompt: string) => void;
-    onFileUpload: (file: UploadedFile) => void;
+    onFileUpload?: (file: UploadedFile) => void; // Deprecated but kept for interface compatibility if needed, though unused internally now
     onClearFile: () => void;
     setUploadedFile: (file: UploadedFile) => void;
     isLoading: boolean;
@@ -32,7 +32,7 @@ const QUICK_COMMANDS = [
 ];
 
 
-const InputBar: React.FC<InputBarProps> = ({ onSend, onFileUpload, onClearFile, setUploadedFile, isLoading, currentMode, uploadedFile, toggleLiveSession, isLiveSessionActive }) => {
+const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFile, isLoading, currentMode, uploadedFile, toggleLiveSession, isLiveSessionActive }) => {
     const [prompt, setPrompt] = useState('');
     const [showCommands, setShowCommands] = useState(false);
     const [isListening, setIsListening] = useState(false);
@@ -69,11 +69,9 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onFileUpload, onClearFile, 
                     uploadPayload.url = URL.createObjectURL(file);
                 }
                 
-                if (prompt.trim() === '') {
-                     onFileUpload(uploadPayload);
-                } else {
-                     setUploadedFile(uploadPayload);
-                }
+                // FIX: Do NOT automatically send. Just set the state.
+                // The user must click "Send" to confirm, allowing them to add a prompt.
+                setUploadedFile(uploadPayload);
             };
             reader.readAsDataURL(file);
         }
