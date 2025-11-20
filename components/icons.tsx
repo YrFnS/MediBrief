@@ -223,3 +223,11 @@ export const CameraIcon: React.FC<{className?: string}> = (props) => (
         <path d="M4 4h3l2-2h6l2 2h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm8 3a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm0 2a3 3 0 1 1 0 6 3 3 0 0 1 0-6z" />
     </svg>
 );
+
+export const BeakerIcon: React.FC<{className?: string}> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
+        <path d="M19.66 17.33l-3.11-10.35C16.24 5.96 15.37 5 14.11 5H13V3h1.5V1h-5V3H11v2H9.89c-1.26 0-2.13.96-2.44 1.98l-3.1 10.35C3.85 19.01 5.12 21 7 21h10c1.88 0 3.15-1.99 2.66-3.67zM7 19l3-10h4l3 10H7z" />
+        <path d="M10 9h4v1h-4z" opacity="0.3" />
+        <path d="M10 12h4v1h-4z" opacity="0.3" />
+    </svg>
+);

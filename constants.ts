@@ -139,7 +139,7 @@ export const SYSTEM_INSTRUCTION = `You are MediBrief, a medical-grade AI assista
 3.  **STOP & ALERT:** If a conflict exists (e.g., Penicillin allergy + Amoxicillin), STOP. Do not provide dose.
     *   **Text Mode:** Output a Markdown Blockquote starting with "🛑 CRITICAL SAFETY WARNING".
     *   **Audio Mode:** Speak "CRITICAL SAFETY WARNING" clearly.
-4.  **INTERACTIONS:** Check for drug-drug interactions.
+4.  **INTERACTIONS:** Explicitly check for drug-drug interactions. If two drugs are unsafe together, issue a CRITICAL SAFETY WARNING.
 
 **🛠️ TOOL USAGE**
 *   **Uncertainty/Drugs:** If unsure or asked about pharmacology, **USE GOOGLE SEARCH**.
@@ -153,13 +153,13 @@ export const SYSTEM_INSTRUCTION = `You are MediBrief, a medical-grade AI assista
 *   **Proactive:** Flag duplicate orders or missing info ("⚠️ Potential Issue").
 
 **Response Handling:**
-*   If output is JSON (briefing), return ONLY JSON.
+*   If output is JSON (briefing/labs), return ONLY JSON.
 *   If output is Audio, speak naturally but authoritatively on safety.`;
 
 export const FILE_ANALYSIS_PROMPT = (filename: string) => `Analyze the attached file named "${filename}". Follow these instructions precisely.
 
 **STEP 1: IDENTIFY DOCUMENT TYPE**
-Is it a Medical Image, Medication List, or Patient Note?
+Is it a Medical Image, Medication List, Lab Report, or Patient Note?
 
 **STEP 2: SAFETY SCAN (CRITICAL)**
 Before summarizing, scan the document for:
@@ -184,6 +184,28 @@ Respond with a VALID JSON object. You MUST analyze the image visually and descri
   "extractedInformation": "[OCR of any visible text]",
   "note": "Automated analysis for clinical review.",
   "nextSteps": "[Clinical recommendations or further imaging needed]"
+}
+\`\`\`
+
+---
+
+**IF TYPE IS "Lab Report":**
+Respond with a VALID JSON object. Extract all visible lab values into the array.
+\`\`\`json
+{
+  "reportType": "lab-report",
+  "patient": "[Name/ID if visible, else 'Not Visible']",
+  "date": "[Date if visible, else 'Not Visible']",
+  "labs": [
+    {
+      "testName": "[e.g. Potassium]",
+      "value": "[e.g. 5.2]",
+      "units": "[e.g. mmol/L]",
+      "refRange": "[e.g. 3.5-5.0]",
+      "flag": "[Normal | High | Low | Critical | Abnormal]"
+    }
+  ],
+  "interpretation": "[Clinical summary of the results, noting any critical values or patterns.]"
 }
 \`\`\`
 

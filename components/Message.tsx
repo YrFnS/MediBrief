@@ -6,7 +6,8 @@ import type { ChatMessage } from '../types';
 import { UserIcon, BotIcon, LinkIcon, DocumentTextIcon, ClipboardIcon, CheckIcon } from './icons';
 import BriefingReport from './BriefingReport';
 import ImageAnalysisReport from './ImageAnalysisReport';
-import { isJsonBriefing, isImageAnalysis } from '../utils';
+import LabReport from './LabReport';
+import { isJsonBriefing, isImageAnalysis, isLabReport } from '../utils';
 
 // New Icon for Maps
 const MapPinIcon: React.FC<{className?: string}> = (props) => (
@@ -37,14 +38,15 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLo
     
     const isBriefing = isModel && isJsonBriefing(message.content);
     const isAnalysis = isModel && isImageAnalysis(message.content);
+    const isLab = isModel && isLabReport(message.content);
 
     const isStreamingJson = useMemo(() => {
         if (!isModel || !isLoading || !isLast) return false;
         const content = message.content.trim();
         const hasJsonStart = content.includes('```json') || content.startsWith('{');
-        const isComplete = isBriefing || isAnalysis; 
+        const isComplete = isBriefing || isAnalysis || isLab; 
         return hasJsonStart && !isComplete;
-    }, [message.content, isModel, isLoading, isLast, isBriefing, isAnalysis]);
+    }, [message.content, isModel, isLoading, isLast, isBriefing, isAnalysis, isLab]);
 
     const parsedContent = useMemo(() => {
         const html = parse(contentToDisplay, { breaks: true, gfm: true }) as string;
@@ -78,7 +80,7 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLo
             
             <div className={`w-full max-w-full md:max-w-[85%] rounded-2xl p-3 md:p-6 relative shadow-sm border transition-all ${isModel ? 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700' : 'bg-medical-50/50 dark:bg-medical-900/10 border-medical-100 dark:border-medical-900/30'}`}>
                 
-                {isModel && !isBriefing && !isAnalysis && !isStreamingJson && (
+                {isModel && !isBriefing && !isAnalysis && !isLab && !isStreamingJson && (
                     <button 
                         onClick={handleCopy}
                         className="absolute top-3 right-3 p-1.5 rounded-lg text-slate-400 hover:text-medical-600 hover:bg-slate-50 dark:hover:bg-slate-700 opacity-0 group-hover:opacity-100 transition-all"
@@ -118,6 +120,8 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLo
                     <BriefingReport content={message.content} />
                 ) : isAnalysis ? (
                     <ImageAnalysisReport content={message.content} />
+                ) : isLab ? (
+                    <LabReport content={message.content} />
                 ) : isStreamingJson ? (
                      <div className="flex flex-col gap-4 p-2 w-full min-w-[300px]">
                         <div className="flex items-center gap-3 text-medical-600 dark:text-medical-400">

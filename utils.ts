@@ -64,3 +64,8 @@ export const isImageAnalysis = (content: string): boolean => {
      const data = parseJsonSafe<any>(content);
      return data && typeof data === 'object' && data.reportType === 'medical-image';
 };
+
+export const isLabReport = (content: string): boolean => {
+    const data = parseJsonSafe<any>(content);
+    return data && typeof data === 'object' && data.reportType === 'lab-report';
+};
