@@ -462,11 +462,25 @@ const App: React.FC = () => {
                      displayOverride = `📄 **Uploaded ${uploadedFile.file.name}**\n\n${trimmedPrompt || "Requested analysis."}`;
                      fileForApi = undefined; 
                 } else {
+                     // IMAGE OR GENERIC FILE
+                     // Always use the strict analysis prompt to enforce JSON output, even if user asks a question.
+                    const baseAnalysisPrompt = FILE_ANALYSIS_PROMPT(uploadedFile.file.name);
+                    
                     if (!trimmedPrompt) {
-                        analysisPrompt = FILE_ANALYSIS_PROMPT(uploadedFile.file.name);
+                        analysisPrompt = baseAnalysisPrompt;
                         displayOverride = `Analyzing file: ${uploadedFile.file.name}`; 
                     } else {
-                        analysisPrompt = trimmedPrompt;
+                        // Concatenate to ensure we don't lose the instruction to output JSON
+                        // We inject an explicit override to prevent "I can't answer" refusals when users ask questions.
+                        analysisPrompt = `${baseAnalysisPrompt}
+
+---
+**ADDITIONAL INSTRUCTION:**
+The user has asked a specific question about this image: "${trimmedPrompt}".
+1. You MUST still output the VALID JSON object as defined above.
+2. Answer the user's question within the "visualObservations", "potentialAbnormalities", or "note" fields of the JSON.
+3. DO NOT output plain text. DO NOT refuse to answer. This is for a medical professional.
+`;
                     }
                 }
                 
@@ -609,7 +623,7 @@ const App: React.FC = () => {
                     <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-xl flex flex-col items-center text-blue-500">
                         <DocumentTextIcon className="w-16 h-16 mb-4" />
                         <h2 className="text-2xl font-bold">Drop Medical Records Here</h2>
-                        <p className="text-slate-500 mt-2">PDF, Images (X-Ray, EKG), or Text</p>
+                        <p className="text-slate-500 mt-2">PDF, Images (X-Rays, EKG), or Text</p>
                     </div>
                 </div>
             )}

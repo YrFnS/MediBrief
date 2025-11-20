@@ -26,8 +26,18 @@ interface ReportSectionProps {
     isCode?: boolean;
 }
 
+const ensureString = (val: any): string | null => {
+    if (val === null || val === undefined) return null;
+    if (typeof val === 'string') return val;
+    if (Array.isArray(val)) return val.join(', ');
+    if (typeof val === 'object') return JSON.stringify(val);
+    return String(val);
+};
+
 const ReportSection: React.FC<ReportSectionProps> = ({ Icon, title, content, isCode = false }) => {
-    if (!content || content.toLowerCase() === 'not visible' || content.toLowerCase() === 'n/a') {
+    const displayContent = ensureString(content);
+    
+    if (!displayContent || displayContent.toLowerCase() === 'not visible' || displayContent.toLowerCase() === 'n/a') {
         return null;
     }
     return (
@@ -37,9 +47,9 @@ const ReportSection: React.FC<ReportSectionProps> = ({ Icon, title, content, isC
                 <span>{title}</span>
             </h3>
             {isCode ? (
-                 <pre className="whitespace-pre-wrap bg-slate-100 dark:bg-slate-700/50 p-3 rounded-md text-sm text-slate-700 dark:text-slate-300 font-mono"><code>{content}</code></pre>
+                 <pre className="whitespace-pre-wrap bg-slate-100 dark:bg-slate-700/50 p-3 rounded-md text-sm text-slate-700 dark:text-slate-300 font-mono"><code>{displayContent}</code></pre>
             ) : (
-                <p className="pl-7 text-sm text-slate-700 dark:text-slate-300">{content}</p>
+                <p className="pl-7 text-sm text-slate-700 dark:text-slate-300">{displayContent}</p>
             )}
         </div>
     );
@@ -64,21 +74,21 @@ const ImageAnalysisReport: React.FC<ImageAnalysisReportProps> = ({ content }) =>
                     <ImageIcon className="w-5 h-5 text-blue-500 flex-shrink-0" />
                     <div>
                         <p className="font-semibold text-slate-700 dark:text-slate-200">Image Type</p>
-                        <p className="text-slate-600 dark:text-slate-300">{analysis.imageType || 'N/A'}</p>
+                        <p className="text-slate-600 dark:text-slate-300">{ensureString(analysis.imageType) || 'N/A'}</p>
                     </div>
                 </div>
                  <div className="flex items-center gap-2 p-2 bg-slate-100 dark:bg-slate-700/50 rounded-lg">
                     <UserIcon className="w-5 h-5 text-blue-500 flex-shrink-0" />
                     <div>
                         <p className="font-semibold text-slate-700 dark:text-slate-200">Patient</p>
-                        <p className="text-slate-600 dark:text-slate-300">{analysis.patient || 'Not Visible'}</p>
+                        <p className="text-slate-600 dark:text-slate-300">{ensureString(analysis.patient) || 'Not Visible'}</p>
                     </div>
                 </div>
                  <div className="flex items-center gap-2 p-2 bg-slate-100 dark:bg-slate-700/50 rounded-lg">
                     <CalendarIcon className="w-5 h-5 text-blue-500 flex-shrink-0" />
                     <div>
                         <p className="font-semibold text-slate-700 dark:text-slate-200">Date</p>
-                        <p className="text-slate-600 dark:text-slate-300">{analysis.date || 'Not Visible'}</p>
+                        <p className="text-slate-600 dark:text-slate-300">{ensureString(analysis.date) || 'Not Visible'}</p>
                     </div>
                 </div>
             </div>
@@ -92,7 +102,7 @@ const ImageAnalysisReport: React.FC<ImageAnalysisReportProps> = ({ content }) =>
                 {analysis.note && (
                     <div className="p-3 rounded-lg bg-amber-100/50 dark:bg-amber-900/20 flex items-start gap-2 text-amber-800 dark:text-amber-200">
                         <AlertTriangleIcon className="w-5 h-5 mt-0.5 flex-shrink-0" />
-                        <p className="text-sm"><strong className="font-semibold">Note:</strong> {analysis.note}</p>
+                        <p className="text-sm"><strong className="font-semibold">Note:</strong> {ensureString(analysis.note)}</p>
                     </div>
                 )}
             </div>
