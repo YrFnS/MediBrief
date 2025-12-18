@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { parse } from 'marked';
 import DOMPurify from 'dompurify';
 import type { ChatMessage } from '../types';
@@ -8,7 +8,6 @@ import ImageAnalysisReport from './ImageAnalysisReport';
 import LabReport from './LabReport';
 import { isJsonBriefing, isImageAnalysis, isLabReport } from '../utils';
 
-// New Icon for Maps
 const MapPinIcon: React.FC<{className?: string}> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
         <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
@@ -32,12 +31,20 @@ interface MessageProps {
 const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLoad }) => {
     const isModel = message.role === 'model';
     const [isCopied, setIsCopied] = useState(false);
+    const [streamKey, setStreamKey] = useState(0);
 
     const contentToDisplay = (message.role === 'user' && message.displayContent) ? message.displayContent : message.content;
     
     const isBriefing = isModel && isJsonBriefing(message.content);
     const isAnalysis = isModel && isImageAnalysis(message.content);
     const isLab = isModel && isLabReport(message.content);
+
+    // Trigger a soft refresh of the animation key whenever content grows
+    useEffect(() => {
+        if (isModel && isLoading && isLast) {
+            setStreamKey(prev => prev + 1);
+        }
+    }, [message.content, isModel, isLoading, isLast]);
 
     const isStreamingJson = useMemo(() => {
         if (!isModel || !isLoading || !isLast) return false;
@@ -52,10 +59,10 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLo
     }, [isModel, isLast, isLoading, message.content, message.filePreview]);
 
     const parsedContent = useMemo(() => {
-        if (isPlaceholderLoading) return '';
+        if (isPlaceholderLoading || isStreamingJson) return '';
         const html = parse(contentToDisplay, { breaks: true, gfm: true }) as string;
         return DOMPurify.sanitize(html);
-    }, [contentToDisplay, isPlaceholderLoading]);
+    }, [contentToDisplay, isPlaceholderLoading, isStreamingJson]);
 
     const handleCopy = () => {
         navigator.clipboard.writeText(message.content);
@@ -74,17 +81,18 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLo
         prose-blockquote:py-3 prose-blockquote:px-4 prose-blockquote:rounded-r-lg
         prose-blockquote:not-italic prose-blockquote:font-medium prose-blockquote:shadow-sm
         prose-code:font-mono prose-code:text-xs prose-code:bg-slate-100 dark:prose-code:bg-slate-800 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-slate-800 dark:prose-code:text-slate-200
+        ${isLoading && isLast ? 'animate-soft-stream' : ''}
     `;
 
     return (
         <div className={`flex items-start gap-2 md:gap-4 ${isModel ? '' : 'flex-row-reverse'} group animate-in fade-in slide-up duration-500`}>
-            <div className={`flex-shrink-0 w-7 h-7 md:w-10 md:h-10 rounded-full flex items-center justify-center shadow-md ring-2 ring-white dark:ring-slate-800 ${isModel ? 'bg-gradient-to-br from-medical-500 to-medical-600' : 'bg-slate-200 dark:bg-slate-700'}`}>
+            <div className={`flex-shrink-0 w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center shadow-md ring-2 ring-white dark:ring-slate-800 ${isModel ? 'bg-gradient-to-br from-medical-500 to-medical-600' : 'bg-slate-200 dark:bg-slate-700'}`}>
                 {isModel ? <BotIcon className="w-4 h-4 md:w-6 md:h-6 text-white" /> : <UserIcon className="w-4 h-4 md:w-6 md:h-6 text-slate-500 dark:text-slate-300" />}
             </div>
             
-            <div className={`w-full max-w-full md:max-w-[85%] rounded-2xl p-3 md:p-6 relative shadow-sm border transition-all ${isModel ? 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700' : 'bg-medical-50/50 dark:bg-medical-900/10 border-medical-100 dark:border-medical-900/30'}`}>
+            <div className={`w-full max-w-full md:max-w-[85%] rounded-2xl p-4 md:p-6 relative shadow-sm border transition-all ${isModel ? 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700' : 'bg-medical-50/50 dark:bg-medical-900/10 border-medical-100 dark:border-medical-900/30'}`}>
                 
-                {isModel && !isBriefing && !isAnalysis && !isLab && !isStreamingJson && !isPlaceholderLoading && (
+                {isModel && !isBriefing && !isAnalysis && !isLab && !isStreamingJson && !isPlaceholderLoading && message.content.trim() && (
                     <button 
                         onClick={handleCopy}
                         className="absolute top-3 right-3 p-1.5 rounded-lg text-slate-400 hover:text-medical-600 hover:bg-slate-50 dark:hover:bg-slate-700 opacity-0 group-hover:opacity-100 transition-all"
@@ -132,25 +140,33 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLo
                             <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
                             <span className="font-mono text-sm font-medium tracking-wide animate-pulse">ANALYZING CLINICAL DATA...</span>
                         </div>
-                        <div className="space-y-3 opacity-60">
-                            <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4 animate-pulse"></div>
-                            <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-1/2 animate-pulse delay-75"></div>
-                            <div className="h-32 bg-slate-100 dark:bg-slate-700/50 rounded-lg w-full mt-2 border border-dashed border-slate-300 dark:border-slate-600"></div>
+                        <div className="space-y-3">
+                            <div className="h-4 shimmer-bg animate-shimmer rounded w-3/4 opacity-40"></div>
+                            <div className="h-4 shimmer-bg animate-shimmer rounded w-1/2 opacity-40"></div>
+                            <div className="h-32 bg-slate-50 dark:bg-slate-800/50 rounded-lg w-full mt-2 border border-dashed border-slate-300 dark:border-slate-600 flex items-center justify-center">
+                                <span className="text-xs font-mono text-slate-400 animate-pulse">PARSING SCHEMA...</span>
+                            </div>
                         </div>
                     </div>
                 ) : isPlaceholderLoading ? (
-                    <div className="flex items-center space-x-2 py-1">
-                        <span className="w-2 h-2 bg-slate-400 dark:bg-slate-500 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-                        <span className="w-2 h-2 bg-slate-400 dark:bg-slate-500 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-                        <span className="w-2 h-2 bg-slate-400 dark:bg-slate-500 rounded-full animate-bounce"></span>
+                    <div className="space-y-3 w-full animate-in fade-in duration-500">
+                        <div className="flex items-center gap-2 mb-2">
+                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest animate-pulse">Clinical Reasoning</span>
+                        </div>
+                        <div className="h-2.5 shimmer-bg animate-shimmer rounded-full w-48"></div>
+                        <div className="h-2.5 shimmer-bg animate-shimmer rounded-full w-full"></div>
+                        <div className="h-2.5 shimmer-bg animate-shimmer rounded-full w-2/3"></div>
                     </div>
                 ) : (
-                    <div className={typographyClasses} dangerouslySetInnerHTML={{ __html: parsedContent }}></div>
+                    <div 
+                        key={streamKey} 
+                        className={typographyClasses} 
+                        dangerouslySetInnerHTML={{ __html: parsedContent }}
+                    ></div>
                 )}
                 
-                {/* Citations (Grounding) */}
                 {message.sources && message.sources.length > 0 && (
-                    <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-700/50">
+                    <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-700/50 animate-in fade-in duration-700">
                         <div className="flex items-center gap-2 mb-3">
                             <div className="w-1 h-4 bg-medical-500 rounded-full"></div>
                             <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">References & Locations</h4>
@@ -159,11 +175,7 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLo
                             {message.sources.map((source, i) => {
                                 if (source.web) {
                                     return (
-                                        <a 
-                                            key={i} 
-                                            href={source.web.uri} 
-                                            target="_blank" 
-                                            rel="noopener noreferrer"
+                                        <a key={i} href={source.web.uri} target="_blank" rel="noopener noreferrer"
                                             className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-700/50 hover:bg-medical-50 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 hover:border-medical-200 px-3 py-1.5 rounded-md text-xs font-medium text-slate-600 dark:text-slate-300 transition-all shadow-sm hover:shadow"
                                         >
                                             <LinkIcon className="w-3 h-3 flex-shrink-0 text-medical-500" />
@@ -173,11 +185,7 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLo
                                 }
                                 if (source.maps) {
                                     return (
-                                        <a 
-                                            key={i} 
-                                            href={source.maps.uri} 
-                                            target="_blank" 
-                                            rel="noopener noreferrer"
+                                        <a key={i} href={source.maps.uri} target="_blank" rel="noopener noreferrer"
                                             className="flex items-center gap-1.5 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/40 border border-green-200 dark:border-green-800 hover:border-green-300 px-3 py-1.5 rounded-md text-xs font-medium text-green-800 dark:text-green-300 transition-all shadow-sm hover:shadow"
                                         >
                                             <MapPinIcon className="w-3 h-3 flex-shrink-0 text-green-600 dark:text-green-400" />

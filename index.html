@@ -36,6 +36,8 @@
             'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
             'fade-in': 'fadeIn 0.5s ease-out',
             'slide-up': 'slideUp 0.3s ease-out',
+            'shimmer': 'shimmer 2s infinite linear',
+            'soft-stream': 'softStream 0.3s ease-out forwards',
           },
           keyframes: {
             fadeIn: {
@@ -45,6 +47,14 @@
             slideUp: {
               '0%': { transform: 'translateY(10px)', opacity: '0' },
               '100%': { transform: 'translateY(0)', opacity: '1' },
+            },
+            shimmer: {
+              '0%': { backgroundPosition: '-200% 0' },
+              '100%': { backgroundPosition: '200% 0' },
+            },
+            softStream: {
+              '0%': { opacity: '0.4', transform: 'translateY(2px)' },
+              '100%': { opacity: '1', transform: 'translateY(0)' },
             }
           }
         }
@@ -55,7 +65,6 @@
     body {
       font-family: 'Inter', sans-serif;
       background-color: #f8fafc;
-      /* Subtle medical mesh gradient */
       background-image: 
         radial-gradient(at 0% 0%, rgba(14, 165, 233, 0.08) 0px, transparent 50%),
         radial-gradient(at 100% 0%, rgba(20, 184, 166, 0.08) 0px, transparent 50%);
@@ -68,32 +77,26 @@
         radial-gradient(at 0% 0%, rgba(14, 165, 233, 0.1) 0px, transparent 50%),
         radial-gradient(at 100% 0%, rgba(20, 184, 166, 0.05) 0px, transparent 50%);
     }
+
+    .shimmer-bg {
+      background: linear-gradient(90deg, transparent 25%, rgba(226, 232, 240, 0.5) 50%, transparent 75%);
+      background-size: 200% 100%;
+    }
+    .dark .shimmer-bg {
+      background: linear-gradient(90deg, transparent 25%, rgba(51, 65, 85, 0.5) 50%, transparent 75%);
+      background-size: 200% 100%;
+    }
     
-    /* Custom scrollbars */
-    ::-webkit-scrollbar {
-      width: 8px;
-      height: 8px;
-    }
-    ::-webkit-scrollbar-track {
-      background: transparent;
-    }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb {
       background: #cbd5e1;
       border-radius: 4px;
       border: 2px solid transparent;
       background-clip: content-box;
     }
-    .dark ::-webkit-scrollbar-thumb {
-      background: #334155;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-      background: #94a3b8;
-    }
-    .dark ::-webkit-scrollbar-thumb:hover {
-      background: #475569;
-    }
+    .dark ::-webkit-scrollbar-thumb { background: #334155; }
 
-    /* Clinical Table Styles */
     .prose table {
       font-size: 0.85rem;
       width: 100%;
@@ -105,52 +108,14 @@
       margin-top: 1em;
       margin-bottom: 1em;
     }
-    .dark .prose table {
-      border-color: #334155;
-    }
-    
-    .prose thead {
-      background-color: #f1f5f9;
-      font-size: 0.75rem;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-    .dark .prose thead {
-      background-color: #1e293b;
-    }
-
-    .prose th {
-      padding: 0.75rem 1rem;
-      text-align: left;
-      font-weight: 600;
-      color: #475569;
-    }
-    .dark .prose th {
-      color: #94a3b8;
-    }
-
-    .prose td {
-      padding: 0.6rem 1rem;
-      border-bottom: 1px solid #f1f5f9;
-      color: #334155;
-    }
-    .dark .prose td {
-      border-bottom-color: #1e293b;
-      color: #cbd5e1;
-    }
-
-    .prose tr:last-child td {
-      border-bottom: none;
-    }
-
-    /* Markdown Code Blocks */
-    .prose pre {
-      background-color: #0f172a;
-      border-radius: 0.5rem;
-      padding: 1rem;
-      font-family: 'JetBrains Mono', monospace;
-      border: 1px solid #1e293b;
-    }
+    .dark .prose table { border-color: #334155; }
+    .prose thead { background-color: #f1f5f9; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .dark .prose thead { background-color: #1e293b; }
+    .prose th { padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #475569; }
+    .dark .prose th { color: #94a3b8; }
+    .prose td { padding: 0.6rem 1rem; border-bottom: 1px solid #f1f5f9; color: #334155; }
+    .dark .prose td { border-bottom-color: #1e293b; color: #cbd5e1; }
+    .prose pre { background-color: #0f172a; border-radius: 0.5rem; padding: 1rem; font-family: 'JetBrains Mono', monospace; border: 1px solid #1e293b; }
   </style>
 <script type="importmap">
 {
