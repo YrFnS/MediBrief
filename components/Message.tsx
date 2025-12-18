@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState } from 'react';
 import { parse } from 'marked';
 import DOMPurify from 'dompurify';
@@ -48,10 +47,15 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLo
         return hasJsonStart && !isComplete;
     }, [message.content, isModel, isLoading, isLast, isBriefing, isAnalysis, isLab]);
 
+    const isPlaceholderLoading = useMemo(() => {
+        return isModel && isLast && isLoading && !message.content.trim() && !message.filePreview;
+    }, [isModel, isLast, isLoading, message.content, message.filePreview]);
+
     const parsedContent = useMemo(() => {
+        if (isPlaceholderLoading) return '';
         const html = parse(contentToDisplay, { breaks: true, gfm: true }) as string;
         return DOMPurify.sanitize(html);
-    }, [contentToDisplay]);
+    }, [contentToDisplay, isPlaceholderLoading]);
 
     const handleCopy = () => {
         navigator.clipboard.writeText(message.content);
@@ -80,7 +84,7 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLo
             
             <div className={`w-full max-w-full md:max-w-[85%] rounded-2xl p-3 md:p-6 relative shadow-sm border transition-all ${isModel ? 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700' : 'bg-medical-50/50 dark:bg-medical-900/10 border-medical-100 dark:border-medical-900/30'}`}>
                 
-                {isModel && !isBriefing && !isAnalysis && !isLab && !isStreamingJson && (
+                {isModel && !isBriefing && !isAnalysis && !isLab && !isStreamingJson && !isPlaceholderLoading && (
                     <button 
                         onClick={handleCopy}
                         className="absolute top-3 right-3 p-1.5 rounded-lg text-slate-400 hover:text-medical-600 hover:bg-slate-50 dark:hover:bg-slate-700 opacity-0 group-hover:opacity-100 transition-all"
@@ -133,6 +137,12 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLo
                             <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-1/2 animate-pulse delay-75"></div>
                             <div className="h-32 bg-slate-100 dark:bg-slate-700/50 rounded-lg w-full mt-2 border border-dashed border-slate-300 dark:border-slate-600"></div>
                         </div>
+                    </div>
+                ) : isPlaceholderLoading ? (
+                    <div className="flex items-center space-x-2 py-1">
+                        <span className="w-2 h-2 bg-slate-400 dark:bg-slate-500 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                        <span className="w-2 h-2 bg-slate-400 dark:bg-slate-500 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                        <span className="w-2 h-2 bg-slate-400 dark:bg-slate-500 rounded-full animate-bounce"></span>
                     </div>
                 ) : (
                     <div className={typographyClasses} dangerouslySetInnerHTML={{ __html: parsedContent }}></div>

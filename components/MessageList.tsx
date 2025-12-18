@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import type { ChatMessage, LiveTranscript } from '../types';
 import Message from './Message';
@@ -94,19 +93,6 @@ const MessageList: React.FC<MessageListProps> = ({ messages, isLoading, isLive, 
                         onImageLoad={handleImageLoad}
                     />
                 ))}
-                
-                {isLoading && messages.length > 0 && !isLive && (
-                    <div className="flex items-start gap-2 md:gap-4 animate-pulse">
-                        <div className="flex-shrink-0 w-7 h-7 md:w-8 md:h-8 rounded-full flex items-center justify-center bg-blue-500">
-                            <BotIcon className="w-4 h-4 md:w-5 md:h-5 text-white" />
-                        </div>
-                        <div className="w-full max-w-full rounded-xl p-3 md:p-4 bg-white dark:bg-slate-800 shadow flex items-center space-x-2">
-                            <span className="w-2 md:w-2.5 h-2 md:h-2.5 bg-slate-400 dark:bg-slate-500 rounded-full animation-delay-0"></span>
-                            <span className="w-2 md:w-2.5 h-2 md:h-2.5 bg-slate-400 dark:bg-slate-500 rounded-full animate-pulse delay-200"></span>
-                            <span className="w-2 md:w-2.5 h-2 md:h-2.5 bg-slate-400 dark:bg-slate-500 rounded-full animate-pulse delay-400"></span>
-                        </div>
-                    </div>
-                )}
                 
                 {isLive && liveTranscript && <LiveTranscriptDisplay transcript={liveTranscript} />}
                 
