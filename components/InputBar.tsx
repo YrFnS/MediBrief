@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useCallback, ChangeEvent, KeyboardEvent, useEffect, useLayoutEffect } from 'react';
 import type { UploadedFile, ChatMode } from '../types';
 import { ChatMode as ChatModeEnum } from '../types';
@@ -48,6 +47,15 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
         };
     }, [uploadedFile]);
 
+    // Ensure speech recognition stops if component unmounts
+    useEffect(() => {
+        return () => {
+            if (recognitionRef.current) {
+                try { recognitionRef.current.stop(); } catch(e) {}
+            }
+        };
+    }, []);
+
     const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (file) {
@@ -75,7 +83,7 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
             if (recognitionRef.current) {
                 recognitionRef.current.onresult = null;
                 recognitionRef.current.onend = null; 
-                recognitionRef.current.stop();
+                try { recognitionRef.current.stop(); } catch(e) {}
                 setIsListening(false);
             }
             onSend(prompt);
@@ -176,8 +184,11 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
     
     const handleBlur = () => { setTimeout(() => setShowCommands(false), 200); };
 
-    const isInputDisabled = isLoading && !isLiveSessionActive;
-    const placeholderText = isLiveSessionActive ? 'Listening to conversation...' : 'Type a message...';
+    // Disable input while dictating to prevent state conflicts
+    const isInputDisabled = (isLoading && !isLiveSessionActive) || isListening;
+    const placeholderText = isLiveSessionActive 
+        ? 'Listening to conversation...' 
+        : (isListening ? 'Dictating...' : 'Type a message...');
 
     const showStopButton = isLoading && !isLiveSessionActive && onStop;
 
@@ -291,7 +302,7 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
                                     ? 'text-red-500 bg-red-100 dark:bg-red-900/20 animate-pulse' 
                                     : 'text-slate-400 hover:text-medical-600 hover:bg-medical-50 dark:hover:bg-slate-700'
                                 }`}
-                                title="Dictate"
+                                title={isListening ? "Stop Dictation" : "Dictate"}
                             >
                                 <MicrophoneIcon className="w-4 h-4 md:w-5 md:h-5" />
                             </button>

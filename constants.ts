@@ -1,4 +1,3 @@
-
 import { ChatMode } from './types';
 import { Type, Modality } from '@google/genai';
 
@@ -180,7 +179,9 @@ Respond with a VALID JSON object. You MUST analyze the image visually and descri
   "patient": "[Name/ID if visible, else 'Not Visible']",
   "date": "[Date if visible, else 'Not Visible']",
   "visualObservations": "[Detailed radiological description of findings. Be specific about anatomy, opacity, bone integrity, etc.]",
+  "certaintyScore": "[High | Medium | Low - based on image quality and clarity of findings]",
   "potentialAbnormalities": "[List potential abnormalities observed]",
+  "differentialDiagnosisSuggestions": "[List of potential differentials based on visual evidence, explicitly stated as suggestions only]",
   "extractedInformation": "[OCR of any visible text]",
   "note": "Automated analysis for clinical review.",
   "nextSteps": "[Clinical recommendations or further imaging needed]"
