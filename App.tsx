@@ -17,22 +17,23 @@ const App: React.FC = () => {
     const { state, dispatch } = useAppState();
     const { messages, isLoading, chatMode } = state;
 
-    // 2. Connection Settings (API Key / Subscription)
-    const { 
-        isSettingsOpen, setIsSettingsOpen, 
-        customApiKey, handleSaveCustomKey, 
-        hasEnvKey, hasAiStudioKey, handleSelectAiStudioKey,
-        hasValidConnection 
+    // 2. Connection Settings (API Key / OAuth)
+    const {
+        isSettingsOpen, setIsSettingsOpen,
+        customApiKey, handleSaveCustomKey,
+        hasEnvKey, hasValidConnection,
+        isOAuthAuthenticated, oauthUserEmail,
+        handleOAuthLogin, handleOAuthLogout
     } = useConnectionSettings();
 
     // 3. File Handler (Drag & Drop, Uploads)
-    const { 
+    const {
         uploadedFile, setUploadedFile, clearFile,
-        isDragging, handleDragOver, handleDragLeave, handleDrop 
+        isDragging, handleDragOver, handleDragLeave, handleDrop
     } = useFileHandler();
 
     // 4. Geolocation (Simple state, kept here for now)
-    const [userLocation, setUserLocation] = useState<{latitude: number, longitude: number} | undefined>(undefined);
+    const [userLocation, setUserLocation] = useState<{ latitude: number, longitude: number } | undefined>(undefined);
     useEffect(() => {
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
@@ -83,7 +84,7 @@ const App: React.FC = () => {
 
     // --- SETUP SCREEN (Blocking) ---
     if (!hasValidConnection) {
-         return (
+        return (
             <div className="flex flex-col items-center justify-center h-screen bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200 p-4">
                 <div className="bg-white dark:bg-slate-800 p-8 rounded-xl shadow-lg max-w-md text-center">
                     <div className="text-blue-500 text-5xl mb-4">🔑</div>
@@ -98,33 +99,35 @@ const App: React.FC = () => {
                         <KeyIcon className="w-5 h-5" />
                         Configure Connection
                     </button>
-                    <SettingsModal 
+                    <SettingsModal
                         isOpen={isSettingsOpen}
                         onClose={() => setIsSettingsOpen(false)}
-                        onSelectKey={handleSelectAiStudioKey}
-                        hasAiStudio={!!(window as any).aistudio}
-                        hasActiveKey={hasAiStudioKey || hasEnvKey}
+                        isOAuthAuthenticated={isOAuthAuthenticated}
+                        oauthUserEmail={oauthUserEmail}
+                        onOAuthLogin={handleOAuthLogin}
+                        onOAuthLogout={handleOAuthLogout}
                         customApiKey={customApiKey}
                         onSaveCustomKey={handleSaveCustomKey}
                     />
                 </div>
             </div>
-         );
+        );
     }
 
     return (
-        <div 
+        <div
             className="flex flex-col h-[100dvh] font-sans overflow-hidden relative"
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
         >
-            <SettingsModal 
+            <SettingsModal
                 isOpen={isSettingsOpen}
                 onClose={() => setIsSettingsOpen(false)}
-                onSelectKey={handleSelectAiStudioKey}
-                hasAiStudio={!!(window as any).aistudio}
-                hasActiveKey={hasAiStudioKey || hasEnvKey}
+                isOAuthAuthenticated={isOAuthAuthenticated}
+                oauthUserEmail={oauthUserEmail}
+                onOAuthLogin={handleOAuthLogin}
+                onOAuthLogout={handleOAuthLogout}
                 customApiKey={customApiKey}
                 onSaveCustomKey={handleSaveCustomKey}
             />

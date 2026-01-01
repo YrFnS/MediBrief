@@ -1,22 +1,40 @@
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import { loginWithGoogle, logout, getAuthStatus, type AuthStatus } from '../services/authService';
 
 export const useConnectionSettings = () => {
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [customApiKey, setCustomApiKey] = useState(() => sessionStorage.getItem('mediBriefCustomKey') || '');
-    const [hasEnvKey] = useState(!!process.env.API_KEY);
-    const [hasAiStudioKey, setHasAiStudioKey] = useState(false); // Track if user has connected via AI Studio
+    const [hasEnvKey] = useState(!!import.meta.env.VITE_GEMINI_API_KEY);
 
-    const handleSelectAiStudioKey = useCallback(async () => {
-        const win = window as any;
-        if (win.aistudio) {
-            try {
-                await win.aistudio.openSelectKey();
-                setHasAiStudioKey(true);
-            } catch (e) {
-                console.error("Key selection failed:", e);
-            }
+    // OAuth state
+    const [isOAuthAuthenticated, setIsOAuthAuthenticated] = useState(false);
+    const [oauthUserEmail, setOauthUserEmail] = useState<string | undefined>(undefined);
+
+    // Check OAuth status on mount
+    useEffect(() => {
+        const checkAuthStatus = async () => {
+            const status = await getAuthStatus();
+            setIsOAuthAuthenticated(status.authenticated);
+            setOauthUserEmail(status.user?.email);
+        };
+        checkAuthStatus();
+    }, []);
+
+    // OAuth handlers
+    const handleOAuthLogin = useCallback(async () => {
+        const success = await loginWithGoogle();
+        if (success) {
+            const status = await getAuthStatus();
+            setIsOAuthAuthenticated(status.authenticated);
+            setOauthUserEmail(status.user?.email);
         }
+    }, []);
+
+    const handleOAuthLogout = useCallback(async () => {
+        await logout();
+        setIsOAuthAuthenticated(false);
+        setOauthUserEmail(undefined);
     }, []);
 
     const handleSaveCustomKey = useCallback((key: string) => {
@@ -29,16 +47,20 @@ export const useConnectionSettings = () => {
     }, []);
 
     // Computed property: Do we have ANY valid way to connect?
-    const hasValidConnection = hasEnvKey || hasAiStudioKey || !!customApiKey;
+    const hasValidConnection = hasEnvKey || isOAuthAuthenticated || !!customApiKey;
 
     return {
         isSettingsOpen,
         setIsSettingsOpen,
         customApiKey,
         hasEnvKey,
-        hasAiStudioKey,
         hasValidConnection,
-        handleSelectAiStudioKey,
+        // OAuth
+        isOAuthAuthenticated,
+        oauthUserEmail,
+        handleOAuthLogin,
+        handleOAuthLogout,
+        // API Key
         handleSaveCustomKey
     };
 };
