@@ -45,12 +45,6 @@ const messageToContent = (message: ChatMessage, isHistory: boolean = false): Con
 
     if (message.content) {
         let textToSend = message.content;
-
-        // INTELLIGENCE RESTORATION:
-        // We DO NOT strip text files. We only strip Images (which are expensive).
-        // The AI retains full access to all uploaded text documents in the history.
-        // We removed the truncation logic here to allow full 1M token context usage for text.
-
         parts.push({ text: textToSend });
     }
     
@@ -83,6 +77,7 @@ interface GenerateResponseOptions {
   file?: UploadedFile;
   responseType?: 'json' | 'text';
   location?: { latitude: number; longitude: number };
+  apiKey?: string;
 }
 
 export const generateResponseStream = async function* (
@@ -91,22 +86,39 @@ export const generateResponseStream = async function* (
   mode: ChatMode,
   options?: GenerateResponseOptions
 ): AsyncGenerator<GenerateContentResponse> {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const finalApiKey = options?.apiKey || process.env.API_KEY;
+  if (!finalApiKey) throw new Error("API Key missing. Please set it in Settings.");
+
+  const ai = new GoogleGenAI({ apiKey: finalApiKey });
 
   const modelConfig = MODEL_CONFIGS[mode];
   const file = options?.file;
   
-  // Filter out empty messages, but keep those with file previews
+  // 1. Filter out completely empty messages (safety check)
   const rawHistory = history.filter(msg => {
      return (msg.content && msg.content.trim() !== '') || (msg.filePreview !== undefined);
   });
 
-  // COST & CONTEXT BALANCE:
-  // While text is cheap on Flash, deep context windows can still accumulate costs over long shifts.
-  // We reduced the window from 50 to 15 turns. This is generally sufficient for immediate clinical context
-  // (e.g. "What did I just ask about Patient X?") without dragging the entire day's log into every request.
-  const MAX_HISTORY_TURNS = 15;
-  const historyToProcess = rawHistory.slice(-MAX_HISTORY_TURNS);
+  // 2. INTELLIGENT CONTEXT PRUNING ("Sticky Files")
+  // In a medical context, files (X-Rays, PDFs) are the source of truth.
+  // We MUST preserve them, even if the conversation gets long.
+  // A simple `slice(-15)` would delete the Patient Chart if the doctor asks 16 questions.
+  
+  const MAX_TEXT_TURNS = 15; // Keep last 15 exchanges of text
+  
+  // Identify "Medical Records" (Messages with file attachments)
+  const medicalRecords = rawHistory.filter(msg => msg.filePreview !== undefined);
+  
+  // Identify "Conversation" (Text-only messages)
+  const conversation = rawHistory.filter(msg => msg.filePreview === undefined);
+  
+  // Prune only the conversation, keep ALL medical records
+  const recentConversation = conversation.slice(-MAX_TEXT_TURNS);
+  
+  // Re-assemble and sort by original order to maintain logical flow
+  const historyToProcess = [...medicalRecords, ...recentConversation].sort((a, b) => {
+      return rawHistory.indexOf(a) - rawHistory.indexOf(b);
+  });
 
   // Map history to API Content objects.
   // Pass 'true' to isHistory to strip expensive image binaries, but KEEP text.
@@ -138,7 +150,6 @@ export const generateResponseStream = async function* (
       // GROUNDING: If options provide location, inject it into toolConfig
       ...(options?.location ? {
          toolConfig: {
-             // FIX: Removed incorrect 'googleMapsToolConfig' wrapper and using 'retrievalConfig' directly as per Maps Grounding guidelines.
              retrievalConfig: {
                  latLng: {
                      latitude: options.location.latitude,
