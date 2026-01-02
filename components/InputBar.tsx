@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useCallback, ChangeEvent, KeyboardEvent, useEffect, useLayoutEffect } from 'react';
 import type { UploadedFile, ChatMode } from '../types';
 import { ChatMode as ChatModeEnum } from '../types';
@@ -108,7 +109,16 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
     const resizeTextarea = () => {
         const textarea = textareaRef.current;
         if (textarea) {
+            // Reset to auto to correctly measure the new content height
             textarea.style.height = 'auto';
+
+            // FIX: If empty, remove inline style so CSS classes (padding) control the height.
+            // This prevents the "21px" issue where scrollHeight excludes padding in some states.
+            if (prompt === '') {
+                textarea.style.height = '';
+                return;
+            }
+
             const scrollHeight = textarea.scrollHeight;
             textarea.style.height = `${Math.min(scrollHeight, 150)}px`;
         }
