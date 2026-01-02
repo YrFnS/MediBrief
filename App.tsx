@@ -1,8 +1,10 @@
+
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { ChatMode as ChatModeEnum, UploadedFile, ChatMessage, GroundingSource } from './types';
 import Header from './components/Header';
 import MessageList from './components/MessageList';
 import InputBar from './components/InputBar';
+import ImageViewer from './components/ImageViewer';
 import { generateResponseStream } from './services/geminiService';
 import { exportBriefingToPdf } from './services/exportService';
 import { cleanJsonOutput, isJsonBriefing, getFriendlyErrorMessage } from './utils';
@@ -20,6 +22,7 @@ const App: React.FC = () => {
     
     // --- Local Utils ---
     const [userLocation, setUserLocation] = useState<{latitude: number, longitude: number} | undefined>(undefined);
+    const [viewingImage, setViewingImage] = useState<{src: string, alt: string} | null>(null);
     const abortControllerRef = useRef<AbortController | null>(null);
 
     // --- Geolocation ---
@@ -59,6 +62,10 @@ const App: React.FC = () => {
         if (abortControllerRef.current) abortControllerRef.current.abort();
         dispatch({ type: 'REQUEST_FINISH' });
     }, [dispatch]);
+
+    const handleViewImage = useCallback((src: string, alt: string) => {
+        setViewingImage({ src, alt });
+    }, []);
 
     // --- Core Logic: Handle Send ---
     const handleSend = useCallback(async (userPrompt: string) => {
@@ -250,6 +257,14 @@ const App: React.FC = () => {
                     </div>
                 </div>
             )}
+            
+            {viewingImage && (
+                <ImageViewer 
+                    src={viewingImage.src} 
+                    alt={viewingImage.alt} 
+                    onClose={() => setViewingImage(null)} 
+                />
+            )}
 
             <Header
                 currentMode={chatMode}
@@ -257,7 +272,13 @@ const App: React.FC = () => {
                 onClearChat={handleClearChat}
                 onExportChat={handleExportChat}
             />
-            <MessageList messages={messages} isLoading={isLoading} isLive={isLive} liveTranscript={transcript} />
+            <MessageList 
+                messages={messages} 
+                isLoading={isLoading} 
+                isLive={isLive} 
+                liveTranscript={transcript} 
+                onViewImage={handleViewImage}
+            />
             <InputBar
                 onSend={handleSend}
                 onClearFile={clearFile}

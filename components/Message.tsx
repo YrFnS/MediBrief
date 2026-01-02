@@ -3,11 +3,11 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { parse } from 'marked';
 import DOMPurify from 'dompurify';
 import type { ChatMessage } from '../types';
-import { UserIcon, BotIcon, LinkIcon, DocumentTextIcon, ClipboardIcon, CheckIcon } from './icons';
+import { UserIcon, BotIcon, LinkIcon, DocumentTextIcon, ClipboardIcon, CheckIcon, ImageIcon } from './icons';
 import BriefingReport from './BriefingReport';
 import ImageAnalysisReport from './ImageAnalysisReport';
 import LabReport from './LabReport';
-import ReasoningIndicator from './ReasoningIndicator'; // New Import
+import ReasoningIndicator from './ReasoningIndicator'; 
 import { isJsonBriefing, isImageAnalysis, isLabReport } from '../utils';
 import { ChatMode } from '../types';
 
@@ -29,9 +29,10 @@ interface MessageProps {
     isLoading?: boolean;
     isLast?: boolean;
     onImageLoad?: () => void;
+    onViewImage?: (src: string, alt: string) => void;
 }
 
-const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLoad }) => {
+const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLoad, onViewImage }) => {
     const isModel = message.role === 'model';
     const [isCopied, setIsCopied] = useState(false);
     const [streamKey, setStreamKey] = useState(0);
@@ -108,15 +109,23 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLo
                 {message.filePreview && (
                     <div className="mb-4">
                         {message.filePreview.type.startsWith('image/') && message.filePreview.url ? (
-                            <div className="relative group inline-block rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm">
+                            <button 
+                                onClick={() => onViewImage?.(message.filePreview!.url!, message.filePreview!.name)}
+                                className="relative group inline-block rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm cursor-zoom-in text-left"
+                            >
                                 <img 
                                     src={message.filePreview.url} 
                                     alt={message.filePreview.name} 
                                     onLoad={onImageLoad}
                                     className="max-w-full md:max-w-sm object-cover block" 
                                 />
-                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors"></div>
-                            </div>
+                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                                    <div className="bg-black/50 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 backdrop-blur-sm">
+                                        <ImageIcon className="w-3 h-3" />
+                                        <span>Click to Enlarge</span>
+                                    </div>
+                                </div>
+                            </button>
                         ) : (
                              <div className="flex items-center gap-3 p-3 rounded-lg bg-white dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 w-fit shadow-sm">
                                 <div className="p-2 bg-slate-100 dark:bg-slate-600 rounded-md">
