@@ -1,3 +1,4 @@
+
 import { ChatMode } from './types';
 import { Type, Modality } from '@google/genai';
 
@@ -84,17 +85,18 @@ export const MODEL_CONFIGS = {
     config: {
       // Smart Auto Mode: We enable Google Search AND Google Maps.
       // The model will decide when to use them based on the query (e.g., "Pharmacy nearby" vs "Dosage").
+      // NOTE: Google Maps is only supported in Gemini 2.5 series.
       tools: [{ googleSearch: {} }, { googleMaps: {} }],
     },
     description: "Smart AI: Verifies facts via Search and finds locations via Maps."
   },
   [ChatMode.Standard]: {
-    model: 'gemini-2.5-flash',
+    model: 'gemini-3-flash-preview',
     config: {},
     description: "Balanced performance for general tasks and image analysis."
   },
   [ChatMode.Quick]: {
-    model: 'gemini-2.5-flash-lite',
+    model: 'gemini-3-flash-preview',
     config: {},
     description: "Optimized for speed and low-latency responses."
   },
@@ -114,7 +116,7 @@ export const MODEL_CONFIGS = {
     description: "Accesses up-to-date information and location services."
   },
   [ChatMode.Live]: {
-    model: 'gemini-2.5-flash-native-audio-preview-09-2025',
+    model: 'gemini-2.5-flash-native-audio-preview-12-2025',
     config: {
       responseModalities: [Modality.AUDIO],
       outputAudioTranscription: {},

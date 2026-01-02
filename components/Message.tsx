@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState, useEffect } from 'react';
 import { parse } from 'marked';
 import DOMPurify from 'dompurify';
@@ -6,7 +7,9 @@ import { UserIcon, BotIcon, LinkIcon, DocumentTextIcon, ClipboardIcon, CheckIcon
 import BriefingReport from './BriefingReport';
 import ImageAnalysisReport from './ImageAnalysisReport';
 import LabReport from './LabReport';
+import ReasoningIndicator from './ReasoningIndicator'; // New Import
 import { isJsonBriefing, isImageAnalysis, isLabReport } from '../utils';
+import { ChatMode } from '../types';
 
 const MapPinIcon: React.FC<{className?: string}> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
@@ -149,14 +152,7 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLo
                         </div>
                     </div>
                 ) : isPlaceholderLoading ? (
-                    <div className="space-y-3 w-full animate-in fade-in duration-500">
-                        <div className="flex items-center gap-2 mb-2">
-                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest animate-pulse">Clinical Reasoning</span>
-                        </div>
-                        <div className="h-2.5 shimmer-bg animate-shimmer rounded-full w-48"></div>
-                        <div className="h-2.5 shimmer-bg animate-shimmer rounded-full w-full"></div>
-                        <div className="h-2.5 shimmer-bg animate-shimmer rounded-full w-2/3"></div>
-                    </div>
+                    <ReasoningIndicator mode={ChatMode.Auto} />
                 ) : (
                     <div 
                         key={streamKey} 

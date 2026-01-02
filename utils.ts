@@ -39,15 +39,12 @@ export const cleanJsonOutput = (text: string): string => {
     }
 
     // Last Ditch: Just return the text.
-    // Removing the greedy "{ ... }" substring fallback because it's too aggressive
-    // and often captures invalid JSON when the model is "thinking" in text.
     return text.trim();
 };
 
 export const parseJsonSafe = <T>(content: string): T | null => {
     try {
         const cleaned = cleanJsonOutput(content);
-        // Quick check for object start to avoid unnecessary parsing attempts
         if (!cleaned.startsWith('{')) return null;
         return JSON.parse(cleaned) as T;
     } catch (e) {
@@ -68,4 +65,34 @@ export const isImageAnalysis = (content: string): boolean => {
 export const isLabReport = (content: string): boolean => {
     const data = parseJsonSafe<any>(content);
     return data && typeof data === 'object' && data.reportType === 'lab-report';
+};
+
+export const getFriendlyErrorMessage = (error: unknown): string => {
+    let errorMessage = 'An unknown error occurred.';
+    if (error instanceof Error) {
+        try {
+            // Attempt to parse the error message as JSON, which is common for API errors
+            const errorObj = JSON.parse(error.message);
+            if (errorObj.error && errorObj.error.message) {
+                const message = errorObj.error.message.toLowerCase();
+                if (message.includes('overloaded') || message.includes('too many requests') || errorObj.error.code === 503 || errorObj.error.code === 500) {
+                    return 'The service is currently experiencing high demand. Please wait a moment and try again.';
+                }
+                 if (message.includes('api key not valid')) {
+                    return 'The API key is not valid. Please check your configuration.';
+                }
+                return errorObj.error.message; 
+            } else {
+                return error.message; 
+            }
+        } catch (parseError) {
+            if (error.message.toLowerCase().includes('permission denied')) {
+                return 'Microphone access was denied. Please allow microphone permission in your browser settings.';
+            }
+            return error.message;
+        }
+    } else if (typeof error === 'string') {
+        return error;
+    }
+    return errorMessage;
 };

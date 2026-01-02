@@ -25,11 +25,55 @@ interface LabReportProps {
 
 const getFlagColor = (flag: string) => {
     const f = flag.toLowerCase();
-    if (f.includes('critical')) return 'bg-red-500 text-white animate-pulse';
+    if (f.includes('critical')) return 'bg-red-500 text-white animate-pulse shadow-md shadow-red-500/20';
     if (f.includes('high')) return 'bg-amber-100 text-amber-800 border border-amber-200';
     if (f.includes('low')) return 'bg-blue-100 text-blue-800 border border-blue-200';
     if (f.includes('abnormal')) return 'bg-amber-100 text-amber-800 border border-amber-200';
-    return 'bg-slate-100 text-slate-600';
+    return 'bg-slate-100 text-slate-600 border border-slate-200';
+};
+
+// Heuristic to visually plot a value against a range
+const RangeVisualizer: React.FC<{ value: string; range: string }> = ({ value, range }) => {
+    try {
+        const val = parseFloat(value.replace(/[^0-9.-]/g, ''));
+        const rangeMatch = range.match(/([\d.]+)\s*-\s*([\d.]+)/);
+        
+        if (isNaN(val) || !rangeMatch) return null;
+
+        const min = parseFloat(rangeMatch[1]);
+        const max = parseFloat(rangeMatch[2]);
+        const spread = max - min;
+        const totalMin = min - (spread * 0.5); // Extend bar 50% below min
+        const totalMax = max + (spread * 0.5); // Extend bar 50% above max
+        const totalSpread = totalMax - totalMin;
+
+        // Calculate percentages
+        const leftPct = ((val - totalMin) / totalSpread) * 100;
+        const startRangePct = ((min - totalMin) / totalSpread) * 100;
+        const rangeWidthPct = (spread / totalSpread) * 100;
+        
+        const clampedPos = Math.max(0, Math.min(100, leftPct));
+
+        return (
+            <div className="w-24 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full relative mt-1.5 overflow-hidden">
+                {/* Reference Range Zone */}
+                <div 
+                    className="absolute top-0 bottom-0 bg-slate-300 dark:bg-slate-600 opacity-50" 
+                    style={{ left: `${startRangePct}%`, width: `${rangeWidthPct}%` }}
+                />
+                
+                {/* Value Marker */}
+                <div 
+                    className={`absolute top-0 bottom-0 w-2 h-2 -ml-1 rounded-full border border-white shadow-sm z-10 ${
+                        val < min ? 'bg-blue-500' : val > max ? 'bg-amber-500' : 'bg-green-500'
+                    }`}
+                    style={{ left: `${clampedPos}%`, top: '-1px' }}
+                />
+            </div>
+        );
+    } catch(e) {
+        return null;
+    }
 };
 
 const LabReport: React.FC<LabReportProps> = ({ content }) => {
@@ -68,8 +112,8 @@ const LabReport: React.FC<LabReportProps> = ({ content }) => {
                         <tr>
                             <th className="px-4 py-3 font-semibold">Test Name</th>
                             <th className="px-4 py-3 font-semibold">Value</th>
-                            <th className="px-4 py-3 font-semibold">Ref Range</th>
-                            <th className="px-4 py-3 font-semibold">Status</th>
+                            <th className="px-4 py-3 font-semibold w-32">Ref Range</th>
+                            <th className="px-4 py-3 font-semibold text-right">Status</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -77,17 +121,22 @@ const LabReport: React.FC<LabReportProps> = ({ content }) => {
                             <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                                 <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-200">{lab.testName}</td>
                                 <td className="px-4 py-3">
-                                    <span className="font-bold text-slate-700 dark:text-slate-300">{lab.value}</span>
-                                    <span className="ml-1 text-xs text-slate-400">{lab.units}</span>
+                                    <div className="flex flex-col">
+                                        <div>
+                                            <span className="font-bold text-slate-900 dark:text-slate-100 text-base">{lab.value}</span>
+                                            <span className="ml-1 text-xs text-slate-400">{lab.units}</span>
+                                        </div>
+                                        <RangeVisualizer value={lab.value} range={lab.refRange} />
+                                    </div>
                                 </td>
                                 <td className="px-4 py-3 text-slate-500 dark:text-slate-400 font-mono text-xs">{lab.refRange}</td>
-                                <td className="px-4 py-3">
+                                <td className="px-4 py-3 text-right">
                                     {lab.flag && lab.flag.toLowerCase() !== 'normal' ? (
-                                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${getFlagColor(lab.flag)}`}>
+                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded text-xs font-bold uppercase tracking-wide ${getFlagColor(lab.flag)}`}>
                                             {lab.flag}
                                         </span>
                                     ) : (
-                                        <span className="text-slate-400 text-xs">Normal</span>
+                                        <span className="text-slate-400 text-xs font-medium">Normal</span>
                                     )}
                                 </td>
                             </tr>

@@ -1,364 +1,68 @@
-
-import React, { useState, useCallback, useEffect, useReducer, useRef } from 'react';
-import type { ChatMessage, ChatMode, UploadedFile, LiveTranscript, GroundingSource } from './types';
-import { ChatMode as ChatModeEnum } from './types';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { ChatMode as ChatModeEnum, UploadedFile, ChatMessage, GroundingSource } from './types';
 import Header from './components/Header';
 import MessageList from './components/MessageList';
 import InputBar from './components/InputBar';
 import { generateResponseStream } from './services/geminiService';
 import { exportBriefingToPdf } from './services/exportService';
-import { cleanJsonOutput, isJsonBriefing } from './utils';
+import { cleanJsonOutput, isJsonBriefing, getFriendlyErrorMessage } from './utils';
 import { FILE_ANALYSIS_PROMPT, BRIEFING_TRIGGERS, SHIFT_BRIEFING_PROMPT, HELP_COMMAND_RESPONSE } from './constants';
 import { useLiveSession } from './hooks/useLiveSession';
+import { useAppStore } from './hooks/useAppStore';
+import { useFileDragAndDrop } from './hooks/useFileDragAndDrop';
 import { DocumentTextIcon } from './components/icons';
 
-// --- Error Handling Helper ---
-const getFriendlyErrorMessage = (error: unknown): string => {
-    let errorMessage = 'An unknown error occurred.';
-    if (error instanceof Error) {
-        try {
-            // Attempt to parse the error message as JSON, which is common for API errors
-            const errorObj = JSON.parse(error.message);
-            if (errorObj.error && errorObj.error.message) {
-                const message = errorObj.error.message.toLowerCase();
-                if (message.includes('overloaded') || message.includes('too many requests') || errorObj.error.code === 503 || errorObj.error.code === 500) {
-                    return 'The service is currently experiencing high demand. Please wait a moment and try again.';
-                }
-                 if (message.includes('api key not valid')) {
-                    return 'The API key is not valid. Please check your configuration.';
-                }
-                return errorObj.error.message; // Return the specific message from the API
-            } else {
-                return error.message; // Not the expected JSON format, return raw message
-            }
-        } catch (parseError) {
-            // If it's not a JSON string, return the raw message.
-            // Also check for common non-JSON error messages.
-            if (error.message.toLowerCase().includes('permission denied')) {
-                return 'Microphone access was denied. Please allow microphone permission in your browser settings.';
-            }
-            return error.message;
-        }
-    } else if (typeof error === 'string') {
-        return error;
-    }
-    return errorMessage;
-};
-
-
-// --- State Management (useReducer) ---
-
-interface AppState {
-    messages: ChatMessage[];
-    isLoading: boolean;
-    chatMode: ChatMode;
-    error: string | null;
-}
-
-type AppAction =
-    | { type: 'START_REQUEST'; payload: { userMessage: ChatMessage } }
-    | { type: 'ADD_RESPONSE_PLACEHOLDER' }
-    | { type: 'APPEND_TO_LAST_MESSAGE'; payload: { chunk: string, sources?: GroundingSource[] } }
-    | { type: 'REQUEST_FINISH' }
-    | { type: 'ADD_FULL_RESPONSE'; payload: { message: ChatMessage; consumesFile?: boolean } }
-    | { type: 'UPDATE_LAST_MESSAGE_CONTENT'; payload: string }
-    | { type: 'REQUEST_FAILED'; payload: string }
-    | { type: 'SET_CHAT_MODE'; payload: ChatMode }
-    | { type: 'RESET_CHAT' }
-    | { type: 'ADD_INTERIM_MESSAGE', payload: ChatMessage }
-    | { type: 'SET_LOADING', payload: boolean }; // Added explicit loading setter
-
-const getInitialMessages = (): ChatMessage[] => {
-    try {
-        // SECURITY FIX: Use sessionStorage instead of localStorage.
-        // This ensures patient data is wiped when the tab closes, preventing
-        // unauthorized access on shared hospital workstations.
-        const savedMessages = sessionStorage.getItem('mediBriefMessages');
-        if (savedMessages) {
-            const parsed = JSON.parse(savedMessages);
-            // Basic validation to ensure it's an array of messages
-            if (Array.isArray(parsed) && parsed.every(m => 'role' in m && 'content' in m)) {
-                return parsed;
-            }
-        }
-    } catch (error) {
-        console.error("Failed to parse messages from sessionStorage. Clearing corrupted data.", error);
-        sessionStorage.removeItem('mediBriefMessages');
-    }
-    return [];
-};
-
-const getInitialMode = (): ChatMode => {
-    try {
-        const savedMode = sessionStorage.getItem('mediBriefChatMode');
-        if (savedMode && Object.values(ChatModeEnum).includes(savedMode as ChatModeEnum)) {
-            return savedMode as ChatModeEnum;
-        }
-    } catch (error) {
-        console.error("Failed to parse chat mode.", error);
-    }
-    return ChatModeEnum.Auto;
-};
-
-const initialState: AppState = {
-    messages: getInitialMessages(),
-    isLoading: false,
-    chatMode: getInitialMode(),
-    error: null,
-};
-
-const appReducer = (state: AppState, action: AppAction): AppState => {
-    switch (action.type) {
-        case 'START_REQUEST':
-            return {
-                ...state,
-                isLoading: true,
-                error: null,
-                messages: [...state.messages, action.payload.userMessage],
-            };
-        case 'ADD_RESPONSE_PLACEHOLDER':
-            return {
-                ...state,
-                messages: [...state.messages, { role: 'model', content: '' }]
-            };
-        case 'APPEND_TO_LAST_MESSAGE': {
-            const newMessages = [...state.messages];
-            const lastMessage = newMessages[newMessages.length - 1];
-            if (lastMessage && lastMessage.role === 'model') {
-                lastMessage.content += action.payload.chunk || '';
-                // Merge sources (Web + Maps)
-                if(action.payload.sources && action.payload.sources.length > 0) {
-                    const existingSources = lastMessage.sources || [];
-                    // Simple dedup based on URI
-                    const newSources = action.payload.sources.filter(ns => 
-                        !existingSources.some(es => 
-                            (es.web?.uri === ns.web?.uri && es.web?.uri) || 
-                            (es.maps?.uri === ns.maps?.uri && es.maps?.uri)
-                        )
-                    );
-                    lastMessage.sources = [...existingSources, ...newSources];
-                }
-            }
-            return { ...state, messages: newMessages };
-        }
-        case 'REQUEST_FINISH':
-             return { ...state, isLoading: false };
-        case 'ADD_FULL_RESPONSE':
-            return {
-                ...state,
-                isLoading: false,
-                messages: [...state.messages, action.payload.message],
-            };
-        case 'ADD_INTERIM_MESSAGE':
-            return {
-                ...state,
-                messages: [...state.messages, action.payload],
-            };
-         case 'UPDATE_LAST_MESSAGE_CONTENT': {
-            const newMessages = [...state.messages];
-            const lastMessage = newMessages[newMessages.length - 1];
-            if (lastMessage) {
-                lastMessage.content = action.payload;
-            }
-            return { ...state, messages: newMessages };
-        }
-        case 'REQUEST_FAILED': {
-             const newMessages = [...state.messages];
-             const lastMessage = newMessages[newMessages.length - 1];
-             if(lastMessage && lastMessage.role === 'model' && lastMessage.content === '') {
-                 lastMessage.content = `Sorry, I encountered an error. Please try again. \n\n**Details:** ${action.payload}`;
-             } else {
-                 newMessages.push({ role: 'model', content: `Sorry, I encountered an error. Please try again. \n\n**Details:** ${action.payload}` });
-             }
-            return {
-                ...state,
-                isLoading: false,
-                error: action.payload,
-                messages: newMessages
-            };
-        }
-        case 'SET_CHAT_MODE':
-            return { ...state, chatMode: action.payload };
-        case 'RESET_CHAT':
-            return { ...initialState, messages: [], chatMode: state.chatMode };
-        case 'SET_LOADING':
-            return { ...state, isLoading: action.payload };
-        default:
-            return state;
-    }
-};
-
-// --- Main App Component ---
 const App: React.FC = () => {
-    const [state, dispatch] = useReducer(appReducer, initialState);
+    // --- State & Custom Hooks ---
+    const { state, dispatch } = useAppStore();
+    const { uploadedFile, setUploadedFile, isDragging, clearFile, dragHandlers } = useFileDragAndDrop();
     const { messages, isLoading, chatMode } = state;
-    const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null);
-    const [isDragging, setIsDragging] = useState(false);
+    
+    // --- Local Utils ---
     const [userLocation, setUserLocation] = useState<{latitude: number, longitude: number} | undefined>(undefined);
     const abortControllerRef = useRef<AbortController | null>(null);
 
-    // --- Geolocation for Maps Grounding ---
+    // --- Geolocation ---
     useEffect(() => {
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    setUserLocation({
-                        latitude: position.coords.latitude,
-                        longitude: position.coords.longitude
-                    });
-                },
-                (err) => {
-                    console.debug("Location access denied or failed:", err.message);
-                    // We fail silently; the app just won't use local context.
-                }
+                (position) => setUserLocation({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
+                (err) => console.debug("Location access denied or failed:", err.message)
             );
         }
     }, []);
 
-    // --- Live Session Hook Integration ---
+    // --- Live Session Integration ---
     const handleLiveTurnComplete = useCallback((userInput: string, modelOutput: string) => {
         if (userInput) dispatch({ type: 'ADD_FULL_RESPONSE', payload: { message: { role: 'user', content: userInput } } });
         if (modelOutput) dispatch({ type: 'ADD_FULL_RESPONSE', payload: { message: { role: 'model', content: modelOutput } } });
-    }, []);
+    }, [dispatch]);
 
     const { isLive, transcript, startSession, stopSession, error: liveError } = useLiveSession(handleLiveTurnComplete);
 
-    // Effect to handle live session errors in the main UI
     useEffect(() => {
-        if (liveError) {
-            dispatch({ type: 'REQUEST_FAILED', payload: liveError });
-        }
-    }, [liveError]);
+        if (liveError) dispatch({ type: 'REQUEST_FAILED', payload: liveError });
+    }, [liveError, dispatch]);
 
-    // --- SYNC: Chat Mode <-> Live Session State ---
-    
-    // 1. If user manually switches mode AWAY from Live using the UI selector, STOP the session.
     useEffect(() => {
-        if (chatMode !== ChatModeEnum.Live && isLive) {
-            stopSession();
-        }
+        if (chatMode !== ChatModeEnum.Live && isLive) stopSession();
     }, [chatMode, isLive, stopSession]);
 
-    // 2. If the session starts (e.g. via Mic button), visually update the UI mode to Live.
     useEffect(() => {
-        if (isLive && chatMode !== ChatModeEnum.Live) {
-            dispatch({ type: 'SET_CHAT_MODE', payload: ChatModeEnum.Live });
-        }
-    }, [isLive, chatMode]);
+        if (isLive && chatMode !== ChatModeEnum.Live) dispatch({ type: 'SET_CHAT_MODE', payload: ChatModeEnum.Live });
+    }, [isLive, chatMode, dispatch]);
 
-    // --- Persistence Logic ---
-    useEffect(() => {
-        const saveMessages = (msgsToSave: ChatMessage[]) => {
-            try {
-                const optimizedMessages = msgsToSave.map(msg => {
-                    if (msg.filePreview) {
-                        const isDataUrl = msg.filePreview.url?.startsWith('data:');
-                        const isBlobUrl = msg.filePreview.url?.startsWith('blob:');
-                        
-                        return {
-                            ...msg,
-                            filePreview: {
-                                ...msg.filePreview,
-                                base64: undefined, // Don't persist heavy base64
-                                url: (isDataUrl || isBlobUrl) ? undefined : msg.filePreview.url 
-                            }
-                        };
-                    }
-                    return msg;
-                });
-                sessionStorage.setItem('mediBriefMessages', JSON.stringify(optimizedMessages));
-            } catch (e) {
-                console.warn("Storage quota exceeded. Saving text-only history.");
-                try {
-                     const textOnly = msgsToSave.map(m => ({
-                         role: m.role,
-                         content: m.content,
-                         filePreview: undefined
-                     }));
-                     sessionStorage.setItem('mediBriefMessages', JSON.stringify(textOnly));
-                } catch(e2) {
-                     console.error("Storage completely full.", e2);
-                }
-            }
-        };
-
-        if (messages.length > 0) {
-            saveMessages(messages);
-        } else {
-            sessionStorage.removeItem('mediBriefMessages');
-        }
-    }, [messages]);
-
-    // --- Chat Mode Persistence ---
-    useEffect(() => {
-        try {
-            sessionStorage.setItem('mediBriefChatMode', chatMode);
-        } catch (e) {
-            console.error("Failed to save chat mode preference.");
-        }
-    }, [chatMode]);
+    // --- Handlers ---
+    const handleClearChat = useCallback(() => dispatch({ type: 'RESET_CHAT' }), [dispatch]);
     
-    const handleClearChat = useCallback(() => {
-        dispatch({ type: 'RESET_CHAT' });
-    }, []);
-
-    // --- DRAG AND DROP HANDLERS ---
-    const handleDragOver = useCallback((e: React.DragEvent) => {
-        e.preventDefault();
-        if ('ontouchstart' in window || navigator.maxTouchPoints > 0) return;
-        if (!e.dataTransfer.types.includes('Files')) return;
-        if (!isDragging) setIsDragging(true);
-    }, [isDragging]);
-
-    const handleDragLeave = useCallback((e: React.DragEvent) => {
-        e.preventDefault();
-        if (e.currentTarget.contains(e.relatedTarget as Node)) return;
-        setIsDragging(false);
-    }, []);
-
-    const handleDrop = useCallback((e: React.DragEvent) => {
-        e.preventDefault();
-        setIsDragging(false);
-        
-        const file = e.dataTransfer.files?.[0];
-        if (file) {
-             if (file.size > 4 * 1024 * 1024) { 
-                alert("File is too large. Please select a file smaller than 4MB.");
-                return;
-            }
-            const isSupported = file.type.startsWith('image/') || file.type === 'application/pdf' || file.type === 'text/plain' || file.name.endsWith('.md') || file.name.endsWith('.txt');
-            if (!isSupported) {
-                 alert("Unsupported file type. Please upload Images, PDFs, or Text files.");
-                 return;
-            }
-
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                const base64 = (reader.result as string).split(',')[1];
-                const uploadPayload: UploadedFile = { file, base64, type: file.type };
-                if (file.type.startsWith('image/')) {
-                    uploadPayload.url = URL.createObjectURL(file);
-                }
-                setUploadedFile(uploadPayload);
-            };
-            reader.readAsDataURL(file);
-        }
-    }, []);
-
-    // --- STOP GENERATION HANDLER ---
     const handleStop = useCallback(() => {
-        if (abortControllerRef.current) {
-            abortControllerRef.current.abort();
-        }
+        if (abortControllerRef.current) abortControllerRef.current.abort();
         dispatch({ type: 'REQUEST_FINISH' });
-    }, []);
+    }, [dispatch]);
 
-    /**
-     * @param userPrompt The text prompt to send.
-     */
+    // --- Core Logic: Handle Send ---
     const handleSend = useCallback(async (userPrompt: string) => {
         const trimmedPrompt = userPrompt.trim();
-        
         if (!trimmedPrompt && !uploadedFile) return;
 
         if (isLive) {
@@ -366,60 +70,43 @@ const App: React.FC = () => {
             dispatch({ type: 'SET_CHAT_MODE', payload: ChatModeEnum.Auto });
         }
         
-        // Command: Export
+        // --- Export Command ---
         if (trimmedPrompt.toLowerCase() === '/export') {
             const history = messages.filter(m => !isJsonBriefing(m.content));
-            
             if (history.length === 0) {
-                 dispatch({ type: 'ADD_INTERIM_MESSAGE', payload: { role: 'model', content: '⚠️ **Cannot Export:** There is no patient data or conversation history to summarize yet. Please upload a chart or discuss a case first.' } });
+                 dispatch({ type: 'ADD_INTERIM_MESSAGE', payload: { role: 'model', content: '⚠️ **Cannot Export:** No history available.' } });
                  return;
             }
 
-            dispatch({ type: 'ADD_INTERIM_MESSAGE', payload: { role: 'model', content: '📥 Generating your briefing for PDF export. This may take a moment...' } });
+            dispatch({ type: 'ADD_INTERIM_MESSAGE', payload: { role: 'model', content: '📥 Generating briefing for PDF export...' } });
             dispatch({ type: 'SET_LOADING', payload: true });
             
             abortControllerRef.current = new AbortController();
-
             try {
-                // Cost Optimization: Use Standard (Flash) for exports instead of Deep (Pro)
                 const modeForRequest = ChatModeEnum.Standard;
-                const briefingPrompt = SHIFT_BRIEFING_PROMPT();
-
-                const stream = generateResponseStream(briefingPrompt, history, modeForRequest, { responseType: 'json' });
+                const stream = generateResponseStream(SHIFT_BRIEFING_PROMPT(), history, modeForRequest, { responseType: 'json' });
                 let fullResponseText = '';
                 for await (const chunk of stream) {
-                    if (abortControllerRef.current?.signal.aborted) {
-                         throw new Error("Aborted");
-                    }
+                    if (abortControllerRef.current?.signal.aborted) throw new Error("Aborted");
                     fullResponseText += chunk.text;
                 }
                 
-                if (fullResponseText.includes("NO DATA")) {
-                    throw new Error("Insufficient clinical data found to generate a briefing.");
-                }
+                if (fullResponseText.includes("NO DATA")) throw new Error("Insufficient clinical data found.");
 
                 const cleanedJson = cleanJsonOutput(fullResponseText);
-
-                if (!cleanedJson.startsWith('{')) {
-                    throw new Error("The model did not return a valid briefing. Ensure there is enough context in the chat to generate a report.");
-                }
+                if (!cleanedJson.startsWith('{')) throw new Error("Invalid briefing format.");
                 
                 const parsedBriefing = JSON.parse(cleanedJson);
-                
-                if (parsedBriefing.briefingTitle && parsedBriefing.briefingTitle.includes("NO DATA")) {
-                    throw new Error("Insufficient clinical data found to generate a briefing.");
-                }
+                if (parsedBriefing.briefingTitle && parsedBriefing.briefingTitle.includes("NO DATA")) throw new Error("Insufficient clinical data.");
 
                 await exportBriefingToPdf(parsedBriefing);
-
-                dispatch({ type: 'UPDATE_LAST_MESSAGE_CONTENT', payload: '✅ Your shift briefing PDF has been downloaded successfully.' });
+                dispatch({ type: 'UPDATE_LAST_MESSAGE_CONTENT', payload: '✅ Shift briefing PDF downloaded.' });
             } catch (e) {
                 if (e.message === "Aborted") {
                      dispatch({ type: 'UPDATE_LAST_MESSAGE_CONTENT', payload: '🛑 Export cancelled.' });
                 } else {
                     const friendlyError = getFriendlyErrorMessage(e);
-                    const finalMessage = `Sorry, I couldn't generate the PDF. Please try again.\n\n**Reason:** ${friendlyError}`;
-                    dispatch({ type: 'UPDATE_LAST_MESSAGE_CONTENT', payload: finalMessage });
+                    dispatch({ type: 'UPDATE_LAST_MESSAGE_CONTENT', payload: `Sorry, PDF generation failed.\n\n**Reason:** ${friendlyError}` });
                 }
             } finally {
                 dispatch({ type: 'SET_LOADING', payload: false });
@@ -428,19 +115,19 @@ const App: React.FC = () => {
             return;
         }
 
+        // --- Help Command ---
         if (trimmedPrompt.toLowerCase() === '/help') {
              dispatch({ type: 'ADD_FULL_RESPONSE', payload: { message: { role: 'user', content: '/help' } }});
              dispatch({ type: 'ADD_FULL_RESPONSE', payload: { message: { role: 'model', content: HELP_COMMAND_RESPONSE } } });
              return;
         }
 
-        // --- FILE PROCESSING ---
+        // --- Standard Message & File Handling ---
         let finalApiPrompt = trimmedPrompt;
         let historyContent = trimmedPrompt;
         let fileForApi: UploadedFile | undefined = uploadedFile || undefined;
         let displayOverride = undefined;
-
-        let modeForRequest: ChatMode;
+        let modeForRequest: ChatModeEnum = chatMode === ChatModeEnum.Live ? ChatModeEnum.Auto : chatMode;
         let responseType: 'json' | 'text' = 'text';
 
         const isBriefingCommand = BRIEFING_TRIGGERS.some(trigger => trimmedPrompt.toLowerCase().includes(trigger)) || trimmedPrompt.toLowerCase() === '/brief';
@@ -448,7 +135,6 @@ const App: React.FC = () => {
         if (uploadedFile) {
              try {
                 let analysisPrompt: string;
-                
                 if (uploadedFile.type === 'application/pdf') {
                     const promptBase = trimmedPrompt ? `User Query: ${trimmedPrompt}` : `Analyze this medical document.`;
                     analysisPrompt = FILE_ANALYSIS_PROMPT(uploadedFile.file.name) + `\n\n${promptBase}`;
@@ -456,115 +142,67 @@ const App: React.FC = () => {
                      const textContent = await uploadedFile.file.text();
                      const promptBase = trimmedPrompt ? `User Query: ${trimmedPrompt}` : `Analyze this document.`;
                      const fullEmbeddedContent = `*** BEGIN FILE CONTENT: ${uploadedFile.file.name} ***\n${textContent}\n*** END FILE CONTENT ***\n\n${promptBase}`;
-                     
                      analysisPrompt = fullEmbeddedContent;
                      historyContent = fullEmbeddedContent;
                      displayOverride = `📄 **Uploaded ${uploadedFile.file.name}**\n\n${trimmedPrompt || "Requested analysis."}`;
                      fileForApi = undefined; 
                 } else {
-                     // IMAGE OR GENERIC FILE
-                     // Always use the strict analysis prompt to enforce JSON output, even if user asks a question.
                     const baseAnalysisPrompt = FILE_ANALYSIS_PROMPT(uploadedFile.file.name);
-                    
                     if (!trimmedPrompt) {
                         analysisPrompt = baseAnalysisPrompt;
                         displayOverride = `Analyzing file: ${uploadedFile.file.name}`; 
                     } else {
-                        // Concatenate to ensure we don't lose the instruction to output JSON
-                        // We inject an explicit override to prevent "I can't answer" refusals when users ask questions.
-                        analysisPrompt = `${baseAnalysisPrompt}
-
----
-**ADDITIONAL INSTRUCTION:**
-The user has asked a specific question about this image: "${trimmedPrompt}".
-1. You MUST still output the VALID JSON object as defined above.
-2. Answer the user's question within the "visualObservations", "potentialAbnormalities", or "note" fields of the JSON.
-3. DO NOT output plain text. DO NOT refuse to answer. This is for a medical professional.
-`;
+                        analysisPrompt = `${baseAnalysisPrompt}\n\n---\n**ADDITIONAL INSTRUCTION:**\nThe user has asked: "${trimmedPrompt}".\n1. You MUST still output VALID JSON.\n2. Answer the user's question within the "visualObservations" or "note" fields.`;
                     }
                 }
                 
                 finalApiPrompt = analysisPrompt;
-                
                 if (isBriefingCommand) {
-                    finalApiPrompt = `${finalApiPrompt}\n\nIMPORTANT: After analyzing the above document, ${SHIFT_BRIEFING_PROMPT()}`;
-                    // Cost Optimization: Briefing should be Standard, not Deep, unless explicitly set
+                    finalApiPrompt = `${finalApiPrompt}\n\nIMPORTANT: After analyzing, ${SHIFT_BRIEFING_PROMPT()}`;
                     modeForRequest = ChatModeEnum.Standard;
                     responseType = 'json';
                     if (!displayOverride) historyContent = trimmedPrompt || "/brief (with file)";
                 }
-                
              } catch (error) {
-                 const friendlyError = getFriendlyErrorMessage(error);
-                 dispatch({ type: 'REQUEST_FAILED', payload: friendlyError });
+                 dispatch({ type: 'REQUEST_FAILED', payload: getFriendlyErrorMessage(error) });
                  return;
              }
         } else if (isBriefingCommand) {
             finalApiPrompt = SHIFT_BRIEFING_PROMPT();
             historyContent = "/brief"; 
-            // Cost Optimization: Briefing is a summarization task, Flash (Standard) is proficient and cheaper than Pro (Deep)
             modeForRequest = ChatModeEnum.Standard;
             responseType = 'json';
         }
 
-        if (!modeForRequest!) {
-             if (trimmedPrompt.toLowerCase().startsWith('/patient')) {
-                 // Cost Optimization: Patient summaries use Standard (Flash)
-                modeForRequest = ChatModeEnum.Standard;
-            } else if (chatMode === ChatModeEnum.Live) {
-                modeForRequest = ChatModeEnum.Auto;
-            } else {
-                modeForRequest = chatMode;
-            }
-        }
+        if (trimmedPrompt.toLowerCase().startsWith('/patient')) modeForRequest = ChatModeEnum.Standard;
 
-        // --- UPDATE UI STATE ---
+        // UI Updates
         const userMessage: ChatMessage = { role: 'user', content: historyContent };
-        if (displayOverride) {
-            userMessage.displayContent = displayOverride;
-        }
-        
+        if (displayOverride) userMessage.displayContent = displayOverride;
         if (uploadedFile) {
-            const persistenceUrl = uploadedFile.type.startsWith('image/') && uploadedFile.base64 
-                ? `data:${uploadedFile.type};base64,${uploadedFile.base64}` 
-                : undefined;
-
-            userMessage.filePreview = { 
-                name: uploadedFile.file.name, 
-                type: uploadedFile.type, 
-                url: persistenceUrl,
-                base64: fileForApi ? uploadedFile.base64 : undefined 
-            };
+            const persistenceUrl = uploadedFile.type.startsWith('image/') && uploadedFile.base64 ? `data:${uploadedFile.type};base64,${uploadedFile.base64}` : undefined;
+            userMessage.filePreview = { name: uploadedFile.file.name, type: uploadedFile.type, url: persistenceUrl, base64: fileForApi ? uploadedFile.base64 : undefined };
         }
         
         dispatch({ type: 'START_REQUEST', payload: { userMessage } });
         dispatch({ type: 'ADD_RESPONSE_PLACEHOLDER' });
         setUploadedFile(null);
 
-        // --- SEND API REQUEST ---
+        // API Call
         abortControllerRef.current = new AbortController();
-
         try {
             const history = [...messages];
-            // Pass user location for Maps grounding if available
-            const stream = generateResponseStream(finalApiPrompt, history, modeForRequest, { 
-                file: fileForApi, 
-                responseType,
-                location: userLocation 
-            });
+            const stream = generateResponseStream(finalApiPrompt, history, modeForRequest, { file: fileForApi, responseType, location: userLocation });
             
             for await (const chunk of stream) {
-                if (abortControllerRef.current?.signal.aborted) {
-                    throw new Error("Aborted");
-                }
-                // GROUNDING EXTRACTION (Web + Maps)
+                if (abortControllerRef.current?.signal.aborted) throw new Error("Aborted");
+                
                 const groundingMetadata = chunk.candidates?.[0]?.groundingMetadata;
                 let sources: GroundingSource[] | undefined = undefined;
 
                 if (groundingMetadata && groundingMetadata.groundingChunks) {
                     sources = groundingMetadata.groundingChunks.map(chunk => {
                         if (chunk.web) return { web: chunk.web };
-                        // Handle Maps chunks which might be specific to "nearby" queries
                         if ((chunk as any).maps) return { maps: (chunk as any).maps };
                         return undefined;
                     }).filter(Boolean) as GroundingSource[];
@@ -576,26 +214,16 @@ The user has asked a specific question about this image: "${trimmedPrompt}".
              if (e.message === "Aborted") {
                  dispatch({ type: 'APPEND_TO_LAST_MESSAGE', payload: { chunk: " [Stopped]" } });
             } else {
-                const friendlyError = getFriendlyErrorMessage(e);
-                dispatch({ type: 'REQUEST_FAILED', payload: friendlyError });
+                dispatch({ type: 'REQUEST_FAILED', payload: getFriendlyErrorMessage(e) });
             }
         } finally {
             dispatch({ type: 'REQUEST_FINISH' });
             abortControllerRef.current = null;
         }
-    }, [chatMode, messages, uploadedFile, isLive, stopSession, userLocation]);
+    }, [chatMode, messages, uploadedFile, isLive, stopSession, userLocation, dispatch, setUploadedFile]);
 
-    const handleExportChat = useCallback(() => {
-        handleSend('/export');
-    }, [handleSend]);
-
-    const toggleLiveSession = useCallback(() => {
-        if (isLive) {
-            stopSession();
-        } else {
-            startSession(messages);
-        }
-    }, [isLive, stopSession, startSession, messages]);
+    const handleExportChat = useCallback(() => handleSend('/export'), [handleSend]);
+    const toggleLiveSession = useCallback(() => isLive ? stopSession() : startSession(messages), [isLive, stopSession, startSession, messages]);
 
     if (!process.env.API_KEY) {
          return (
@@ -603,9 +231,7 @@ The user has asked a specific question about this image: "${trimmedPrompt}".
                 <div className="bg-white dark:bg-slate-800 p-8 rounded-xl shadow-lg max-w-md text-center">
                     <div className="text-red-500 text-5xl mb-4">⚠️</div>
                     <h1 className="text-xl font-bold mb-2">API Key Missing</h1>
-                    <p className="text-slate-600 dark:text-slate-400 mb-4">
-                        The application cannot start because the <code>API_KEY</code> environment variable is not set.
-                    </p>
+                    <p className="text-slate-600 dark:text-slate-400">Environment variable <code>API_KEY</code> is required.</p>
                 </div>
             </div>
          );
@@ -614,16 +240,13 @@ The user has asked a specific question about this image: "${trimmedPrompt}".
     return (
         <div 
             className="flex flex-col h-[100dvh] font-sans overflow-hidden relative"
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
+            {...dragHandlers}
         >
             {isDragging && (
                 <div className="absolute inset-0 z-50 bg-blue-500/10 backdrop-blur-sm flex items-center justify-center border-4 border-blue-500 border-dashed m-4 rounded-xl animate-pulse pointer-events-none">
                     <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-xl flex flex-col items-center text-blue-500">
                         <DocumentTextIcon className="w-16 h-16 mb-4" />
                         <h2 className="text-2xl font-bold">Drop Medical Records Here</h2>
-                        <p className="text-slate-500 mt-2">PDF, Images (X-Rays, EKG), or Text</p>
                     </div>
                 </div>
             )}
@@ -637,7 +260,7 @@ The user has asked a specific question about this image: "${trimmedPrompt}".
             <MessageList messages={messages} isLoading={isLoading} isLive={isLive} liveTranscript={transcript} />
             <InputBar
                 onSend={handleSend}
-                onClearFile={() => setUploadedFile(null)}
+                onClearFile={clearFile}
                 setUploadedFile={setUploadedFile}
                 uploadedFile={uploadedFile}
                 isLoading={isLoading}

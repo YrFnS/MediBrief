@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useCallback } from 'react';
 import { parse } from 'marked';
 import DOMPurify from 'dompurify';
@@ -32,6 +33,7 @@ const SECTION_CONFIG: Record<string, { icon: React.FC<{className: string}>; colo
 const BriefingReport: React.FC<BriefingReportProps> = ({ content }) => {
     const [isCopied, setIsCopied] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
+    const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
 
     const parsedBriefing = useMemo<ParsedBriefing | null>(() => {
         return parseJsonSafe<ParsedBriefing>(content);
@@ -66,18 +68,21 @@ const BriefingReport: React.FC<BriefingReportProps> = ({ content }) => {
         }
     }, [parsedBriefing, isExporting]);
 
+    const toggleItem = (sectionIndex: number, itemIndex: number) => {
+        const key = `${sectionIndex}-${itemIndex}`;
+        setCheckedItems(prev => ({
+            ...prev,
+            [key]: !prev[key]
+        }));
+    };
+
     const renderMarkdownItem = (item: string) => {
         const html = parse(item, { breaks: false, gfm: true }) as string;
-        // DOMPurify hook is already configured globally in Message.tsx or via a separate init
-        // but we sanitize here locally just to be safe for the briefing content
         const sanitized = DOMPurify.sanitize(html, { ADD_ATTR: ['target'] });
         return { __html: sanitized };
     };
 
     if (!parsedBriefing) {
-        // SAFETY FIX: "The Black Box Failure"
-        // If JSON parsing fails, DO NOT hide the content. Show it as raw markdown.
-        // A doctor needs to see the text, even if it's ugly.
         const rawHtml = parse(content, { breaks: true, gfm: true }) as string;
         const sanitizedRaw = DOMPurify.sanitize(rawHtml);
         
@@ -86,7 +91,7 @@ const BriefingReport: React.FC<BriefingReportProps> = ({ content }) => {
                 <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg flex items-start gap-2">
                     <AlertTriangleIcon className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
                     <p className="text-sm text-amber-700 dark:text-amber-200">
-                        <strong>Formatting Error:</strong> The briefing could not be structured automatically. Displaying raw output below to ensure no information is lost.
+                        <strong>Formatting Error:</strong> The briefing could not be structured automatically. Displaying raw output below.
                     </p>
                 </div>
                 <div className="prose prose-sm dark:prose-invert max-w-none p-2" dangerouslySetInnerHTML={{ __html: sanitizedRaw }} />
@@ -114,7 +119,7 @@ const BriefingReport: React.FC<BriefingReportProps> = ({ content }) => {
             </div>
 
             <div className="space-y-4">
-                {parsedBriefing.sections.map((section) => {
+                {parsedBriefing.sections.map((section, sIdx) => {
                     if (!section.items || section.items.length === 0) return null;
                     const config = SECTION_CONFIG[section.title] || { icon: ListChecksIcon, color: 'slate' };
                     const Icon = config.icon;
@@ -126,14 +131,33 @@ const BriefingReport: React.FC<BriefingReportProps> = ({ content }) => {
                                 <Icon className="w-5 h-5" />
                                 <span>{section.title}</span>
                             </h3>
-                            <ul className="space-y-1.5 pl-4 text-sm text-slate-700 dark:text-slate-300">
-                                {section.items.map((item, index) => (
-                                     <li 
-                                        key={index} 
-                                        className="list-disc marker:text-slate-400 dark:marker:text-slate-500 [&>p]:inline"
-                                        dangerouslySetInnerHTML={renderMarkdownItem(item)}
-                                     />
-                                ))}
+                            <ul className="space-y-1.5 pl-1">
+                                {section.items.map((item, iIdx) => {
+                                    const isChecked = checkedItems[`${sIdx}-${iIdx}`];
+                                    return (
+                                        <li 
+                                            key={iIdx} 
+                                            onClick={() => toggleItem(sIdx, iIdx)}
+                                            className={`group flex items-start gap-3 p-2 rounded-md cursor-pointer transition-colors ${
+                                                isChecked 
+                                                ? 'bg-slate-200/50 dark:bg-slate-800/50 opacity-60' 
+                                                : 'hover:bg-white/60 dark:hover:bg-slate-600/30'
+                                            }`}
+                                        >
+                                            <div className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
+                                                isChecked
+                                                ? 'bg-slate-500 border-slate-500' 
+                                                : 'border-slate-400 bg-white dark:bg-slate-800 dark:border-slate-500'
+                                            }`}>
+                                                {isChecked && <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+                                            </div>
+                                            <div 
+                                                className={`text-sm leading-relaxed text-slate-700 dark:text-slate-300 [&>p]:inline ${isChecked ? 'line-through text-slate-500 dark:text-slate-500' : ''}`}
+                                                dangerouslySetInnerHTML={renderMarkdownItem(item)}
+                                            />
+                                        </li>
+                                    );
+                                })}
                             </ul>
                         </div>
                     );
