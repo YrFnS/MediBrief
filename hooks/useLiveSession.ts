@@ -66,7 +66,7 @@ type LiveSession = Awaited<ReturnType<InstanceType<typeof GoogleGenAI>['live']['
 export interface UseLiveSessionReturn {
     isLive: boolean;
     transcript: { userInput: string; modelOutput: string };
-    startSession: (history?: ChatMessage[], apiKey?: string) => Promise<void>;
+    startSession: (history?: ChatMessage[]) => Promise<void>;
     stopSession: () => Promise<void>;
     error: string | null;
 }
@@ -135,17 +135,11 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
         }
     }, [onTurnComplete]);
 
-    const startSession = useCallback(async (history: ChatMessage[] = [], apiKey?: string) => {
+    const startSession = useCallback(async (history: ChatMessage[] = []) => {
         if (isLive || isStoppingRef.current) return;
 
         setError(null);
         accumulatedTranscriptRef.current = { userInput: '', modelOutput: '' };
-        
-        const finalKey = apiKey || process.env.API_KEY;
-        if (!finalKey) {
-            setError("API Key missing. Check settings.");
-            return;
-        }
 
         try {
             // SAFETY CHECK: Check if mediaDevices API exists (it doesn't on insecure HTTP)
@@ -188,7 +182,7 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
             
             setIsLive(true);
             
-            const ai = new GoogleGenAI({ apiKey: finalKey });
+            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
             // 3. Build Context String
             let contextString = "";
