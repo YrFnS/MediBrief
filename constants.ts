@@ -80,7 +80,7 @@ const scheduleAppointmentFunctionDeclaration = {
 
 export const MODEL_CONFIGS = {
   [ChatMode.Auto]: {
-    model: 'gemini-2.5-flash',
+    model: 'gemini-3-flash-preview',
     config: {
       // Smart Auto Mode: We enable Google Search AND Google Maps.
       // The model will decide when to use them based on the query (e.g., "Pharmacy nearby" vs "Dosage").
@@ -89,12 +89,12 @@ export const MODEL_CONFIGS = {
     description: "Smart AI: Verifies facts via Search and finds locations via Maps."
   },
   [ChatMode.Standard]: {
-    model: 'gemini-2.5-flash',
+    model: 'gemini-3-flash-preview',
     config: {},
     description: "Balanced performance for general tasks and image analysis."
   },
   [ChatMode.Quick]: {
-    model: 'gemini-2.5-flash-lite',
+    model: 'gemini-3-flash-preview',
     config: {},
     description: "Optimized for speed and low-latency responses."
   },
@@ -107,14 +107,14 @@ export const MODEL_CONFIGS = {
     description: "Maximum reasoning power for your most complex queries."
   },
   [ChatMode.Web]: {
-    model: 'gemini-2.5-flash',
+    model: 'gemini-3-flash-preview',
     config: {
       tools: [{ googleSearch: {} }, { googleMaps: {} }],
     },
     description: "Accesses up-to-date information and location services."
   },
   [ChatMode.Live]: {
-    model: 'gemini-2.5-flash-native-audio-preview-09-2025',
+    model: 'gemini-2.5-flash-native-audio-preview-12-2025',
     config: {
       responseModalities: [Modality.AUDIO],
       outputAudioTranscription: {},

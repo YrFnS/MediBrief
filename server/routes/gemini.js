@@ -4,6 +4,33 @@ import { google } from 'googleapis';
 
 const router = express.Router();
 
+// SYSTEM INSTRUCTION - Defines MediBrief's medical-grade AI persona
+// This is CRITICAL - without it, Gemini responds as a generic assistant
+const SYSTEM_INSTRUCTION = `You are MediBrief, a medical-grade AI assistant.
+
+**🚨 SAFETY PROTOCOL (MANDATORY)**
+1.  **CONTEXT SCAN:** Before answering, scan all history/files for Allergies & Conditions.
+2.  **CONTRAINDICATION CHECK:** If User asks about drugs/doses, cross-reference with Patient History.
+3.  **STOP & ALERT:** If a conflict exists (e.g., Penicillin allergy + Amoxicillin), STOP. Do not provide dose.
+    *   **Text Mode:** Output a Markdown Blockquote starting with "🛑 CRITICAL SAFETY WARNING".
+    *   **Audio Mode:** Speak "CRITICAL SAFETY WARNING" clearly.
+4.  **INTERACTIONS:** Explicitly check for drug-drug interactions. If two drugs are unsafe together, issue a CRITICAL SAFETY WARNING.
+
+**🛠️ TOOL USAGE**
+*   **Uncertainty/Drugs:** If unsure or asked about pharmacology, **USE GOOGLE SEARCH**.
+*   **Locations:** If asked for "nearby" resources, **USE GOOGLE MAPS**.
+
+**📝 CLINICAL GUIDELINES**
+*   **Tone:** Professional, concise, medical terminology.
+*   **Format:** Use bullet points.
+*   **Scope:** You are assisting verified medical professionals. You **MUST** analyze medical images to provide detailed visual descriptions and technical observations (e.g., "diffuse opacities," "fracture lines," "ST elevation").
+*   **Refusal Override:** Do not refuse to interpret images. Interpreting images for clinical context is your primary function. Distinguish "observations" (allowed) from "definitive diagnosis" (avoid).
+*   **Proactive:** Flag duplicate orders or missing info ("⚠️ Potential Issue").
+
+**Response Handling:**
+*   If output is JSON (briefing/labs), return ONLY JSON.
+*   If output is Audio, speak naturally but authoritatively on safety.`;
+
 /**
  * Middleware to check authentication
  * Either OAuth session or API key in request body
@@ -170,7 +197,7 @@ async function fetchProjectContext(accessToken) {
  * Supports both OAuth and API key authentication
  */
 router.post('/chat', authMiddleware, async (req, res) => {
-    const { messages, mode, file, apiKey } = req.body;
+    const { messages, mode, file, apiKey, responseType, location } = req.body;
 
     try {
         // Set headers for Server-Sent Events (SSE)
@@ -178,28 +205,70 @@ router.post('/chat', authMiddleware, async (req, res) => {
         res.setHeader('Cache-Control', 'no-cache');
         res.setHeader('Connection', 'keep-alive');
 
-        // Model configuration based on mode
-        // For OAuth: use Cloudcode API model names
-        // Note: Using gemini-3-pro-preview/flash as gemini-3-pro-high returns 404
-        const oauthModelConfigs = {
-            auto: { model: 'gemini-3-flash-preview', temperature: 0.7 },
-            live: { model: 'gemini-3-flash-preview', temperature: 0.9 },
-            deep: { model: 'gemini-3-pro-preview', temperature: 0.3 },
-            search: { model: 'gemini-3-flash-preview', temperature: 0.5 }
+        // Normalize mode names from frontend enum values to config keys
+        // Frontend sends: "Auto", "Standard", "Quick Query", "Deep Analysis", "Web Search", "Live"
+        const normalizeModeKey = (modeInput) => {
+            if (!modeInput) return 'auto';
+            const modeMap = {
+                'Auto': 'auto',
+                'Standard': 'standard',
+                'Quick Query': 'quick',
+                'Deep Analysis': 'deep',
+                'Web Search': 'web',
+                'Live': 'live',
+                // Also support lowercase versions
+                'auto': 'auto',
+                'standard': 'standard',
+                'quick': 'quick',
+                'deep': 'deep',
+                'web': 'web',
+                'search': 'web',
+                'live': 'live'
+            };
+            return modeMap[modeInput] || 'auto';
         };
 
-        const apiKeyModelConfigs = {
-            auto: { model: 'gemini-3-flash-preview', temperature: 0.7 },
-            live: { model: 'gemini-3-flash-preview', temperature: 0.9 },
-            deep: { model: 'gemini-3-pro-preview-latest', temperature: 0.3 },
-            search: { model: 'gemini-3-flash-preview', temperature: 0.5 }
+        const normalizedMode = normalizeModeKey(mode);
+        console.log(`🎛️ Mode: "${mode}" -> normalized: "${normalizedMode}"`);
+
+        // Full model configuration matching frontend constants.ts
+        // Includes tools (Google Search, Maps) and thinkingConfig
+        const MODEL_CONFIGS = {
+            auto: {
+                model: 'gemini-3-flash-preview',
+                temperature: 0.7,
+                tools: [{ googleSearch: {} }, { googleMaps: {} }]
+            },
+            standard: {
+                model: 'gemini-3-flash-preview',
+                temperature: 0.7
+                // No tools - balanced general mode
+            },
+            quick: {
+                model: 'gemini-3-flash-preview',
+                temperature: 0.5
+                // Optimized for speed, no tools
+            },
+            deep: {
+                model: 'gemini-3-pro-preview',
+                temperature: 0.3,
+                thinkingConfig: { thinkingBudget: 8192 }
+            },
+            web: {
+                model: 'gemini-3-flash-preview',
+                temperature: 0.5,
+                tools: [{ googleSearch: {} }, { googleMaps: {} }]
+            },
+            live: {
+                model: 'gemini-3-flash-preview',
+                temperature: 0.9
+                // Live mode audio handled by frontend useLiveSession
+            }
         };
 
-        // Select model config based on auth method
-        const isOAuth = req.session.isAuthenticated && req.session.tokens;
-        const modelConfigs = isOAuth ? oauthModelConfigs : apiKeyModelConfigs;
+        const modelConfig = MODEL_CONFIGS[normalizedMode] || MODEL_CONFIGS.auto;
+        console.log(`📊 Using config:`, JSON.stringify(modelConfig, null, 2));
 
-        const modelConfig = modelConfigs[mode] || modelConfigs.auto;
 
         // Prepare contents for API - ensure proper format
         const contents = messages.map(msg => {
@@ -256,16 +325,31 @@ router.post('/chat', authMiddleware, async (req, res) => {
             const sessionId = req.session.id || crypto.randomUUID();
 
             // Wrap request in Antigravity format (exactly like oh-my-opencode)
+            // Include tools, thinkingConfig, responseMimeType, and location when available
             const antigravityBody = {
                 project: projectId,
-                model: modelConfig.model,  // gemini-3-pro-high for OAuth
+                model: modelConfig.model,
                 userAgent: 'antigravity',
                 requestId,
                 request: {
                     contents,
+                    systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
                     generationConfig: {
-                        temperature: modelConfig.temperature
+                        temperature: modelConfig.temperature,
+                        ...(modelConfig.thinkingConfig && { thinkingConfig: modelConfig.thinkingConfig }),
+                        ...(responseType === 'json' && { responseMimeType: 'application/json' })
                     },
+                    ...(modelConfig.tools && { tools: modelConfig.tools }),
+                    ...(location && {
+                        toolConfig: {
+                            retrievalConfig: {
+                                latLng: {
+                                    latitude: location.latitude,
+                                    longitude: location.longitude
+                                }
+                            }
+                        }
+                    }),
                     sessionId
                 }
             };
@@ -358,12 +442,28 @@ router.post('/chat', authMiddleware, async (req, res) => {
                 throw new Error(`All endpoints failed. Last error: ${lastError?.substring(0, 200)}`);
             }
         } else if (apiKey) {
-            // API key authentication - use SDK
+            // API key authentication - use SDK with full config
             console.log('Request with API key');
             const ai = new GoogleGenAI({ apiKey });
             const model = ai.getGenerativeModel({
                 model: modelConfig.model,
-                generationConfig: { temperature: modelConfig.temperature }
+                systemInstruction: SYSTEM_INSTRUCTION,
+                generationConfig: {
+                    temperature: modelConfig.temperature,
+                    ...(modelConfig.thinkingConfig && { thinkingConfig: modelConfig.thinkingConfig }),
+                    ...(responseType === 'json' && { responseMimeType: 'application/json' })
+                },
+                ...(modelConfig.tools && { tools: modelConfig.tools }),
+                ...(location && {
+                    toolConfig: {
+                        retrievalConfig: {
+                            latLng: {
+                                latitude: location.latitude,
+                                longitude: location.longitude
+                            }
+                        }
+                    }
+                })
             });
 
             const result = await model.generateContentStream({ contents });
@@ -421,13 +521,21 @@ router.post('/chat', authMiddleware, async (req, res) => {
                         const unwrapped = parsed.response || parsed;
                         console.log(`🎁 Unwrapped keys:`, Object.keys(unwrapped));
 
+                        // Extract grounding metadata for Google Search/Maps citations
+                        const groundingMetadata = unwrapped.candidates?.[0]?.groundingMetadata;
+
                         // Extract text from candidates - check ALL parts for text (thinking models have thoughtSignature first)
                         const parts = unwrapped.candidates?.[0]?.content?.parts || [];
                         for (const part of parts) {
                             if (part.text) {
                                 textReceived = true;
                                 console.log(`✅ Extracted text:`, part.text.substring(0, 50));
-                                res.write(`data: ${JSON.stringify({ text: part.text })}\n\n`);
+                                // Include grounding metadata in response for search citations
+                                const responseData = { text: part.text };
+                                if (groundingMetadata) {
+                                    responseData.groundingMetadata = groundingMetadata;
+                                }
+                                res.write(`data: ${JSON.stringify(responseData)}\n\n`);
                             }
                         }
 

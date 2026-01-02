@@ -9,7 +9,7 @@ async function* generateViaBackend(
     prompt: string,
     history: any[],
     mode: string,
-    options?: { file?: any; apiKey?: string }
+    options?: { file?: any; apiKey?: string; responseType?: 'json' | 'text'; location?: { latitude: number; longitude: number } }
 ): AsyncGenerator<any> {
     const response = await fetch(`${BACKEND_URL}/api/chat`, {
         method: 'POST',
@@ -31,7 +31,9 @@ async function* generateViaBackend(
             ],
             mode,
             file: options?.file,
-            apiKey: options?.apiKey // Fallback to API key if provided
+            apiKey: options?.apiKey, // Fallback to API key if provided
+            responseType: options?.responseType, // For JSON briefings
+            location: options?.location // For Google Maps location-based queries
         }),
     });
 
@@ -73,7 +75,9 @@ async function* generateViaBackend(
                                 content: {
                                     parts: [{ text: parsed.text }],
                                     role: 'model'
-                                }
+                                },
+                                // Include grounding metadata if present (for Google Search/Maps citations)
+                                ...(parsed.groundingMetadata && { groundingMetadata: parsed.groundingMetadata })
                             }],
                             // Add text getter to match Gemini SDK interface
                             get text() {
