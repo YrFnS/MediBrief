@@ -1,4 +1,3 @@
-
 import React from 'react';
 
 export const UserIcon: React.FC<{className?: string}> = (props) => (
@@ -9,9 +8,7 @@ export const UserIcon: React.FC<{className?: string}> = (props) => (
 
 export const BotIcon: React.FC<{className?: string}> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
-        <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-8 14H9v-2h2v2zm4 0h-2v-2h2v2zm4-4H5V5h14v8z" />
-        <circle cx="15" cy="9" r="1" />
-        <circle cx="9" cy="9" r="1" />
+        <path d="M12 2a2 2 0 0 1 2 2v2h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4V4a2 2 0 0 1 2-2zm0 13a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm-4 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm8 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/>
     </svg>
 );
 
@@ -39,7 +36,6 @@ export const XCircleIcon: React.FC<{className?: string}> = (props) => (
   </svg>
 );
 
-
 export const LinkIcon: React.FC<{className?: string}> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
         <path d="M17 7h-4v2h4c1.65 0 3 1.35 3 3s-1.35 3-3 3h-4v2h4c2.76 0 5-2.24 5-5s-2.24-5-5-5zm-6 8H7c-1.65 0-3-1.35-3-3s1.35-3 3-3h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-2zm-3-4h8v2H8z" />
@@ -48,7 +44,7 @@ export const LinkIcon: React.FC<{className?: string}> = (props) => (
 
 export const LogoIcon: React.FC<{className?: string}> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
-        <path d="M10.5 13H8v-3h2.5V7.5h3V10H16v3h-2.5v2.5h-3V13zM12 2L4 5v6.09c0 5.05 3.41 9.76 8 10.91 4.59-1.15 8-5.86 8-10.91V5l-8-3z"/>
+         <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-6 14H6v-2h7v2zm4-4H6v-2h11v2zm0-4H6V7h11v2z"/>
     </svg>
 );
 
@@ -141,7 +137,7 @@ export const UsersIcon: React.FC<{className?: string}> = (props) => (
 
 export const PillIcon: React.FC<{className?: string}> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
-        <path d="M20.8,3.2c-2.4-2.4-6.2-2.4-8.5,0L3.8,11.7c-2.4,2.4-2.4,6.2,0,8.5s6.2,2.4,8.5,0l8.5-8.5C23.2,9.4,23.2,5.6,20.8,3.2z M10.4,18.8c-1.6,1.6-4.1,1.6-5.7,0s-1.6-4.1,0-5.7l1.9-1.9l5.7,5.7L10.4,18.8z M18.8,10.4l-5.7-5.7l1.9-1.9c1.6-1.6,4.1-1.6,5.7,0c1.6,1.6,1.6,4.1,0,5.7L18.8,10.4z"/>
+        <path d="M4.5 10.5c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5S6 12.83 6 12s-.67-1.5-1.5-1.5zm15 0c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5zM12 6c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm0 10c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4z"/>
     </svg>
 );
 
@@ -229,5 +225,11 @@ export const BeakerIcon: React.FC<{className?: string}> = (props) => (
         <path d="M19.66 17.33l-3.11-10.35C16.24 5.96 15.37 5 14.11 5H13V3h1.5V1h-5V3H11v2H9.89c-1.26 0-2.13.96-2.44 1.98l-3.1 10.35C3.85 19.01 5.12 21 7 21h10c1.88 0 3.15-1.99 2.66-3.67zM7 19l3-10h4l3 10H7z" />
         <path d="M10 9h4v1h-4z" opacity="0.3" />
         <path d="M10 12h4v1h-4z" opacity="0.3" />
+    </svg>
+);
+
+export const ShieldCheckIcon: React.FC<{className?: string}> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
+        <path d="M12 2L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-3zm-2 16l-4-4 1.41-1.41L10 15.17l6.59-6.59L18 10l-8 8z" />
     </svg>
 );

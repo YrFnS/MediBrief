@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useCallback } from 'react';
 import { parse } from 'marked';
 import DOMPurify from 'dompurify';
@@ -88,10 +87,10 @@ const BriefingReport: React.FC<BriefingReportProps> = ({ content }) => {
         
         return (
             <div className="space-y-2">
-                <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg flex items-start gap-2">
+                <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-sm flex items-start gap-2">
                     <AlertTriangleIcon className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
-                    <p className="text-sm text-amber-700 dark:text-amber-200">
-                        <strong>Formatting Error:</strong> The briefing could not be structured automatically. Displaying raw output below.
+                    <p className="text-sm text-amber-700 dark:text-amber-200 font-mono">
+                        ERR_PARSE_FAIL: FORMATTING_ERROR
                     </p>
                 </div>
                 <div className="prose prose-sm dark:prose-invert max-w-none p-2" dangerouslySetInnerHTML={{ __html: sanitizedRaw }} />
@@ -100,25 +99,25 @@ const BriefingReport: React.FC<BriefingReportProps> = ({ content }) => {
     }
 
     return (
-        <div className="bg-slate-50 dark:bg-slate-900/50 -m-4 p-4 rounded-xl">
-            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-4 gap-3">
-                 <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                    <span className="text-2xl">📋</span>
+        <div className="bg-slate-50 dark:bg-slate-900/30 -m-5 p-5 border-t border-slate-200 dark:border-slate-800">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-6 gap-3 pb-4 border-b border-slate-200 dark:border-slate-700">
+                 <h2 className="text-sm font-mono font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <span className="text-lg">📋</span>
                     <span>{parsedBriefing.briefingTitle}</span>
                 </h2>
                 <div className="flex gap-2 flex-shrink-0 self-end sm:self-auto">
-                    <button onClick={handleCopy} disabled={isExporting} className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-md bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-200 transition-colors disabled:opacity-50">
-                        {isCopied ? <ClipboardCheckIcon className="w-4 h-4 text-green-500" /> : <ClipboardIcon className="w-4 h-4" />}
-                        {isCopied ? 'Copied!' : 'Copy'}
+                    <button onClick={handleCopy} disabled={isExporting} className="flex items-center gap-1.5 text-[10px] font-mono font-bold uppercase px-2.5 py-1.5 rounded-sm border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors disabled:opacity-50">
+                        {isCopied ? <ClipboardCheckIcon className="w-3 h-3 text-green-500" /> : <ClipboardIcon className="w-3 h-3" />}
+                        {isCopied ? 'Copied' : 'Copy'}
                     </button>
-                    <button onClick={handleExportPdf} disabled={isExporting} className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-md bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-200 transition-colors disabled:opacity-50">
-                        {isExporting ? <div className="w-4 h-4 border-2 border-slate-500 border-t-transparent rounded-full animate-spin"></div> : <DownloadIcon className="w-4 h-4" />}
-                        {isExporting ? 'Exporting...' : 'Export PDF'}
+                    <button onClick={handleExportPdf} disabled={isExporting} className="flex items-center gap-1.5 text-[10px] font-mono font-bold uppercase px-2.5 py-1.5 rounded-sm border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors disabled:opacity-50">
+                        {isExporting ? <div className="w-3 h-3 border-2 border-slate-500 border-t-transparent rounded-full animate-spin"></div> : <DownloadIcon className="w-3 h-3" />}
+                        {isExporting ? 'Generating...' : 'Export PDF'}
                     </button>
                 </div>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-6">
                 {parsedBriefing.sections.map((section, sIdx) => {
                     if (!section.items || section.items.length === 0) return null;
                     const config = SECTION_CONFIG[section.title] || { icon: ListChecksIcon, color: 'slate' };
@@ -126,33 +125,29 @@ const BriefingReport: React.FC<BriefingReportProps> = ({ content }) => {
                     const isCritical = config.color === 'red';
 
                     return (
-                        <div key={section.title} className={`rounded-lg p-3 ${isCritical ? 'bg-red-100/50 dark:bg-red-900/20' : 'bg-slate-100 dark:bg-slate-700/50'}`}>
-                            <h3 className={`flex items-center gap-2 font-bold mb-2 text-sm ${isCritical ? 'text-red-700 dark:text-red-300' : 'text-slate-700 dark:text-slate-200'}`}>
-                                <Icon className="w-5 h-5" />
+                        <div key={section.title} className={`border-l-2 pl-4 ${isCritical ? 'border-red-500' : 'border-slate-300 dark:border-slate-700'}`}>
+                            <h3 className={`flex items-center gap-2 font-mono font-bold text-xs uppercase tracking-widest mb-3 ${isCritical ? 'text-red-600 dark:text-red-400' : 'text-slate-500 dark:text-slate-400'}`}>
+                                <Icon className="w-4 h-4" />
                                 <span>{section.title}</span>
                             </h3>
-                            <ul className="space-y-1.5 pl-1">
+                            <ul className="space-y-2">
                                 {section.items.map((item, iIdx) => {
                                     const isChecked = checkedItems[`${sIdx}-${iIdx}`];
                                     return (
                                         <li 
                                             key={iIdx} 
                                             onClick={() => toggleItem(sIdx, iIdx)}
-                                            className={`group flex items-start gap-3 p-2 rounded-md cursor-pointer transition-colors ${
-                                                isChecked 
-                                                ? 'bg-slate-200/50 dark:bg-slate-800/50 opacity-60' 
-                                                : 'hover:bg-white/60 dark:hover:bg-slate-600/30'
-                                            }`}
+                                            className={`group flex items-start gap-3 cursor-pointer select-none transition-opacity ${isChecked ? 'opacity-40' : 'opacity-100'}`}
                                         >
-                                            <div className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
+                                            <div className={`mt-0.5 w-3 h-3 border flex items-center justify-center flex-shrink-0 transition-colors rounded-sm ${
                                                 isChecked
-                                                ? 'bg-slate-500 border-slate-500' 
-                                                : 'border-slate-400 bg-white dark:bg-slate-800 dark:border-slate-500'
+                                                ? 'bg-slate-600 border-slate-600' 
+                                                : 'border-slate-400 dark:border-slate-600 bg-transparent'
                                             }`}>
-                                                {isChecked && <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+                                                {isChecked && <div className="w-1.5 h-1.5 bg-white"></div>}
                                             </div>
                                             <div 
-                                                className={`text-sm leading-relaxed text-slate-700 dark:text-slate-300 [&>p]:inline ${isChecked ? 'line-through text-slate-500 dark:text-slate-500' : ''}`}
+                                                className={`text-sm text-slate-800 dark:text-slate-200 leading-relaxed font-sans`}
                                                 dangerouslySetInnerHTML={renderMarkdownItem(item)}
                                             />
                                         </li>

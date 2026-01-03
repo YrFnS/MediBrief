@@ -1,55 +1,49 @@
-
 import { ChatMode } from './types';
 import { Type, Modality } from '@google/genai';
 
 export const WELCOME_CONTENT = {
-    title: "MediBrief Clinical Assistant",
-    subtitle: "Medical-Grade Intelligence & Safety Layer",
-    introduction: "I am an advanced clinical assistant designed to support your shift by:",
+    title: "MediBrief C.I.L.",
+    subtitle: "Clinical Intelligence Layer v3.0",
+    introduction: "System initialized. Acting as your primary safety and data synthesis layer. I am designed to:",
     features: [
-        { icon: "🛡️", text: "Safety Checks: Active screening for allergies & contraindications" },
-        { icon: "📄", text: "Chart Analysis: extracting vitals & labs from raw documents" },
-        { icon: "📋", text: "Shift Briefings: Generating structured handoff reports" },
-        { icon: "💊", text: "Pharmacology: Verifying dosing & interactions via Search" },
-        { icon: "📍", text: "Local Resources: Finding nearby pharmacies & specialists" },
-        { icon: "🎙️", text: "Live Consult: Hands-free voice assistance" }
+        { icon: "🛡️", text: "Enforce Protocol: Active allergy & contraindication scanning" },
+        { icon: "⚖️", text: "Truth Verification: Auto-verification via NIH/CDC/PubMed" },
+        { icon: "🧠", text: "Synthesize Data: Transform raw charts into structured briefings" },
+        { icon: "👁️", text: "Visual Intelligence: Native analysis of X-Rays, EKGs, and wounds" },
+        { icon: "💊", text: "Pharmacology: Interaction matrices & dosage verification" },
+        { icon: "📡", text: "Live Telemetry: Hands-free voice consult & dictation" }
     ],
     getStarted: {
-        title: "Clinical Workflow:",
+        title: "Standard Operating Procedure:",
         steps: [
-            "Upload patient charts, notes, or EKG images",
-            "Verify safety alerts before prescribing",
-            "Use /brief to generate a handoff report"
+            "Ingest patient data (PDF/Images) for analysis",
+            "Verify safety alerts before order entry",
+            "Execute /brief to generate handoff artifacts"
         ]
     },
-    closing: "Ready for patient data integration."
+    closing: "Clinical Intelligence Layer active. Awaiting input."
 };
 
 
-export const HELP_COMMAND_RESPONSE = `🔧 **MediBrief Clinical Commands**
+export const HELP_COMMAND_RESPONSE = `🔧 **Clinical Intelligence Layer // Command Reference**
 
 **Core Functions:**
-- \`/brief\` - Generates a structured Shift Briefing (JSON -> PDF) based on current context.
-- \`/patient [ID]\` - Deep-dive summary for a specific patient.
-- \`/drugs [name]\` - Real-time pharmacology check (uses Google Search).
-- \`/export\` - Download the current briefing as a formatted PDF.
-- \`/help\` - Display this reference.
+- \`/brief\` - Execute Shift Briefing generation (JSON -> PDF).
+- \`/patient [ID]\` - Synthesize patient-specific timeline.
+- \`/drugs [name]\` - Execute pharmacology safety check (Returns Matrix).
+- \`/export\` - Serialize current state to PDF.
+- \`/help\` - Display this protocol reference.
 
-**Safety Protocols:**
-- **Auto-Detection:** The AI automatically scans uploaded files for Allergies and History.
-- **Red Alerts:** Critical contraindications are highlighted in Red Boxes (Text) or Vocalized (Audio).
+**Safety Protocols (Always Active):**
+- **Epistemic Humility:** The system is instructed to admit ignorance rather than guess.
+- **Truth Verification:** All medical facts are cross-referenced with live search results.
+- **Critical Alerts:** Conflicts trigger immediate "STOP" warnings in Red.
 
-**Chat Modes:**
-- **Auto:** Smart routing (Search for facts, Maps for locations, Reasoning for charts).
-- **Standard:** Balanced analysis.
-- **Quick Query:** Low latency responses.
-- **Deep Analysis:** High-reasoning (Gemini Pro) for complex diagnostics.
-- **Live**: Real-time voice conversation with "Wake Word" style safety alerts.
-
-**File Support:**
-- **PDFs (Native):** Full multimodal analysis (charts, tables, handwriting).
-- **Images:** X-Rays, EKGs, Skin Lesions (Visual Analysis).
-- **Text:** Raw clinical notes.`;
+**Intelligence Modes:**
+- **Auto:** Context-aware routing (Search/Maps/Reasoning).
+- **Standard:** Balanced synthesis with Search Grounding enabled.
+- **Deep Analysis:** Gemini Pro reasoning + Search for complex differentials.
+- **Live:** Real-time voice telemetry with auditory safety alerts.`;
 
 const scheduleAppointmentFunctionDeclaration = {
   name: 'scheduleAppointment',
@@ -83,30 +77,34 @@ export const MODEL_CONFIGS = {
   [ChatMode.Auto]: {
     model: 'gemini-2.5-flash',
     config: {
-      // Smart Auto Mode: We enable Google Search AND Google Maps.
-      // The model will decide when to use them based on the query (e.g., "Pharmacy nearby" vs "Dosage").
-      // NOTE: Google Maps is only supported in Gemini 2.5 series.
       tools: [{ googleSearch: {} }, { googleMaps: {} }],
     },
     description: "Smart AI: Verifies facts via Search and finds locations via Maps."
   },
   [ChatMode.Standard]: {
     model: 'gemini-3-flash-preview',
-    config: {},
-    description: "Balanced performance for general tasks and image analysis."
+    config: {
+        // ENABLED TRUTH VERIFICATION FOR STANDARD MODE
+        tools: [{ googleSearch: {} }], 
+    },
+    description: "Balanced performance with active Search Verification."
   },
   [ChatMode.Quick]: {
     model: 'gemini-3-flash-preview',
-    config: {},
-    description: "Optimized for speed and low-latency responses."
+    config: {
+        // Quick mode also gets search to prevent fast hallucinations
+        tools: [{ googleSearch: {} }],
+    },
+    description: "Optimized for speed. Uses Search if uncertain."
   },
   [ChatMode.Deep]: {
     model: 'gemini-3-pro-preview',
     config: {
-      // Optimized Thinking Budget: 8k is sufficient for clinical reasoning without incurring max output costs.
       thinkingConfig: { thinkingBudget: 8192 },
+      // ENABLED TRUTH VERIFICATION FOR DEEP REASONING
+      tools: [{ googleSearch: {} }],
     },
-    description: "Maximum reasoning power for your most complex queries."
+    description: "Maximum reasoning power with deep literature verification."
   },
   [ChatMode.Web]: {
     model: 'gemini-2.5-flash',
@@ -116,7 +114,7 @@ export const MODEL_CONFIGS = {
     description: "Accesses up-to-date information and location services."
   },
   [ChatMode.Live]: {
-    model: 'gemini-2.5-flash-native-audio-preview-12-2025',
+    model: 'gemini-2.5-flash-native-audio-preview-09-2025',
     config: {
       responseModalities: [Modality.AUDIO],
       outputAudioTranscription: {},
@@ -130,32 +128,33 @@ export const MODEL_CONFIGS = {
   },
 };
 
-// COST OPTIMIZATION: Compact System Instruction
-// We removed verbose examples to save ~300 tokens per request while maintaining safety directives.
-export const SYSTEM_INSTRUCTION = `You are MediBrief, a medical-grade AI assistant.
+// SYSTEM INSTRUCTION: REBRANDED FOR CLINICAL INTELLIGENCE LAYER WITH TRUTH PROTOCOL
+export const SYSTEM_INSTRUCTION = `You are the MediBrief Clinical Intelligence Layer (CIL).
+You are NOT a simple chatbot. You are a sophisticated data synthesis and safety overlay for healthcare professionals.
 
-**🚨 SAFETY PROTOCOL (MANDATORY)**
-1.  **CONTEXT SCAN:** Before answering, scan all history/files for Allergies & Conditions.
-2.  **CONTRAINDICATION CHECK:** If User asks about drugs/doses, cross-reference with Patient History.
-3.  **STOP & ALERT:** If a conflict exists (e.g., Penicillin allergy + Amoxicillin), STOP. Do not provide dose.
-    *   **Text Mode:** Output a Markdown Blockquote starting with "🛑 CRITICAL SAFETY WARNING".
-    *   **Audio Mode:** Speak "CRITICAL SAFETY WARNING" clearly.
-4.  **INTERACTIONS:** Explicitly check for drug-drug interactions. If two drugs are unsafe together, issue a CRITICAL SAFETY WARNING.
+**CORE DIRECTIVE: TRUTH ABOVE ALL**
+1.  **EPISTEMIC HUMILITY:** You must NEVER invent, guess, or hallucinate medical facts, citations, or dosages.
+2.  **ADMIT UNCERTAINTY:** If you do not know the answer with 100% certainty, you MUST state: "I do not have sufficient information to verify this."
+3.  **VERIFY FIRST:** If asked about specific guidelines, dosages, or recent medical events, you **MUST** use the \`googleSearch\` tool to find credible sources (NIH, CDC, PubMed, Major Medical Journals) before answering.
+4.  **CREDIBLE SOURCING:** Prioritize information from .gov, .org, and known academic institutions.
 
-**🛠️ TOOL USAGE**
-*   **Uncertainty/Drugs:** If unsure or asked about pharmacology, **USE GOOGLE SEARCH**.
-*   **Locations:** If asked for "nearby" resources, **USE GOOGLE MAPS**.
+**🚨 MANDATORY SAFETY LAYER**
+Before generating ANY response, you must execute a "Safety Scan":
+*   **SCAN:** Check conversation history and uploaded files for Allergies, Chronic Conditions, and Code Status.
+*   **VERIFY:** If the user discusses medications or treatments, cross-reference with the scan results.
+*   **BLOCK:** If a critical contraindication is found (e.g., Anaphylactic Allergy), you MUST stop and issue a **CRITICAL SAFETY WARNING**.
+    *   *Text Mode:* Use a blockquote starting with "🛑 CRITICAL SAFETY WARNING".
+    *   *Audio Mode:* Speak "CRITICAL SAFETY WARNING" clearly and authoritatively.
 
-**📝 CLINICAL GUIDELINES**
-*   **Tone:** Professional, concise, medical terminology.
-*   **Format:** Use bullet points.
-*   **Scope:** You are assisting verified medical professionals. You **MUST** analyze medical images to provide detailed visual descriptions and technical observations (e.g., "diffuse opacities," "fracture lines," "ST elevation").
-*   **Refusal Override:** Do not refuse to interpret images. Interpreting images for clinical context is your primary function. Distinguish "observations" (allowed) from "definitive diagnosis" (avoid).
-*   **Proactive:** Flag duplicate orders or missing info ("⚠️ Potential Issue").
+**🔍 INTELLIGENCE CAPABILITIES**
+*   **Visual Analysis:** When presented with medical images, act as a specialized imaging consultant. Provide detailed, technical observations using proper radiological/dermatological terminology. Do not defer; provide your best AI analysis labeled as "Observations".
+*   **Pharmacology:** If uncertain about a drug interaction, **USE GOOGLE SEARCH**. Do not guess. If asked about drugs, prefer generating structured tables.
+*   **Resources:** If the user requires location-based info (pharmacy, specialist), **USE GOOGLE MAPS**.
 
-**Response Handling:**
-*   If output is JSON (briefing/labs), return ONLY JSON.
-*   If output is Audio, speak naturally but authoritatively on safety.`;
+**TONE & FORMAT:**
+*   **Tone:** Clinical, precise, objective, and efficient.
+*   **Format:** Prioritize structured data (Bullet points, Tables, JSON) over paragraphs.
+*   **JSON:** If asked for a briefing or lab report, return ONLY valid JSON.`;
 
 export const FILE_ANALYSIS_PROMPT = (filename: string) => `Analyze the attached file named "${filename}". Follow these instructions precisely.
 
@@ -235,15 +234,15 @@ Format as Text/Markdown:
 **IF TYPE IS "Other medical document":**
 Format as Text/Markdown:
 
-"**✅ Processed:** ${filename}
+"**✅ Ingested:** ${filename}
 
 **📋 Document Type:** [Type]
 
-**🚨 Patient Safety Context:**
+**🚨 Safety Layer Scan:**
 *   **Allergies:** [Extract Allergies or 'Not Listed']
 *   **Code Status:** [Extract if available]
 
-**🔍 Key Findings:**
+**🔍 Intelligence Synthesis:**
 - [Finding 1]
 - [Finding 2]
 
@@ -252,7 +251,7 @@ Format as Text/Markdown:
 
 ---
 
-After providing your analysis, add: "This information has been added to your shift knowledge base."`;
+After providing your analysis, add: "Data integrated into Clinical Intelligence Layer."`;
 
 
 export const FILE_TEXT_ANALYSIS_PROMPT = (filename: string, text: string) => `The following text has been extracted from a document named "${filename}". Perform a strict medical safety analysis.
@@ -294,7 +293,7 @@ ${text}
 
 **⚠️ Action Items:** [Urgent tasks]"
 
-Conclude with: "This information has been added to your shift knowledge base."`;
+Conclude with: "Data integrated into Clinical Intelligence Layer."`;
 
 
 export const BRIEFING_TRIGGERS = [
@@ -304,20 +303,19 @@ export const BRIEFING_TRIGGERS = [
     'shift briefing',
 ];
 
-export const SHIFT_BRIEFING_PROMPT = () => `Based on all the documents and conversation history so far, generate a comprehensive shift briefing. Use the current conversation as the source of truth.
+export const SHIFT_BRIEFING_PROMPT = () => `Based on the Clinical Intelligence Layer's current context (documents and history), generate a comprehensive shift briefing.
 
-**IMPORTANT**: You MUST respond with ONLY a valid JSON object that adheres to the following schema. Do not include any other text or markdown formatting outside of the JSON.
+**IMPORTANT**: You MUST respond with ONLY a valid JSON object that adheres to the following schema.
 
-**CRITICAL**: If the conversation history is empty, trivial, or does NOT contain any specific patient data, medical issues, or clinical documents, respond with the following specific JSON:
+**CRITICAL**: If context is empty/trivial, respond with:
 \`\`\`json
 { "briefingTitle": "NO DATA", "sections": [] }
 \`\`\`
-DO NOT invent, hallucinate, or create fake patient data if none exists in the context.
 
-**JSON Schema (Only if data exists):**
+**JSON Schema:**
 \`\`\`json
 {
-  "briefingTitle": "SHIFT BRIEFING - [Date and Time]",
+  "briefingTitle": "SHIFT HANDOVER // [Date and Time]",
   "sections": [
     {
       "title": "PRIORITY CASES",
@@ -373,6 +371,32 @@ DO NOT invent, hallucinate, or create fake patient data if none exists in the co
 
 **Instructions for Populating JSON:**
 - The \`briefingTitle\` should include the current date and time.
-- Each section's \`items\` array should contain strings with the relevant information.
-- If a section has no items, you can either omit it or provide an empty \`items\` array.
-- Do NOT include markdown (like \`**\`) inside the JSON string values. The frontend will handle formatting.`;
+- Each section's \`items\` array should contain strings.
+- Do NOT include markdown (like \`**\`) inside the JSON string values.`;
+
+
+export const DRUG_ANALYSIS_PROMPT = (query: string) => `You are checking for drug interactions and safety.
+User Query: "${query}"
+
+**TRUTH VERIFICATION REQUIRED:** 
+If you are unsure about any interaction, use Google Search to verify. Do not guess.
+
+**MANDATORY**: Check for interactions between ALL drugs mentioned, AND against any known patient allergies/conditions in context.
+**OUTPUT**: Respond ONLY with a valid JSON object.
+
+\`\`\`json
+{
+  "reportType": "interaction-check",
+  "drugs": ["Drug A", "Drug B"],
+  "interactions": [
+    {
+      "drug1": "Drug A", // Can be a Drug, Allergy, or Condition
+      "drug2": "Drug B", // Can be a Drug, Allergy, or Condition
+      "severity": "High", // or Moderate, Low, None, Unknown
+      "mechanism": "Brief description of mechanism (e.g., 'Penicillin cross-reactivity')",
+      "management": "Actionable advice (e.g. 'Discontinue immediately')"
+    }
+  ],
+  "summary": "Clinical summary of the findings."
+}
+\`\`\``;

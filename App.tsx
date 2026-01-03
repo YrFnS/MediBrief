@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { ChatMode as ChatModeEnum, UploadedFile, ChatMessage, GroundingSource } from './types';
 import Header from './components/Header';
@@ -8,7 +7,7 @@ import ImageViewer from './components/ImageViewer';
 import { generateResponseStream } from './services/geminiService';
 import { exportBriefingToPdf } from './services/exportService';
 import { cleanJsonOutput, isJsonBriefing, getFriendlyErrorMessage } from './utils';
-import { FILE_ANALYSIS_PROMPT, BRIEFING_TRIGGERS, SHIFT_BRIEFING_PROMPT, HELP_COMMAND_RESPONSE } from './constants';
+import { FILE_ANALYSIS_PROMPT, BRIEFING_TRIGGERS, SHIFT_BRIEFING_PROMPT, HELP_COMMAND_RESPONSE, DRUG_ANALYSIS_PROMPT } from './constants';
 import { useLiveSession } from './hooks/useLiveSession';
 import { useAppStore } from './hooks/useAppStore';
 import { useFileDragAndDrop } from './hooks/useFileDragAndDrop';
@@ -56,7 +55,11 @@ const App: React.FC = () => {
     }, [isLive, chatMode, dispatch]);
 
     // --- Handlers ---
-    const handleClearChat = useCallback(() => dispatch({ type: 'RESET_CHAT' }), [dispatch]);
+    // SECURITY UPDATE: Explicitly clear staged files when resetting chat to prevent data mix-up between patients.
+    const handleClearChat = useCallback(() => {
+        dispatch({ type: 'RESET_CHAT' });
+        clearFile(); 
+    }, [dispatch, clearFile]);
     
     const handleStop = useCallback(() => {
         if (abortControllerRef.current) abortControllerRef.current.abort();
@@ -138,6 +141,7 @@ const App: React.FC = () => {
         let responseType: 'json' | 'text' = 'text';
 
         const isBriefingCommand = BRIEFING_TRIGGERS.some(trigger => trimmedPrompt.toLowerCase().includes(trigger)) || trimmedPrompt.toLowerCase() === '/brief';
+        const isDrugCommand = trimmedPrompt.toLowerCase().startsWith('/drugs');
 
         if (uploadedFile) {
              try {
@@ -178,6 +182,10 @@ const App: React.FC = () => {
             finalApiPrompt = SHIFT_BRIEFING_PROMPT();
             historyContent = "/brief"; 
             modeForRequest = ChatModeEnum.Standard;
+            responseType = 'json';
+        } else if (isDrugCommand) {
+            finalApiPrompt = DRUG_ANALYSIS_PROMPT(trimmedPrompt);
+            modeForRequest = ChatModeEnum.Auto; // Use Auto to allow Search access for drugs
             responseType = 'json';
         }
 
@@ -246,14 +254,15 @@ const App: React.FC = () => {
 
     return (
         <div 
-            className="flex flex-col h-[100dvh] font-sans overflow-hidden relative"
+            className="flex flex-col h-[100dvh] font-sans overflow-hidden relative bg-transparent"
             {...dragHandlers}
         >
             {isDragging && (
-                <div className="absolute inset-0 z-50 bg-blue-500/10 backdrop-blur-sm flex items-center justify-center border-4 border-blue-500 border-dashed m-4 rounded-xl animate-pulse pointer-events-none">
-                    <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-xl flex flex-col items-center text-blue-500">
-                        <DocumentTextIcon className="w-16 h-16 mb-4" />
-                        <h2 className="text-2xl font-bold">Drop Medical Records Here</h2>
+                <div className="absolute inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center m-4 rounded-xl animate-fade-in pointer-events-none technical-border border border-blue-500/50">
+                    <div className="flex flex-col items-center text-blue-400 animate-pulse">
+                        <DocumentTextIcon className="w-20 h-20 mb-6" />
+                        <h2 className="text-3xl font-display font-bold tracking-tight">INGEST DATA</h2>
+                        <p className="font-mono text-sm mt-2 opacity-70">DROP MEDICAL RECORDS TO PROCESS</p>
                     </div>
                 </div>
             )}

@@ -1,14 +1,14 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MediBrief - AI Shift Briefing</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0f172a" />
+  <title>MediBrief - Clinical Intelligence Layer</title>
   <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <script>
     tailwind.config = {
       darkMode: 'media',
@@ -17,29 +17,43 @@
           fontFamily: {
             sans: ['Inter', 'sans-serif'],
             mono: ['JetBrains Mono', 'monospace'],
+            display: ['Space Grotesk', 'sans-serif'],
           },
           colors: {
             medical: {
-              50: '#f0f9ff',
-              100: '#e0f2fe',
-              500: '#0ea5e9', // Sky 500
-              600: '#0284c7',
-              900: '#0c4a6e',
-              teal: '#14b8a6',
+              50: '#F0F4F8',
+              100: '#D9E2EC',
+              200: '#BCCCDC',
+              300: '#9FB3C8',
+              400: '#829AB1',
+              500: '#627D98', // Slate Blue
+              600: '#486581',
+              700: '#334E68',
+              800: '#243B53',
+              900: '#102A43',
             },
-            slate: {
-              850: '#1e293b', 
-              900: '#0f172a',
-              950: '#020617',
+            alert: {
+               500: '#EF4444',
+               900: '#7F1D1D'
+            },
+            surface: {
+               light: '#FFFFFF',
+               dark: '#0B0F19' // Deep specialized dark
             }
+          },
+          backgroundImage: {
+            'grid-pattern': "linear-gradient(to right, rgba(98, 125, 152, 0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(98, 125, 152, 0.05) 1px, transparent 1px)",
+            'grid-pattern-dark': "linear-gradient(to right, rgba(148, 163, 184, 0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(148, 163, 184, 0.05) 1px, transparent 1px)",
+          },
+          backgroundSize: {
+            'grid': '24px 24px'
           },
           animation: {
             'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-            'fade-in': 'fadeIn 0.5s ease-out',
-            'slide-up': 'slideUp 0.3s ease-out',
-            'shimmer': 'shimmer 2s infinite linear',
+            'fade-in': 'fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+            'slide-up': 'slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1)',
+            'scan': 'scan 2s linear infinite',
             'soft-stream': 'softStream 0.3s ease-out forwards',
-            'music': 'music 1s ease-in-out infinite alternate',
           },
           keyframes: {
             fadeIn: {
@@ -47,20 +61,16 @@
               '100%': { opacity: '1' },
             },
             slideUp: {
-              '0%': { transform: 'translateY(10px)', opacity: '0' },
+              '0%': { transform: 'translateY(15px)', opacity: '0' },
               '100%': { transform: 'translateY(0)', opacity: '1' },
             },
-            shimmer: {
-              '0%': { backgroundPosition: '-200% 0' },
-              '100%': { backgroundPosition: '200% 0' },
+            scan: {
+               '0%': { transform: 'translateY(-100%)' },
+               '100%': { transform: 'translateY(100%)' }
             },
             softStream: {
               '0%': { opacity: '0.4', transform: 'translateY(2px)' },
               '100%': { opacity: '1', transform: 'translateY(0)' },
-            },
-            music: {
-              '0%': { height: '20%' },
-              '100%': { height: '100%' }
             }
           }
         }
@@ -70,58 +80,37 @@
   <style>
     body {
       font-family: 'Inter', sans-serif;
-      background-color: #f8fafc;
-      background-image: 
-        radial-gradient(at 0% 0%, rgba(14, 165, 233, 0.08) 0px, transparent 50%),
-        radial-gradient(at 100% 0%, rgba(20, 184, 166, 0.08) 0px, transparent 50%);
-      background-attachment: fixed;
     }
     
-    .dark body {
-      background-color: #020617;
-      background-image: 
-        radial-gradient(at 0% 0%, rgba(14, 165, 233, 0.1) 0px, transparent 50%),
-        radial-gradient(at 100% 0%, rgba(20, 184, 166, 0.05) 0px, transparent 50%);
+    .technical-border {
+      position: relative;
+    }
+    .technical-border::before {
+      content: '';
+      position: absolute;
+      top: -1px; left: -1px; width: 8px; height: 8px;
+      border-top: 2px solid currentColor;
+      border-left: 2px solid currentColor;
+      opacity: 0.8;
+      pointer-events: none;
+    }
+    .technical-border::after {
+      content: '';
+      position: absolute;
+      bottom: -1px; right: -1px; width: 8px; height: 8px;
+      border-bottom: 2px solid currentColor;
+      border-right: 2px solid currentColor;
+      opacity: 0.8;
+      pointer-events: none;
     }
 
-    .shimmer-bg {
-      background: linear-gradient(90deg, transparent 25%, rgba(226, 232, 240, 0.5) 50%, transparent 75%);
-      background-size: 200% 100%;
-    }
-    .dark .shimmer-bg {
-      background: linear-gradient(90deg, transparent 25%, rgba(51, 65, 85, 0.5) 50%, transparent 75%);
-      background-size: 200% 100%;
-    }
-    
-    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb {
-      background: #cbd5e1;
-      border-radius: 4px;
-      border: 2px solid transparent;
-      background-clip: content-box;
+      background: #94a3b8;
+      border-radius: 0px;
     }
     .dark ::-webkit-scrollbar-thumb { background: #334155; }
-
-    .prose table {
-      font-size: 0.85rem;
-      width: 100%;
-      border-collapse: separate;
-      border-spacing: 0;
-      border-radius: 8px;
-      overflow: hidden;
-      border: 1px solid #e2e8f0;
-      margin-top: 1em;
-      margin-bottom: 1em;
-    }
-    .dark .prose table { border-color: #334155; }
-    .prose thead { background-color: #f1f5f9; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
-    .dark .prose thead { background-color: #1e293b; }
-    .prose th { padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #475569; }
-    .dark .prose th { color: #94a3b8; }
-    .prose td { padding: 0.6rem 1rem; border-bottom: 1px solid #f1f5f9; color: #334155; }
-    .dark .prose td { border-bottom-color: #1e293b; color: #cbd5e1; }
-    .prose pre { background-color: #0f172a; border-radius: 0.5rem; padding: 1rem; font-family: 'JetBrains Mono', monospace; border: 1px solid #1e293b; }
   </style>
 <script type="importmap">
 {
@@ -138,8 +127,8 @@
 }
 </script>
 </head>
-<body class="bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 antialiased selection:bg-medical-500 selection:text-white">
-  <div id="root"></div>
+<body class="bg-slate-50 dark:bg-surface-dark text-slate-800 dark:text-slate-200 antialiased selection:bg-blue-500/30 selection:text-blue-200 bg-grid-pattern dark:bg-grid-pattern-dark bg-grid fixed inset-0 overflow-hidden">
+  <div id="root" class="h-full w-full"></div>
   <script type="module" src="/index.tsx"></script>
 </body>
 </html>

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { ChatMode } from '../types';
 
@@ -7,18 +6,17 @@ interface ReasoningIndicatorProps {
 }
 
 const STEPS = [
-    "Scanning patient context...",
-    "Checking known allergies...",
-    "Verifying contraindications...",
-    "Analyzing latest vitals...",
-    "Synthesizing clinical data..."
+    "INITIALIZING CONTEXT SCAN...",
+    "CROSS-REFERENCING ALLERGIES...",
+    "ANALYZING CONTRAINDICATIONS...",
+    "SYNTHESIZING CLINICAL DATA..."
 ];
 
 const LIVE_STEPS = [
-    "Listening...",
-    "Transcribing audio...",
-    "Analyzing safety constraints...",
-    "Generating voice response..."
+    "AUDIO STREAM ACTIVE...",
+    "TRANSCRIBING INPUT...",
+    "SAFETY CONSTRAINTS CHECK...",
+    "GENERATING RESPONSE..."
 ];
 
 const ReasoningIndicator: React.FC<ReasoningIndicatorProps> = ({ mode }) => {
@@ -27,47 +25,36 @@ const ReasoningIndicator: React.FC<ReasoningIndicatorProps> = ({ mode }) => {
     useEffect(() => {
         const interval = setInterval(() => {
             setStepIndex((prev) => (prev + 1) % STEPS.length);
-        }, 1800);
+        }, 1200);
         return () => clearInterval(interval);
     }, []);
 
     const currentSteps = mode === ChatMode.Live ? LIVE_STEPS : STEPS;
-    const activeStep = currentSteps[stepIndex % currentSteps.length];
+    const activeStep = currentSteps[stepIndex];
 
     return (
-        <div className="flex flex-col gap-3 p-4 w-full max-w-md animate-in fade-in duration-500">
-            <div className="flex items-center gap-3">
-                <div className="relative flex items-center justify-center">
-                    <div className="w-5 h-5 border-2 border-medical-500 border-t-transparent rounded-full animate-spin"></div>
-                    <div className="absolute inset-0 bg-medical-500/20 blur-md rounded-full animate-pulse"></div>
-                </div>
-                <span className="font-mono text-xs font-bold text-medical-600 dark:text-medical-400 uppercase tracking-widest animate-pulse">
-                    AI Reasoning
-                </span>
+        <div className="flex flex-col gap-2 p-3 w-full max-w-md animate-fade-in font-mono text-xs">
+            <div className="flex items-center gap-2 text-blue-500 mb-1">
+                <span className="animate-pulse">●</span>
+                <span className="font-bold tracking-widest uppercase">System Reasoning</span>
             </div>
             
-            <div className="space-y-2">
-                <div className="h-1 w-full bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                    <div 
-                        className="h-full bg-medical-500 transition-all duration-500 ease-out"
-                        style={{ width: `${((stepIndex + 1) / currentSteps.length) * 100}%` }}
-                    ></div>
+            <div className="bg-slate-900 text-green-500 p-3 rounded-md border border-slate-800 shadow-inner overflow-hidden relative">
+                <div className="absolute inset-0 bg-grid-pattern opacity-10 pointer-events-none"></div>
+                
+                <div className="flex flex-col gap-1 relative z-10">
+                    {currentSteps.map((step, i) => {
+                         const isActive = i === stepIndex;
+                         const isPast = i < stepIndex;
+                         return (
+                            <div key={i} className={`flex items-center justify-between ${isActive ? 'opacity-100' : isPast ? 'opacity-50' : 'opacity-20'}`}>
+                                <span>{`> ${step}`}</span>
+                                {isPast && <span>[OK]</span>}
+                                {isActive && <span className="animate-pulse">...</span>}
+                            </div>
+                         )
+                    })}
                 </div>
-                <p className="text-sm text-slate-500 dark:text-slate-400 font-medium transition-all duration-300">
-                    {activeStep}
-                </p>
-            </div>
-
-            {/* Simulated 'System Checks' for visual complexity */}
-            <div className="flex gap-1 mt-1">
-                {[...Array(5)].map((_, i) => (
-                    <div 
-                        key={i} 
-                        className={`h-1 flex-1 rounded-full transition-colors duration-300 ${
-                            i <= stepIndex ? 'bg-medical-200 dark:bg-medical-900' : 'bg-slate-100 dark:bg-slate-800'
-                        }`} 
-                    />
-                ))}
             </div>
         </div>
     );

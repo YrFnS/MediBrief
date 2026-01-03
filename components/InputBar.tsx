@@ -1,5 +1,4 @@
-
-import React, { useState, useRef, useCallback, ChangeEvent, KeyboardEvent, useEffect, useLayoutEffect } from 'react';
+import React, { useState, useRef, useCallback, KeyboardEvent, useEffect, useLayoutEffect } from 'react';
 import type { UploadedFile, ChatMode } from '../types';
 import { ChatMode as ChatModeEnum } from '../types';
 import { PaperclipIcon, SendIcon, XCircleIcon, BriefingIcon, UserIcon, DrugsIcon, DownloadIcon, DocumentTextIcon, MicrophoneIcon, CameraIcon, LiveIcon, StopIcon } from './icons';
@@ -57,7 +56,7 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
         };
     }, []);
 
-    const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (file) {
             if (file.size > 4 * 1024 * 1024) {
@@ -109,16 +108,11 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
     const resizeTextarea = () => {
         const textarea = textareaRef.current;
         if (textarea) {
-            // Reset to auto to correctly measure the new content height
             textarea.style.height = 'auto';
-
-            // FIX: If empty, remove inline style so CSS classes (padding) control the height.
-            // This prevents the "21px" issue where scrollHeight excludes padding in some states.
             if (prompt === '') {
                 textarea.style.height = '';
                 return;
             }
-
             const scrollHeight = textarea.scrollHeight;
             textarea.style.height = `${Math.min(scrollHeight, 150)}px`;
         }
@@ -153,17 +147,6 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
         recognition.onerror = (event: any) => {
             console.error('Speech error:', event.error);
             setIsListening(false);
-            
-            // Specific error handling for user feedback
-            if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-                alert("Microphone access denied. Please allow microphone permission in your browser settings.");
-            } else if (event.error === 'no-speech') {
-                // Usually ignore no-speech, but if it persists it might be hardware
-            } else if (event.error === 'audio-capture') {
-                alert("No microphone was found. Ensure your microphone is connected.");
-            } else if (event.error === 'network') {
-                alert("Network error preventing speech recognition.");
-            }
         };
 
         let finalTranscript = prompt ? prompt + ' ' : '';
@@ -181,179 +164,164 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
             recognition.start();
         } catch (e) {
             console.error("Failed to start recognition:", e);
-            alert("Could not start speech recognition. Please refresh and try again.");
         }
 
     }, [isListening, prompt]);
     
-    const handleLiveToggle = () => {
-        toggleLiveSession();
-    };
-
     useLayoutEffect(() => { resizeTextarea(); }, [prompt]);
     
     const handleBlur = () => { setTimeout(() => setShowCommands(false), 200); };
 
-    // Disable input while dictating to prevent state conflicts
     const isInputDisabled = (isLoading && !isLiveSessionActive) || isListening;
     const placeholderText = isLiveSessionActive 
-        ? 'Listening to conversation...' 
-        : (isListening ? 'Dictating...' : 'Type a message...');
+        ? 'Listening...' 
+        : (isListening ? 'Dictating...' : 'Enter clinical instruction or query...');
 
     const showStopButton = isLoading && !isLiveSessionActive && onStop;
 
     return (
-        <footer className="flex-shrink-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 p-2 md:p-4 z-20 transition-all duration-300">
-            <div className="max-w-3xl mx-auto relative">
-                 
-                 {/* Quick Command Popover */}
-                 {showCommands && (
-                    <div className="absolute bottom-full left-0 mb-3 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-100 dark:border-slate-700 overflow-hidden animate-slide-up w-64 z-30">
-                        <div className="bg-slate-50 dark:bg-slate-700/50 px-3 py-2 border-b border-slate-100 dark:border-slate-700">
-                             <p className="text-[10px] font-bold tracking-widest uppercase text-slate-400 dark:text-slate-500">Quick Actions</p>
-                        </div>
-                        <ul className="p-1">
-                            {QUICK_COMMANDS.map(({ command, description, icon: Icon }) => (
-                                <li key={command}>
-                                    <button
-                                        onClick={() => handleCommandSelect(command)}
-                                        className="w-full text-left flex items-center gap-3 p-2 rounded-lg hover:bg-medical-50 dark:hover:bg-slate-700/70 transition-colors group"
-                                    >
-                                        <div className="text-medical-500 dark:text-medical-400">
-                                            <Icon className="w-4 h-4" />
-                                        </div>
-                                        <div>
-                                            <p className="font-mono text-xs font-bold text-slate-700 dark:text-slate-200">{command.trim()}</p>
-                                            <p className="text-xs text-slate-500 dark:text-slate-400">{description}</p>
-                                        </div>
-                                    </button>
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-                )}
-
-                {/* File Attachment Preview */}
-                 {uploadedFile && (
-                    <div className="absolute bottom-full left-0 mb-3 animate-slide-up z-20">
-                         <div className="relative group flex items-center gap-3 bg-white dark:bg-slate-800 p-2 pr-4 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700">
-                            {uploadedFile.url && uploadedFile.type.startsWith('image/') ? (
-                                 <img src={uploadedFile.url} alt="Attachment" className="w-10 h-10 object-cover rounded-lg" />
-                            ) : (
-                                <div className="w-10 h-10 flex items-center justify-center bg-slate-100 dark:bg-slate-700 rounded-lg">
-                                    <DocumentTextIcon className="w-5 h-5 text-slate-500" />
-                                </div>
-                            )}
-                            <div className="flex flex-col">
-                                <span className="text-xs font-medium text-slate-700 dark:text-slate-200 max-w-[150px] truncate">{uploadedFile.file.name}</span>
-                                <span className="text-[10px] text-slate-400 uppercase">{uploadedFile.type.split('/')[1]}</span>
-                            </div>
-                            <button 
-                                onClick={onClearFile}
-                                className="ml-2 text-slate-400 hover:text-red-500 transition-colors"
-                            >
-                                <XCircleIcon className="w-5 h-5" />
-                            </button>
-                        </div>
-                    </div>
-                )}
-
-                {/* Main Input Container */}
-                <div className={`flex items-end gap-2 transition-all duration-300`}>
+        <footer className="flex-shrink-0 p-4 md:p-6 pb-8 z-30 pointer-events-none">
+            <div className="max-w-4xl mx-auto pointer-events-auto">
+                <div className={`relative transition-all duration-300 ${isLiveSessionActive ? 'translate-y-0' : ''}`}>
                     
-                    {/* Input Box Area */}
-                    <div className={`flex-1 flex items-end gap-1 md:gap-2 p-1.5 rounded-2xl border bg-slate-50 dark:bg-slate-800/50 focus-within:bg-white dark:focus-within:bg-slate-800 focus-within:ring-2 focus-within:border-medical-500/50 focus-within:ring-medical-500/20 transition-all shadow-sm ${
-                        isListening ? 'ring-2 ring-red-500/30 border-red-500/50 bg-red-50/50' : 'border-slate-200 dark:border-slate-700'
-                    }`}>
-                        
-                        {/* Attachment Button Group */}
-                        <div className="flex items-center gap-0.5 pb-0.5 md:pb-1 pl-0.5 md:pl-1">
-                            <button
-                                onClick={() => fileInputRef.current?.click()}
-                                disabled={isInputDisabled}
-                                className="p-1.5 md:p-2 rounded-xl text-slate-400 hover:text-medical-600 hover:bg-medical-50 dark:hover:bg-slate-700 transition-all disabled:opacity-50"
-                                title="Attach File"
-                            >
-                                <PaperclipIcon className="w-4 h-4 md:w-5 md:h-5" />
-                            </button>
-                             <button
-                                onClick={() => cameraInputRef.current?.click()}
-                                disabled={isInputDisabled}
-                                className="p-1.5 md:p-2 rounded-xl text-slate-400 hover:text-medical-600 hover:bg-medical-50 dark:hover:bg-slate-700 transition-all disabled:opacity-50"
-                                title="Camera"
-                            >
-                                <CameraIcon className="w-4 h-4 md:w-5 md:h-5" />
-                            </button>
+                    {/* File Attachment Pill */}
+                     {uploadedFile && (
+                        <div className="absolute bottom-full left-0 mb-3 animate-slide-up z-20">
+                             <div className="flex items-center gap-3 bg-slate-900 text-white p-2 pr-4 rounded-sm shadow-xl border-l-4 border-blue-500">
+                                {uploadedFile.url && uploadedFile.type.startsWith('image/') ? (
+                                     <img src={uploadedFile.url} alt="Attachment" className="w-8 h-8 object-cover rounded-sm" />
+                                ) : (
+                                    <div className="w-8 h-8 flex items-center justify-center bg-slate-800 rounded-sm">
+                                        <DocumentTextIcon className="w-4 h-4 text-slate-400" />
+                                    </div>
+                                )}
+                                <div className="flex flex-col">
+                                    <span className="text-xs font-mono font-bold max-w-[150px] truncate">{uploadedFile.file.name}</span>
+                                    <span className="text-[10px] text-slate-400 uppercase">{uploadedFile.type.split('/')[1]}</span>
+                                </div>
+                                <button onClick={onClearFile} className="ml-2 text-slate-400 hover:text-red-400">
+                                    <XCircleIcon className="w-5 h-5" />
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Quick Command Menu */}
+                     {showCommands && (
+                        <div className="absolute bottom-full left-0 mb-2 bg-white dark:bg-slate-900 rounded-sm shadow-2xl border border-slate-300 dark:border-slate-700 w-64 animate-slide-up z-20 overflow-hidden">
+                            <div className="bg-slate-100 dark:bg-slate-800 px-3 py-1.5 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
+                                 <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500">Quick Execute</p>
+                                 <div className="flex gap-1">
+                                     <div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div>
+                                     <div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div>
+                                 </div>
+                            </div>
+                            <ul className="p-0">
+                                {QUICK_COMMANDS.map(({ command, description, icon: Icon }) => (
+                                    <li key={command} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
+                                        <button
+                                            onClick={() => handleCommandSelect(command)}
+                                            className="w-full text-left flex items-center gap-3 p-3 hover:bg-blue-50 dark:hover:bg-slate-800/50 transition-colors group"
+                                        >
+                                            <div className="text-slate-400 group-hover:text-blue-500">
+                                                <Icon className="w-4 h-4" />
+                                            </div>
+                                            <div>
+                                                <p className="font-mono text-xs font-bold text-slate-700 dark:text-slate-200 group-hover:text-blue-600 dark:group-hover:text-blue-400">{command}</p>
+                                                <p className="text-[10px] text-slate-400">{description}</p>
+                                            </div>
+                                        </button>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+
+                    {/* Main Command Console */}
+                    <div className={`
+                        flex items-end gap-0 rounded-sm shadow-2xl transition-all duration-300 border-t-2 relative overflow-hidden
+                        ${isLiveSessionActive 
+                            ? 'bg-slate-900 border-red-500 shadow-red-900/20' 
+                            : 'bg-white dark:bg-slate-900 border-blue-500 shadow-blue-900/10'
+                        }
+                    `}>
+                        {/* Decorative Console Strip */}
+                        <div className="absolute top-0 right-0 p-1 flex gap-1 z-10 pointer-events-none opacity-50">
+                             <div className={`w-8 h-1 ${isLiveSessionActive ? 'bg-red-500' : 'bg-blue-500'}`}></div>
+                             <div className="w-1 h-1 bg-slate-400"></div>
+                             <div className="w-1 h-1 bg-slate-400"></div>
                         </div>
 
-                        <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*,application/pdf,.txt,.md" className="hidden" />
-                        <input type="file" ref={cameraInputRef} onChange={handleFileChange} accept="image/*" capture="environment" className="hidden" />
-
-                        {/* Text Input */}
-                        <textarea
-                            ref={textareaRef}
-                            value={prompt}
-                            onChange={handleTextareaInput}
-                            onKeyDown={handleKeyDown}
-                            onBlur={handleBlur}
-                            placeholder={placeholderText}
-                            rows={1}
-                            className="flex-1 bg-transparent resize-none outline-none text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 disabled:cursor-not-allowed py-2 md:py-2.5 text-sm leading-relaxed max-h-32"
-                            disabled={isInputDisabled}
-                        />
-                        
-                        {/* Standard Dictation Mic (Text Mode) */}
-                        {currentMode !== ChatModeEnum.Live && (
-                             <button
-                                onClick={handleSpeechToText}
-                                disabled={isLoading}
-                                className={`mb-0.5 md:mb-1 p-1.5 md:p-2 rounded-xl transition-all ${
-                                    isListening 
-                                    ? 'text-red-500 bg-red-100 dark:bg-red-900/20 animate-pulse' 
-                                    : 'text-slate-400 hover:text-medical-600 hover:bg-medical-50 dark:hover:bg-slate-700'
-                                }`}
-                                title={isListening ? "Stop Dictation" : "Dictate"}
-                            >
-                                <MicrophoneIcon className="w-4 h-4 md:w-5 md:h-5" />
-                            </button>
-                        )}
-                    </div>
-
-                    {/* Right Action Buttons */}
-                    <div className="flex items-end gap-2">
-                        {/* Live Toggle Button */}
-                         <button
-                            onClick={handleLiveToggle}
-                            className={`h-10 w-10 md:h-[50px] md:w-[50px] rounded-2xl flex items-center justify-center transition-all duration-300 shadow-sm border ${
+                        {/* Start Live Session Button */}
+                        <button
+                            onClick={toggleLiveSession}
+                            className={`flex-shrink-0 h-full min-h-[56px] w-14 flex items-center justify-center transition-all border-r border-slate-200 dark:border-slate-800 ${
                                 isLiveSessionActive 
-                                ? 'bg-red-500 border-red-600 text-white shadow-red-500/40 animate-pulse' 
-                                : currentMode === ChatModeEnum.Live 
-                                    ? 'bg-white dark:bg-slate-800 border-red-200 text-red-500 hover:bg-red-50'
-                                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400 hover:text-slate-600 hover:border-slate-300'
+                                ? 'bg-red-600 text-white animate-pulse' 
+                                : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-slate-700'
                             }`}
-                            title={isLiveSessionActive ? "End Live Session" : "Start Live Session"}
+                            title="Toggle Live Consult"
                         >
-                            <LiveIcon className={isLiveSessionActive ? "w-5 h-5 md:w-6 md:h-6" : "w-4 h-4 md:w-5 md:h-5"} />
+                            <LiveIcon className="w-5 h-5 md:w-6 md:h-6" />
                         </button>
 
-                        {/* Send or Stop Button */}
-                        {(!isLiveSessionActive && currentMode !== ChatModeEnum.Live) && (
-                            <button 
-                                onClick={showStopButton ? onStop : handleSendClick} 
-                                disabled={!showStopButton && (isInputDisabled || (!prompt.trim() && !uploadedFile))}
-                                className={`h-10 w-10 md:h-[50px] md:w-[50px] rounded-2xl text-white shadow-lg transition-all duration-200 flex items-center justify-center ${
-                                    showStopButton 
-                                    ? 'bg-slate-700 hover:bg-slate-800 dark:bg-slate-600 dark:hover:bg-slate-500 shadow-slate-500/30' 
-                                    : 'bg-medical-600 hover:bg-medical-500 hover:scale-105 active:scale-95 shadow-medical-500/30 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:shadow-none disabled:scale-100 disabled:cursor-not-allowed'
+                        {/* Input Area */}
+                        <div className="flex-1 flex flex-col relative min-w-0 px-2">
+                            <textarea
+                                ref={textareaRef}
+                                value={prompt}
+                                onChange={handleTextareaInput}
+                                onKeyDown={handleKeyDown}
+                                onBlur={handleBlur}
+                                placeholder={placeholderText}
+                                rows={1}
+                                className={`w-full bg-transparent resize-none outline-none py-4 px-2 text-sm font-medium leading-relaxed max-h-32 font-mono ${
+                                    isLiveSessionActive ? 'text-white placeholder-slate-500' : 'text-slate-900 dark:text-white placeholder-slate-400'
                                 }`}
-                            >
-                                {showStopButton ? (
-                                    <StopIcon className="w-4 h-4 md:w-5 md:h-5" />
-                                ) : (
-                                    <SendIcon className="w-4 h-4 md:w-5 md:h-5 ml-0.5" />
-                                )}
-                            </button>
-                        )}
+                                disabled={isInputDisabled}
+                            />
+                        </div>
+
+                        {/* Tools */}
+                        <div className="flex items-center gap-1 self-end pb-2 pr-2">
+                            <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*,application/pdf,.txt,.md" className="hidden" />
+                            <input type="file" ref={cameraInputRef} onChange={handleFileChange} accept="image/*" capture="environment" className="hidden" />
+
+                            {!isLiveSessionActive && (
+                                <>
+                                    <button onClick={() => fileInputRef.current?.click()} className="p-2 text-slate-400 hover:text-blue-500 transition-colors rounded-sm hover:bg-slate-100 dark:hover:bg-slate-800" title="Attach">
+                                        <PaperclipIcon className="w-5 h-5" />
+                                    </button>
+                                    <button onClick={() => cameraInputRef.current?.click()} className="p-2 text-slate-400 hover:text-blue-500 transition-colors rounded-sm hover:bg-slate-100 dark:hover:bg-slate-800" title="Camera">
+                                        <CameraIcon className="w-5 h-5" />
+                                    </button>
+                                    {currentMode !== ChatModeEnum.Live && (
+                                        <button 
+                                            onClick={handleSpeechToText} 
+                                            className={`p-2 transition-colors rounded-sm hover:bg-slate-100 dark:hover:bg-slate-800 ${isListening ? 'text-red-500 bg-red-50 dark:bg-red-900/20 animate-pulse border border-red-200 dark:border-red-900' : 'text-slate-400 hover:text-blue-500'}`}
+                                            title="Dictate"
+                                        >
+                                            <MicrophoneIcon className="w-5 h-5" />
+                                        </button>
+                                    )}
+                                </>
+                            )}
+                            
+                             {/* Execute Button */}
+                            {(!isLiveSessionActive && currentMode !== ChatModeEnum.Live) && (
+                                <button 
+                                    onClick={showStopButton ? onStop : handleSendClick}
+                                    disabled={!showStopButton && (isInputDisabled || (!prompt.trim() && !uploadedFile))}
+                                    className={`ml-1 flex-shrink-0 h-10 w-10 rounded-sm flex items-center justify-center transition-all ${
+                                        showStopButton
+                                        ? 'bg-slate-700 text-white'
+                                        : 'bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50 disabled:bg-slate-200 dark:disabled:bg-slate-800 dark:disabled:text-slate-600'
+                                    }`}
+                                >
+                                    {showStopButton ? <StopIcon className="w-4 h-4" /> : <SendIcon className="w-4 h-4" />}
+                                </button>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>

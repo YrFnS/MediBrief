@@ -52,17 +52,16 @@ const ReportSection: React.FC<ReportSectionProps> = ({ Icon, title, content, isC
         return null;
     }
     return (
-        <div>
+        <div className="border-l-2 border-slate-200 dark:border-slate-700 pl-4 py-1">
             <div className="flex items-center gap-2 mb-2">
-                <Icon className="w-5 h-5 text-slate-500 dark:text-slate-400" />
-                <h3 className="font-bold text-sm text-slate-700 dark:text-slate-200">{title}</h3>
+                <h3 className="font-mono text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">{title}</h3>
                 {extra}
             </div>
             {displayContent && (
                 isCode ? (
-                    <pre className="whitespace-pre-wrap bg-slate-100 dark:bg-slate-700/50 p-3 rounded-md text-sm text-slate-700 dark:text-slate-300 font-mono border border-slate-200 dark:border-slate-600"><code>{displayContent}</code></pre>
+                    <pre className="whitespace-pre-wrap bg-slate-50 dark:bg-slate-900 p-3 rounded-sm text-xs text-slate-700 dark:text-slate-300 font-mono border border-slate-200 dark:border-slate-800"><code>{displayContent}</code></pre>
                 ) : (
-                    <p className="pl-7 text-sm text-slate-700 dark:text-slate-300 leading-relaxed">{displayContent}</p>
+                    <p className="text-sm text-slate-800 dark:text-slate-200 leading-relaxed font-sans">{displayContent}</p>
                 )
             )}
         </div>
@@ -77,37 +76,28 @@ const ImageAnalysisReport: React.FC<ImageAnalysisReportProps> = ({ content }) =>
     }
 
     return (
-        <div className="bg-slate-50 dark:bg-slate-900/50 -m-4 p-4 rounded-xl">
-            <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 mb-4">
-                <span className="text-2xl">🔬</span>
-                <span>Medical Image Analysis</span>
+        <div className="bg-white dark:bg-slate-900/40 -m-5 p-5 border-t border-slate-200 dark:border-slate-800">
+            <h2 className="text-sm font-mono font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-6 border-b border-slate-100 dark:border-slate-800 pb-2">
+                <span className="text-lg">🔬</span>
+                <span>IMAGE_ANALYSIS_PROTOCOL</span>
             </h2>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4 text-sm">
-                <div className="flex items-center gap-2 p-2 bg-slate-100 dark:bg-slate-700/50 rounded-lg border border-slate-200 dark:border-slate-600">
-                    <ImageIcon className="w-5 h-5 text-blue-500 flex-shrink-0" />
-                    <div>
-                        <p className="font-semibold text-slate-700 dark:text-slate-200 text-xs uppercase tracking-wide">Image Type</p>
-                        <p className="text-slate-600 dark:text-slate-300 font-medium">{ensureString(analysis.imageType) || 'N/A'}</p>
-                    </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-0 mb-6 border border-slate-200 dark:border-slate-700 divide-y sm:divide-y-0 sm:divide-x divide-slate-200 dark:divide-slate-700 bg-slate-50 dark:bg-slate-800/30">
+                <div className="p-3">
+                    <p className="font-mono text-[10px] uppercase text-slate-400 mb-1">Modality</p>
+                    <p className="font-bold text-slate-700 dark:text-slate-200 text-sm">{ensureString(analysis.imageType) || 'N/A'}</p>
                 </div>
-                 <div className="flex items-center gap-2 p-2 bg-slate-100 dark:bg-slate-700/50 rounded-lg border border-slate-200 dark:border-slate-600">
-                    <UserIcon className="w-5 h-5 text-blue-500 flex-shrink-0" />
-                    <div>
-                        <p className="font-semibold text-slate-700 dark:text-slate-200 text-xs uppercase tracking-wide">Patient</p>
-                        <p className="text-slate-600 dark:text-slate-300 font-medium">{ensureString(analysis.patient) || 'Not Visible'}</p>
-                    </div>
+                 <div className="p-3">
+                    <p className="font-mono text-[10px] uppercase text-slate-400 mb-1">Patient ID</p>
+                    <p className="font-bold text-slate-700 dark:text-slate-200 text-sm">{ensureString(analysis.patient) || 'Not Visible'}</p>
                 </div>
-                 <div className="flex items-center gap-2 p-2 bg-slate-100 dark:bg-slate-700/50 rounded-lg border border-slate-200 dark:border-slate-600">
-                    <CalendarIcon className="w-5 h-5 text-blue-500 flex-shrink-0" />
-                    <div>
-                        <p className="font-semibold text-slate-700 dark:text-slate-200 text-xs uppercase tracking-wide">Date</p>
-                        <p className="text-slate-600 dark:text-slate-300 font-medium">{ensureString(analysis.date) || 'Not Visible'}</p>
-                    </div>
+                 <div className="p-3">
+                    <p className="font-mono text-[10px] uppercase text-slate-400 mb-1">Study Date</p>
+                    <p className="font-bold text-slate-700 dark:text-slate-200 text-sm">{ensureString(analysis.date) || 'Not Visible'}</p>
                 </div>
             </div>
 
-            <div className="space-y-5 bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
+            <div className="space-y-5">
                 <ReportSection Icon={ClipboardListIcon} title="Extracted Information" content={analysis.extractedInformation} isCode />
                 
                 <ReportSection 
@@ -116,23 +106,22 @@ const ImageAnalysisReport: React.FC<ImageAnalysisReportProps> = ({ content }) =>
                     content={analysis.visualObservations} 
                     extra={
                         analysis.certaintyScore ? (
-                            <span className={`ml-auto text-[10px] font-bold uppercase px-2 py-0.5 rounded-full tracking-wider ${getCertaintyColor(analysis.certaintyScore)}`}>
-                                {analysis.certaintyScore} Confidence
+                            <span className={`ml-auto text-[9px] font-mono font-bold uppercase px-2 py-0.5 rounded-sm ${getCertaintyColor(analysis.certaintyScore)}`}>
+                                CONFIDENCE: {analysis.certaintyScore}
                             </span>
                         ) : null
                     }
                 />
                 
-                <ReportSection Icon={AlertTriangleIcon} title="Potential Abnormalities" content={analysis.potentialAbnormalities} />
+                <ReportSection Icon={AlertTriangleIcon} title="Abnormalities Detected" content={analysis.potentialAbnormalities} />
                 
-                <ReportSection Icon={SparklesIcon} title="Differential Diagnosis Suggestions" content={analysis.differentialDiagnosisSuggestions} />
+                <ReportSection Icon={SparklesIcon} title="Differential Diagnosis" content={analysis.differentialDiagnosisSuggestions} />
 
-                <ReportSection Icon={LightbulbIcon} title="Next Steps / Actions" content={analysis.nextSteps} />
+                <ReportSection Icon={LightbulbIcon} title="Recommended Actions" content={analysis.nextSteps} />
 
                 {analysis.note && (
-                    <div className="mt-4 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-800/30 flex items-start gap-2 text-amber-800 dark:text-amber-200">
-                        <AlertTriangleIcon className="w-5 h-5 mt-0.5 flex-shrink-0 text-amber-500" />
-                        <p className="text-sm"><strong className="font-semibold">Note:</strong> {ensureString(analysis.note)}</p>
+                    <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/10 border-l-2 border-amber-500 flex items-start gap-2 text-amber-900 dark:text-amber-100">
+                        <p className="text-xs font-mono"><strong className="uppercase">Clinician Note:</strong> {ensureString(analysis.note)}</p>
                     </div>
                 )}
             </div>

@@ -1,6 +1,6 @@
 {
-  "name": "MediBrief - AI Shift Briefing for Healthcare Workers",
-  "description": "An AI assistant that helps doctors, nurses, and healthcare workers stay organized during their shifts. It processes medical documents, patient notes, lab results, and medical images to generate clear, actionable briefings.",
+  "name": "MediBrief - Clinical Intelligence Layer",
+  "description": "A medical-grade intelligence layer for healthcare professionals. Synthesizes patient data, enforces safety protocols, and generates structured clinical briefings using native multimodal AI.",
   "requestFramePermissions": [
     "microphone",
     "camera",

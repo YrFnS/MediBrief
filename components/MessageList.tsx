@@ -1,23 +1,22 @@
-
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import type { ChatMessage, LiveTranscript } from '../types';
 import Message from './Message';
 import WelcomeScreen from './WelcomeScreen';
-import { BotIcon, UserIcon } from './icons';
+import { BotIcon, UserIcon, ShieldCheckIcon } from './icons';
 
 interface LiveTranscriptDisplayProps {
     transcript: LiveTranscript;
 }
 
 const AudioWave: React.FC = () => (
-    <div className="flex items-center gap-1 h-4">
-        {[1, 2, 3, 4, 5].map(i => (
+    <div className="flex items-center gap-0.5 h-3">
+        {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
             <div 
                 key={i} 
-                className="w-1 bg-medical-500 rounded-full animate-music" 
+                className="w-0.5 bg-green-500 animate-music" 
                 style={{ 
                     height: '100%', 
-                    animationDuration: `${0.4 + Math.random() * 0.5}s` 
+                    animationDuration: `${0.3 + Math.random() * 0.4}s` 
                 }}
             />
         ))}
@@ -26,42 +25,52 @@ const AudioWave: React.FC = () => (
 
 const LiveTranscriptDisplay: React.FC<LiveTranscriptDisplayProps> = ({ transcript }) => {
     return (
-        <div className="max-w-3xl mx-auto space-y-4 p-4 rounded-lg bg-white dark:bg-slate-800 shadow-md border border-medical-500/30 animate-fade-in relative overflow-hidden">
-            {/* Active Status Indicator */}
-            <div className="absolute top-0 right-0 p-2 flex items-center gap-2">
-                 <span className="relative flex h-3 w-3">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
-                </span>
-                <span className="text-[10px] font-bold text-red-500 uppercase tracking-widest">LIVE SESSION</span>
-            </div>
-
-            <div className="flex items-start gap-3">
-                <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-slate-200 dark:bg-slate-700">
-                    <UserIcon className="w-5 h-5 text-slate-500 dark:text-slate-300" />
+        <div className="max-w-3xl mx-auto mt-4 mb-8">
+            {/* Telemetry Header */}
+            <div className="flex items-center justify-between px-2 mb-1">
+                <div className="flex items-center gap-2">
+                     <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                    </span>
+                    <span className="text-[10px] font-mono font-bold text-red-500 uppercase tracking-widest">LIVE_FEED :: AUDIO_CHANNEL_01</span>
                 </div>
-                <div className="flex-1">
-                    <p className="text-xs font-bold text-slate-400 mb-1 uppercase">User</p>
-                    <p className="prose prose-sm dark:prose-invert max-w-none text-slate-800 dark:text-slate-200 min-h-[1.5em]">
-                        {transcript.userInput ? transcript.userInput : <span className="text-slate-400 italic">Listening...</span>}
-                    </p>
+                <div className="text-[10px] font-mono text-slate-400">
+                    16kHz PCM
                 </div>
             </div>
-             
-             <div className="h-px bg-slate-100 dark:bg-slate-700 w-full" />
 
-             <div className="flex items-start gap-3">
-                 <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-gradient-to-br from-medical-500 to-medical-600 shadow-sm">
-                    <BotIcon className="w-5 h-5 text-white" />
+            {/* Terminal Container */}
+            <div className="bg-slate-50 dark:bg-slate-900 border border-red-500/30 technical-border relative overflow-hidden p-4">
+                <div className="absolute top-0 right-0 p-2 opacity-20 pointer-events-none">
+                    <div className="w-16 h-16 border border-red-500 rounded-full border-dashed animate-spin-slow"></div>
                 </div>
-                <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                        <p className="text-xs font-bold text-slate-400 uppercase">Assistant</p>
+
+                {/* User Channel */}
+                <div className="mb-4 relative z-10">
+                    <div className="flex items-center gap-2 mb-1 opacity-70">
+                        <UserIcon className="w-3 h-3 text-slate-500" />
+                        <span className="text-[9px] font-mono uppercase tracking-wider text-slate-500">Input_Source (User)</span>
+                    </div>
+                    <div className="pl-2 border-l-2 border-slate-300 dark:border-slate-700 min-h-[1.5em]">
+                         <p className="font-mono text-sm text-slate-700 dark:text-slate-300">
+                            {transcript.userInput ? transcript.userInput : <span className="text-slate-400 animate-pulse">...listening...</span>}
+                        </p>
+                    </div>
+                </div>
+
+                {/* System Channel */}
+                <div className="relative z-10">
+                    <div className="flex items-center gap-2 mb-1 text-green-600 dark:text-green-500">
+                        <BotIcon className="w-3 h-3" />
+                        <span className="text-[9px] font-mono uppercase tracking-wider">System_Output (Gemini)</span>
                         {transcript.modelOutput && !transcript.userInput && <AudioWave />}
                     </div>
-                    <p className="prose prose-sm dark:prose-invert max-w-none text-slate-800 dark:text-slate-200">
-                        {transcript.modelOutput}
-                    </p>
+                    <div className="pl-2 border-l-2 border-green-500/50">
+                        <p className="font-mono text-sm text-green-800 dark:text-green-400">
+                             {transcript.modelOutput}
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -130,6 +139,16 @@ const MessageList: React.FC<MessageListProps> = ({ messages, isLoading, isLive, 
                 {isLive && liveTranscript && <LiveTranscriptDisplay transcript={liveTranscript} />}
                 
                 <div ref={messagesEndRef} />
+
+                {/* Safety Footer */}
+                <div className="py-4 text-center opacity-60">
+                     <div className="inline-flex items-center gap-2 px-3 py-1 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-full">
+                        <ShieldCheckIcon className="w-3 h-3 text-slate-500" />
+                        <span className="text-[10px] text-slate-500 font-mono">
+                            MediBrief can make mistakes. Verify important clinical information.
+                        </span>
+                    </div>
+                </div>
             </div>
         </main>
     );

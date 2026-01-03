@@ -67,6 +67,11 @@ export const isLabReport = (content: string): boolean => {
     return data && typeof data === 'object' && data.reportType === 'lab-report';
 };
 
+export const isInteractionMatrix = (content: string): boolean => {
+    const data = parseJsonSafe<any>(content);
+    return data && typeof data === 'object' && data.reportType === 'interaction-check';
+};
+
 export const getFriendlyErrorMessage = (error: unknown): string => {
     let errorMessage = 'An unknown error occurred.';
     if (error instanceof Error) {

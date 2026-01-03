@@ -1,4 +1,3 @@
-
 import React, { useMemo } from 'react';
 import { BeakerIcon, UserIcon, CalendarIcon, AlertTriangleIcon } from './icons';
 import { parseJsonSafe } from '../utils';
@@ -25,11 +24,11 @@ interface LabReportProps {
 
 const getFlagColor = (flag: string) => {
     const f = flag.toLowerCase();
-    if (f.includes('critical')) return 'bg-red-500 text-white animate-pulse shadow-md shadow-red-500/20';
-    if (f.includes('high')) return 'bg-amber-100 text-amber-800 border border-amber-200';
-    if (f.includes('low')) return 'bg-blue-100 text-blue-800 border border-blue-200';
-    if (f.includes('abnormal')) return 'bg-amber-100 text-amber-800 border border-amber-200';
-    return 'bg-slate-100 text-slate-600 border border-slate-200';
+    if (f.includes('critical')) return 'text-red-600 dark:text-red-400 font-bold';
+    if (f.includes('high')) return 'text-amber-600 dark:text-amber-400 font-semibold';
+    if (f.includes('low')) return 'text-blue-600 dark:text-blue-400 font-semibold';
+    if (f.includes('abnormal')) return 'text-amber-600 dark:text-amber-400 font-semibold';
+    return 'text-slate-500 dark:text-slate-400';
 };
 
 // Heuristic to visually plot a value against a range
@@ -55,19 +54,19 @@ const RangeVisualizer: React.FC<{ value: string; range: string }> = ({ value, ra
         const clampedPos = Math.max(0, Math.min(100, leftPct));
 
         return (
-            <div className="w-24 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full relative mt-1.5 overflow-hidden">
+            <div className="w-24 h-1.5 bg-slate-100 dark:bg-slate-700 relative mt-1.5 overflow-hidden rounded-sm">
                 {/* Reference Range Zone */}
                 <div 
-                    className="absolute top-0 bottom-0 bg-slate-300 dark:bg-slate-600 opacity-50" 
+                    className="absolute top-0 bottom-0 bg-slate-300 dark:bg-slate-500 opacity-50" 
                     style={{ left: `${startRangePct}%`, width: `${rangeWidthPct}%` }}
                 />
                 
                 {/* Value Marker */}
                 <div 
-                    className={`absolute top-0 bottom-0 w-2 h-2 -ml-1 rounded-full border border-white shadow-sm z-10 ${
+                    className={`absolute top-0 bottom-0 w-1 h-2 -mt-0.5 z-10 ${
                         val < min ? 'bg-blue-500' : val > max ? 'bg-amber-500' : 'bg-green-500'
                     }`}
-                    style={{ left: `${clampedPos}%`, top: '-1px' }}
+                    style={{ left: `${clampedPos}%` }}
                 />
             </div>
         );
@@ -84,60 +83,50 @@ const LabReport: React.FC<LabReportProps> = ({ content }) => {
     }
 
     return (
-        <div className="bg-white dark:bg-slate-900/50 -m-4 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-6 gap-3">
-                <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                    <span className="p-1.5 bg-blue-500 rounded-lg"><BeakerIcon className="w-5 h-5 text-white" /></span>
-                    <span>Lab Results Analysis</span>
+        <div className="bg-white dark:bg-slate-900/40 -m-5 p-5 border-t border-slate-200 dark:border-slate-800">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-6 gap-3 border-b border-slate-100 dark:border-slate-800 pb-2">
+                <h2 className="text-sm font-mono font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <span className="text-lg">🧪</span>
+                    <span>LABORATORY_RESULTS</span>
                 </h2>
-                <div className="flex gap-4 text-sm text-slate-500 dark:text-slate-400">
+                <div className="flex gap-4 text-xs font-mono text-slate-500 dark:text-slate-400">
                     {report.patient && report.patient !== 'Not Visible' && (
-                        <div className="flex items-center gap-1.5">
-                            <UserIcon className="w-4 h-4" />
-                            <span>{report.patient}</span>
-                        </div>
+                        <span>PT: {report.patient}</span>
                     )}
                     {report.date && report.date !== 'Not Visible' && (
-                        <div className="flex items-center gap-1.5">
-                            <CalendarIcon className="w-4 h-4" />
-                            <span>{report.date}</span>
-                        </div>
+                        <span>DT: {report.date}</span>
                     )}
                 </div>
             </div>
 
-            <div className="overflow-x-auto -mx-4 sm:mx-0 mb-4">
+            <div className="overflow-x-auto -mx-5 sm:mx-0 mb-4">
                 <table className="w-full text-sm text-left">
-                    <thead className="text-xs text-slate-500 uppercase bg-slate-50 dark:bg-slate-800 border-y border-slate-100 dark:border-slate-700">
+                    <thead className="text-[10px] text-slate-400 uppercase font-mono tracking-wider border-b border-slate-200 dark:border-slate-700">
                         <tr>
-                            <th className="px-4 py-3 font-semibold">Test Name</th>
-                            <th className="px-4 py-3 font-semibold">Value</th>
-                            <th className="px-4 py-3 font-semibold w-32">Ref Range</th>
-                            <th className="px-4 py-3 font-semibold text-right">Status</th>
+                            <th className="px-4 py-2 font-medium">Test</th>
+                            <th className="px-4 py-2 font-medium">Result</th>
+                            <th className="px-4 py-2 font-medium w-32">Range</th>
+                            <th className="px-4 py-2 font-medium text-right">Flag</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                         {report.labs.map((lab, i) => (
                             <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                                <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-200">{lab.testName}</td>
-                                <td className="px-4 py-3">
+                                <td className="px-4 py-2 font-medium text-slate-800 dark:text-slate-200">{lab.testName}</td>
+                                <td className="px-4 py-2">
                                     <div className="flex flex-col">
                                         <div>
-                                            <span className="font-bold text-slate-900 dark:text-slate-100 text-base">{lab.value}</span>
-                                            <span className="ml-1 text-xs text-slate-400">{lab.units}</span>
+                                            <span className="font-mono font-bold text-slate-900 dark:text-slate-100">{lab.value}</span>
+                                            <span className="ml-1 text-[10px] text-slate-400">{lab.units}</span>
                                         </div>
                                         <RangeVisualizer value={lab.value} range={lab.refRange} />
                                     </div>
                                 </td>
-                                <td className="px-4 py-3 text-slate-500 dark:text-slate-400 font-mono text-xs">{lab.refRange}</td>
-                                <td className="px-4 py-3 text-right">
-                                    {lab.flag && lab.flag.toLowerCase() !== 'normal' ? (
-                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded text-xs font-bold uppercase tracking-wide ${getFlagColor(lab.flag)}`}>
-                                            {lab.flag}
-                                        </span>
-                                    ) : (
-                                        <span className="text-slate-400 text-xs font-medium">Normal</span>
-                                    )}
+                                <td className="px-4 py-2 text-slate-500 dark:text-slate-400 font-mono text-xs">{lab.refRange}</td>
+                                <td className="px-4 py-2 text-right">
+                                    <span className={`text-xs font-mono uppercase ${getFlagColor(lab.flag)}`}>
+                                        {lab.flag}
+                                    </span>
                                 </td>
                             </tr>
                         ))}
@@ -146,9 +135,9 @@ const LabReport: React.FC<LabReportProps> = ({ content }) => {
             </div>
 
             {report.interpretation && (
-                <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3 border-l-4 border-blue-500">
-                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Clinical Interpretation</h4>
-                    <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">{report.interpretation}</p>
+                <div className="bg-slate-50 dark:bg-slate-800/30 p-3 border border-slate-200 dark:border-slate-700 rounded-sm">
+                    <h4 className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest mb-1">Interpretation</h4>
+                    <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-sans">{report.interpretation}</p>
                 </div>
             )}
         </div>
