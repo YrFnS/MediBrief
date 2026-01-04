@@ -1,7 +1,9 @@
-import React, { useState, useRef, useCallback, KeyboardEvent, useEffect, useLayoutEffect } from 'react';
+
+import React, { useState, useRef, useCallback, KeyboardEvent, useLayoutEffect, useEffect } from 'react';
 import type { UploadedFile, ChatMode } from '../types';
 import { ChatMode as ChatModeEnum } from '../types';
 import { PaperclipIcon, SendIcon, XCircleIcon, BriefingIcon, UserIcon, DrugsIcon, DownloadIcon, DocumentTextIcon, MicrophoneIcon, CameraIcon, LiveIcon, StopIcon } from './icons';
+import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 
 interface InputBarProps {
     onSend: (prompt: string) => void;
@@ -15,13 +17,6 @@ interface InputBarProps {
     onStop?: () => void;
 }
 
-declare global {
-    interface Window {
-        SpeechRecognition: any;
-        webkitSpeechRecognition: any;
-    }
-}
-
 const QUICK_COMMANDS = [
   { command: '/brief', description: 'Shift briefing', icon: BriefingIcon },
   { command: '/patient ', description: 'Patient summary', icon: UserIcon },
@@ -32,11 +27,15 @@ const QUICK_COMMANDS = [
 const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFile, isLoading, currentMode, uploadedFile, toggleLiveSession, isLiveSessionActive, onStop }) => {
     const [prompt, setPrompt] = useState('');
     const [showCommands, setShowCommands] = useState(false);
-    const [isListening, setIsListening] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const cameraInputRef = useRef<HTMLInputElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
-    const recognitionRef = useRef<any>(null);
+
+    // Custom Hook for Speech
+    const { isListening, toggleListening, stopListening } = useSpeechRecognition({
+        onResult: (transcript) => setPrompt(transcript),
+        onError: (err) => alert(err)
+    });
 
     useEffect(() => {
         let activeUrl = uploadedFile?.url;
@@ -46,15 +45,6 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
             }
         };
     }, [uploadedFile]);
-
-    // Ensure speech recognition stops if component unmounts
-    useEffect(() => {
-        return () => {
-            if (recognitionRef.current) {
-                try { recognitionRef.current.stop(); } catch(e) {}
-            }
-        };
-    }, []);
 
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -80,17 +70,12 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
     const handleSendClick = useCallback(() => {
         const canSend = !isLoading || isLiveSessionActive;
         if (canSend) {
-            if (recognitionRef.current) {
-                recognitionRef.current.onresult = null;
-                recognitionRef.current.onend = null; 
-                try { recognitionRef.current.stop(); } catch(e) {}
-                setIsListening(false);
-            }
+            if (isListening) stopListening();
             onSend(prompt);
             setPrompt('');
             setShowCommands(false);
         }
-    }, [isLoading, isLiveSessionActive, onSend, prompt]);
+    }, [isLoading, isLiveSessionActive, onSend, prompt, isListening, stopListening]);
     
     const handleCommandSelect = (command: string) => {
         setPrompt(command);
@@ -123,50 +108,6 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
         setPrompt(value);
         setShowCommands(value.trim() === '/' || value.endsWith(' /'));
     };
-
-    const handleSpeechToText = useCallback(() => {
-        if (isListening) {
-            if (recognitionRef.current) recognitionRef.current.stop();
-            return;
-        }
-
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecognition) {
-            alert("Speech recognition not supported in this browser.");
-            return;
-        }
-
-        const recognition = new SpeechRecognition();
-        recognition.continuous = true;
-        recognition.interimResults = true;
-        recognition.lang = 'en-US';
-        recognitionRef.current = recognition;
-
-        recognition.onstart = () => setIsListening(true);
-        recognition.onend = () => setIsListening(false);
-        recognition.onerror = (event: any) => {
-            console.error('Speech error:', event.error);
-            setIsListening(false);
-        };
-
-        let finalTranscript = prompt ? prompt + ' ' : '';
-
-        recognition.onresult = (event: any) => {
-            let interimTranscript = '';
-            for (let i = event.resultIndex; i < event.results.length; ++i) {
-                if (event.results[i].isFinal) finalTranscript += event.results[i][0].transcript;
-                else interimTranscript += event.results[i][0].transcript;
-            }
-            setPrompt(finalTranscript + interimTranscript);
-        };
-        
-        try {
-            recognition.start();
-        } catch (e) {
-            console.error("Failed to start recognition:", e);
-        }
-
-    }, [isListening, prompt]);
     
     useLayoutEffect(() => { resizeTextarea(); }, [prompt]);
     
@@ -297,7 +238,7 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
                                     </button>
                                     {currentMode !== ChatModeEnum.Live && (
                                         <button 
-                                            onClick={handleSpeechToText} 
+                                            onClick={() => toggleListening(prompt)} 
                                             className={`p-2 transition-colors rounded-sm hover:bg-slate-100 dark:hover:bg-slate-800 ${isListening ? 'text-red-500 bg-red-50 dark:bg-red-900/20 animate-pulse border border-red-200 dark:border-red-900' : 'text-slate-400 hover:text-blue-500'}`}
                                             title="Dictate"
                                         >
