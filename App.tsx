@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect } from 'react';
 import { ChatMode as ChatModeEnum } from './types';
 import Header from './components/Header';
@@ -87,11 +86,11 @@ const App: React.FC = () => {
             {...dragHandlers}
         >
             {isDragging && (
-                <div className="absolute inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center m-4 rounded-xl animate-fade-in pointer-events-none technical-border border border-blue-500/50">
+                <div className="absolute inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center m-4 rounded-sm animate-fade-in pointer-events-none technical-border text-blue-500 border-2 border-blue-500">
                     <div className="flex flex-col items-center text-blue-400 animate-pulse">
                         <DocumentTextIcon className="w-20 h-20 mb-6" />
-                        <h2 className="text-3xl font-display font-bold tracking-tight">INGEST DATA</h2>
-                        <p className="font-mono text-sm mt-2 opacity-70">DROP MEDICAL RECORDS TO PROCESS</p>
+                        <h2 className="text-3xl font-display font-bold tracking-tight">DATA INGESTION PROTOCOL</h2>
+                        <p className="font-mono text-sm mt-2 opacity-70 uppercase tracking-widest">Release to initialize scan</p>
                     </div>
                 </div>
             )}

@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useCallback, KeyboardEvent, useLayoutEffect, useEffect } from 'react';
 import type { UploadedFile, ChatMode } from '../types';
 import { ChatMode as ChatModeEnum } from '../types';
@@ -31,7 +30,6 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
     const cameraInputRef = useRef<HTMLInputElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-    // Custom Hook for Speech
     const { isListening, toggleListening, stopListening } = useSpeechRecognition({
         onResult: (transcript) => setPrompt(transcript),
         onError: (err) => alert(err)
@@ -40,9 +38,7 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
     useEffect(() => {
         let activeUrl = uploadedFile?.url;
         return () => {
-            if (activeUrl) {
-                setTimeout(() => { URL.revokeObjectURL(activeUrl!); }, 1000);
-            }
+            if (activeUrl) setTimeout(() => URL.revokeObjectURL(activeUrl!), 1000);
         };
     }, [uploadedFile]);
 
@@ -110,22 +106,21 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
     };
     
     useLayoutEffect(() => { resizeTextarea(); }, [prompt]);
-    
     const handleBlur = () => { setTimeout(() => setShowCommands(false), 200); };
 
     const isInputDisabled = (isLoading && !isLiveSessionActive) || isListening;
     const placeholderText = isLiveSessionActive 
-        ? 'Listening...' 
-        : (isListening ? 'Dictating...' : 'Enter clinical instruction or query...');
+        ? 'Voice Stream Active - Listening...' 
+        : (isListening ? 'Dictation Active...' : 'Enter clinical instruction (/ for commands)...');
 
     const showStopButton = isLoading && !isLiveSessionActive && onStop;
 
     return (
-        <footer className="flex-shrink-0 p-4 md:p-6 pb-8 z-30 pointer-events-none">
+        <footer className="flex-shrink-0 p-4 pb-6 z-30 pointer-events-none">
             <div className="max-w-4xl mx-auto pointer-events-auto">
-                <div className={`relative transition-all duration-300 ${isLiveSessionActive ? 'translate-y-0' : ''}`}>
+                <div className={`relative transition-all duration-300 transform ${isLiveSessionActive ? 'scale-[1.02]' : ''}`}>
                     
-                    {/* File Attachment Pill */}
+                    {/* Attachment Pill */}
                      {uploadedFile && (
                         <div className="absolute bottom-full left-0 mb-3 animate-slide-up z-20">
                              <div className="flex items-center gap-3 bg-slate-900 text-white p-2 pr-4 rounded-sm shadow-xl border-l-4 border-blue-500">
@@ -138,7 +133,7 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
                                 )}
                                 <div className="flex flex-col">
                                     <span className="text-xs font-mono font-bold max-w-[150px] truncate">{uploadedFile.file.name}</span>
-                                    <span className="text-[10px] text-slate-400 uppercase">{uploadedFile.type.split('/')[1]}</span>
+                                    <span className="text-[10px] text-slate-400 uppercase tracking-wider">Ready to Ingest</span>
                                 </div>
                                 <button onClick={onClearFile} className="ml-2 text-slate-400 hover:text-red-400">
                                     <XCircleIcon className="w-5 h-5" />
@@ -152,10 +147,6 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
                         <div className="absolute bottom-full left-0 mb-2 bg-white dark:bg-slate-900 rounded-sm shadow-2xl border border-slate-300 dark:border-slate-700 w-64 animate-slide-up z-20 overflow-hidden">
                             <div className="bg-slate-100 dark:bg-slate-800 px-3 py-1.5 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
                                  <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500">Quick Execute</p>
-                                 <div className="flex gap-1">
-                                     <div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div>
-                                     <div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div>
-                                 </div>
                             </div>
                             <ul className="p-0">
                                 {QUICK_COMMANDS.map(({ command, description, icon: Icon }) => (
@@ -178,36 +169,44 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
                         </div>
                     )}
 
-                    {/* Main Command Console */}
+                    {/* Main Console Container with Technical Border */}
                     <div className={`
-                        flex items-end gap-0 rounded-sm shadow-2xl transition-all duration-300 border-t-2 relative overflow-hidden
+                        flex items-end gap-0 rounded-sm shadow-2xl transition-all duration-300 border-2 overflow-hidden technical-border
                         ${isLiveSessionActive 
-                            ? 'bg-slate-900 border-red-500 shadow-red-900/20' 
-                            : 'bg-white dark:bg-slate-900 border-blue-500 shadow-blue-900/10'
+                            ? 'bg-slate-900 border-red-500 shadow-red-900/30' 
+                            : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600 focus-within:border-blue-500 focus-within:shadow-blue-500/20'
                         }
                     `}>
-                        {/* Decorative Console Strip */}
-                        <div className="absolute top-0 right-0 p-1 flex gap-1 z-10 pointer-events-none opacity-50">
-                             <div className={`w-8 h-1 ${isLiveSessionActive ? 'bg-red-500' : 'bg-blue-500'}`}></div>
-                             <div className="w-1 h-1 bg-slate-400"></div>
-                             <div className="w-1 h-1 bg-slate-400"></div>
-                        </div>
-
-                        {/* Start Live Session Button */}
+                        {/* Live Mode Toggle */}
                         <button
                             onClick={toggleLiveSession}
-                            className={`flex-shrink-0 h-full min-h-[56px] w-14 flex items-center justify-center transition-all border-r border-slate-200 dark:border-slate-800 ${
+                            className={`flex-shrink-0 self-stretch w-14 flex flex-col items-center justify-center transition-all border-r ${
                                 isLiveSessionActive 
-                                ? 'bg-red-600 text-white animate-pulse' 
-                                : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-slate-700'
+                                ? 'bg-red-600 text-white border-red-500' 
+                                : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:text-red-500 hover:bg-red-50 dark:hover:bg-slate-700'
                             }`}
-                            title="Toggle Live Consult"
+                            title={isLiveSessionActive ? "Stop Live Session" : "Start Live Consult"}
                         >
-                            <LiveIcon className="w-5 h-5 md:w-6 md:h-6" />
+                            <LiveIcon className={`w-5 h-5 md:w-6 md:h-6 ${isLiveSessionActive ? 'animate-pulse' : ''}`} />
+                            <span className="text-[9px] font-mono font-bold mt-1 uppercase">
+                                {isLiveSessionActive ? 'LIVE' : 'VOICE'}
+                            </span>
                         </button>
 
-                        {/* Input Area */}
-                        <div className="flex-1 flex flex-col relative min-w-0 px-2">
+                        {/* Text Input Area */}
+                        <div className="flex-1 flex flex-col relative min-w-0">
+                            {/* Live Active Overlay */}
+                            {isLiveSessionActive && (
+                                <div className="absolute inset-0 z-10 bg-slate-900/90 flex items-center px-4 gap-3 animate-fade-in pointer-events-none">
+                                    <div className="flex gap-1 h-3">
+                                        {[1,2,3,4].map(i => <div key={i} className="w-1 bg-red-500 animate-music" style={{animationDuration: `${Math.random() * 0.5 + 0.2}s`}}></div>)}
+                                    </div>
+                                    <span className="font-mono text-xs text-red-400 uppercase tracking-widest animate-pulse">
+                                        Open Mic Active // Listening...
+                                    </span>
+                                </div>
+                            )}
+
                             <textarea
                                 ref={textareaRef}
                                 value={prompt}
@@ -216,31 +215,31 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
                                 onBlur={handleBlur}
                                 placeholder={placeholderText}
                                 rows={1}
-                                className={`w-full bg-transparent resize-none outline-none py-4 px-2 text-sm font-medium leading-relaxed max-h-32 font-mono ${
-                                    isLiveSessionActive ? 'text-white placeholder-slate-500' : 'text-slate-900 dark:text-white placeholder-slate-400'
+                                className={`w-full bg-transparent resize-none outline-none py-4 px-4 text-sm font-medium leading-relaxed max-h-32 font-mono ${
+                                    isLiveSessionActive ? 'text-transparent' : 'text-slate-900 dark:text-white placeholder-slate-400'
                                 }`}
                                 disabled={isInputDisabled}
                             />
                         </div>
 
-                        {/* Tools */}
+                        {/* Tool Actions */}
                         <div className="flex items-center gap-1 self-end pb-2 pr-2">
                             <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*,application/pdf,.txt,.md" className="hidden" />
                             <input type="file" ref={cameraInputRef} onChange={handleFileChange} accept="image/*" capture="environment" className="hidden" />
 
                             {!isLiveSessionActive && (
                                 <>
-                                    <button onClick={() => fileInputRef.current?.click()} className="p-2 text-slate-400 hover:text-blue-500 transition-colors rounded-sm hover:bg-slate-100 dark:hover:bg-slate-800" title="Attach">
+                                    <button onClick={() => fileInputRef.current?.click()} className="p-2 text-slate-400 hover:text-blue-500 transition-colors rounded-sm hover:bg-slate-100 dark:hover:bg-slate-800" title="Attach File">
                                         <PaperclipIcon className="w-5 h-5" />
                                     </button>
-                                    <button onClick={() => cameraInputRef.current?.click()} className="p-2 text-slate-400 hover:text-blue-500 transition-colors rounded-sm hover:bg-slate-100 dark:hover:bg-slate-800" title="Camera">
+                                    <button onClick={() => cameraInputRef.current?.click()} className="p-2 text-slate-400 hover:text-blue-500 transition-colors rounded-sm hover:bg-slate-100 dark:hover:bg-slate-800" title="Camera Capture">
                                         <CameraIcon className="w-5 h-5" />
                                     </button>
                                     {currentMode !== ChatModeEnum.Live && (
                                         <button 
                                             onClick={() => toggleListening(prompt)} 
                                             className={`p-2 transition-colors rounded-sm hover:bg-slate-100 dark:hover:bg-slate-800 ${isListening ? 'text-red-500 bg-red-50 dark:bg-red-900/20 animate-pulse border border-red-200 dark:border-red-900' : 'text-slate-400 hover:text-blue-500'}`}
-                                            title="Dictate"
+                                            title="Dictate Text"
                                         >
                                             <MicrophoneIcon className="w-5 h-5" />
                                         </button>
@@ -253,9 +252,9 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
                                 <button 
                                     onClick={showStopButton ? onStop : handleSendClick}
                                     disabled={!showStopButton && (isInputDisabled || (!prompt.trim() && !uploadedFile))}
-                                    className={`ml-1 flex-shrink-0 h-10 w-10 rounded-sm flex items-center justify-center transition-all ${
+                                    className={`ml-2 flex-shrink-0 h-10 w-10 rounded-sm flex items-center justify-center transition-all shadow-sm ${
                                         showStopButton
-                                        ? 'bg-slate-700 text-white'
+                                        ? 'bg-slate-700 text-white hover:bg-slate-600'
                                         : 'bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50 disabled:bg-slate-200 dark:disabled:bg-slate-800 dark:disabled:text-slate-600'
                                     }`}
                                 >

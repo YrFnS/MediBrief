@@ -1,5 +1,5 @@
 
-import { useRef, useCallback } from 'react';
+import React, { useRef, useCallback } from 'react';
 import { ChatMode as ChatModeEnum, UploadedFile, ChatMessage, GroundingSource } from '../types';
 import { generateResponseStream } from '../services/geminiService';
 import { exportBriefingToPdf } from '../services/exportService';

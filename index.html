@@ -50,10 +50,12 @@
           },
           animation: {
             'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-            'fade-in': 'fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
-            'slide-up': 'slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1)',
+            'fade-in': 'fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+            'slide-up': 'slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards',
             'scan': 'scan 2s linear infinite',
             'soft-stream': 'softStream 0.3s ease-out forwards',
+            'music': 'music 1s ease-in-out infinite',
+            'spin-slow': 'spin 3s linear infinite',
           },
           keyframes: {
             fadeIn: {
@@ -61,7 +63,7 @@
               '100%': { opacity: '1' },
             },
             slideUp: {
-              '0%': { transform: 'translateY(15px)', opacity: '0' },
+              '0%': { transform: 'translateY(20px)', opacity: '0' },
               '100%': { transform: 'translateY(0)', opacity: '1' },
             },
             scan: {
@@ -71,6 +73,10 @@
             softStream: {
               '0%': { opacity: '0.4', transform: 'translateY(2px)' },
               '100%': { opacity: '1', transform: 'translateY(0)' },
+            },
+            music: {
+              '0%, 100%': { height: '20%' },
+              '50%': { height: '100%' }
             }
           }
         }
@@ -103,14 +109,35 @@
       opacity: 0.8;
       pointer-events: none;
     }
+    
+    .scanline {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.02) 50%, rgba(0,0,0,0.02));
+        background-size: 100% 4px;
+        pointer-events: none;
+        z-index: 9999;
+    }
 
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    /* Clinical Scrollbar */
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb {
       background: #94a3b8;
-      border-radius: 0px;
+      border-radius: 2px;
     }
     .dark ::-webkit-scrollbar-thumb { background: #334155; }
+    ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
+    /* Animation Delays */
+    .animation-delay-100 { animation-delay: 100ms; }
+    .animation-delay-200 { animation-delay: 200ms; }
+    .animation-delay-300 { animation-delay: 300ms; }
+    .animation-delay-400 { animation-delay: 400ms; }
+    .animation-delay-500 { animation-delay: 500ms; }
   </style>
 <script type="importmap">
 {
@@ -128,6 +155,7 @@
 </script>
 </head>
 <body class="bg-slate-50 dark:bg-surface-dark text-slate-800 dark:text-slate-200 antialiased selection:bg-blue-500/30 selection:text-blue-200 bg-grid-pattern dark:bg-grid-pattern-dark bg-grid fixed inset-0 overflow-hidden">
+  <div class="scanline"></div>
   <div id="root" class="h-full w-full"></div>
   <script type="module" src="/index.tsx"></script>
 </body>
