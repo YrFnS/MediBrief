@@ -71,7 +71,7 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLo
 
             {/* Main Data Block with Technical Border */}
             <div className={`
-                relative max-w-full md:max-w-3xl p-5 border shadow-sm transition-all duration-300 technical-border
+                relative max-w-full md:max-w-3xl p-3 md:p-5 border shadow-sm transition-all duration-300 technical-border
                 ${isModel 
                     ? isCriticalAlert 
                         ? 'bg-red-50 dark:bg-red-950/30 border-red-500 shadow-red-500/10 border-l-[4px]'
@@ -112,7 +112,7 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLo
                                         src={message.filePreview.url} 
                                         alt={message.filePreview.name} 
                                         onLoad={onImageLoad}
-                                        className="max-w-[200px] max-h-[200px] object-contain block grayscale-[20%] group-hover/img:grayscale-0 transition-all duration-500" 
+                                        className="max-w-[150px] md:max-w-[200px] max-h-[150px] md:max-h-[200px] object-contain block grayscale-[20%] group-hover/img:grayscale-0 transition-all duration-500" 
                                     />
                                 </button>
                                 <div className="mt-1 flex items-center justify-between text-[10px] font-mono text-slate-400 max-w-[200px]">
