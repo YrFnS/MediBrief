@@ -102,7 +102,7 @@ export const LiveIcon: React.FC<{className?: string}> = (props) => (
 
 export const ScribeIcon: React.FC<{className?: string}> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
-        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9v-2h2v2zm0-4H9V8h2v4zm6 2c-.67 1.15-1.9 1.93-3.32 1.99v.01h-2v-1.1c1.55-.17 2.82-1.28 3.22-2.73.08-.29.1-.59.1-.9 0-.31-.02-.61-.1-.9-.4-1.45-1.67-2.56-3.22-2.73V7h2v.01c1.42.06 2.65.84 3.32 1.99.34.58.53 1.25.53 1.97s-.19 1.4-.53 1.97z"/>
+        <path d="M3 6v2h11V6H3zm0 4v2h11v-2H3zm0 4v2h7v-2H3zm15.6-5.5l-1.1-1.1c-.2-.2-.5-.2-.7 0l-5.6 5.6v1.8h1.8l5.6-5.6c.2-.2.2-.5 0-.7z"/>
     </svg>
 );
 
@@ -174,7 +174,7 @@ export const PhoneForwardedIcon: React.FC<{className?: string}> = (props) => (
 
 export const ClockIcon: React.FC<{className?: string}> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
-        <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/>
+        <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-8 8z"/>
         <path d="M12.5 7H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
     </svg>
 );
