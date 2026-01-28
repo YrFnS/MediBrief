@@ -1,7 +1,7 @@
-# 🗺️ MediBrief v4.0 - Clinical Operating System Roadmap
+# 🗺️ MediBrief v4.2 - Clinical Operating System Roadmap
 
-**Current Status:** v4.2 (Clinical Decision Support Cards)
-**Target Status:** v5.0 (Deployment Readiness)
+**Current Status:** v4.2 (Feature Complete)
+**Target Status:** v5.0 (Production Hardening)
 
 This roadmap outlines the transformation of MediBrief from a linear chat interface into a stateful, multi-patient management system.
 
@@ -25,10 +25,6 @@ We are moving away from horizontal grouping (e.g., `components/`, `hooks/`) to v
 *   ✅ `features/analytics/` (Trending)
 *   ✅ `features/scribe/` (Ambient Listening)
 *   ✅ `features/cdss/` (Rules Engine & Alerts)
-
-### 3. Single Responsibility
-*   Each file must do **ONE** thing well.
-*   Separation of Concerns: Logic goes in `hooks/`, UI goes in `components/`, Data transformations go in `utils/`.
 
 ---
 
@@ -80,12 +76,20 @@ We are moving away from horizontal grouping (e.g., `components/`, `hooks/`) to v
 
 ---
 
-## 🚀 Execution Strategy
+## 📅 PHASE 7: Production Hardening & PWA
+**Goal:** Ensure the app is robust, performant, and accessible for real-world usage.
 
-1.  **Stop:** Do not add features to `App.tsx` anymore.
-2.  **Refactor:** Break `App.tsx` into `features/layout/MainLayout.tsx`.
-3.  **Build Phase 2 (Roster):** This enables the data structure needed for everything else.
-4.  **Build Phase 3 (HUD):** Visualizing the data.
-5.  **Build Phase 5 (Scribe):** The "Wow" factor feature.
-6.  **Build Phase 4 (FHIR):** The "Pro" factor feature.
-7.  **Build Phase 6 (CDSS):** The "Safety" factor feature.
+### 7.1 Resilience
+*   Implement React Error Boundaries to prevent full app crashes on render errors.
+*   Add toast notifications for non-critical errors.
+
+### 7.2 Persistence
+*   Migrate from `sessionStorage` to `localStorage` (or `IndexedDB` for images) to persist patient data across browser sessions.
+*   Implement data export/import for full patient contexts.
+
+### 7.3 Accessibility (A11y)
+*   Ensure full keyboard navigation support for the Roster and CDSS cards.
+*   Verify screen reader compatibility for dynamic updates (Live transcripts).
+
+### 7.4 Progressive Web App (PWA)
+*   Add `manifest.json` and Service Worker for offline capability (viewing cached data).

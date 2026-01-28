@@ -1,9 +1,9 @@
 
-import { useReducer, useEffect, useCallback } from 'react';
+import React, { useReducer, useEffect, useContext, createContext } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { PatientContext, PatientEntityData } from './types';
-import { ClinicalDataStore, FHIRObservation } from '../fhir/types';
-import { ChatMessage, ChatMode, GroundingSource, UploadedFile } from '../../types';
+import { FHIRObservation } from '../fhir/types';
+import { ChatMessage, ChatMode, GroundingSource } from '../../types';
 
 // --- State Definitions ---
 
@@ -35,11 +35,13 @@ export type PatientAction =
     // Global Actions
     | { type: 'SET_CHAT_MODE'; payload: ChatMode }
     | { type: 'SET_LOADING'; payload: boolean }
-    | { type: 'RESET_ACTIVE_CHAT' };
+    | { type: 'RESET_ACTIVE_CHAT' }
+    | { type: 'HYDRATE'; payload: PatientStoreState };
 
 // --- Initial State Helper ---
 
 const DEFAULT_PATIENT_ID = 'general-context';
+const STORAGE_KEY = 'mediBriefPatientStore_v4';
 
 const createDefaultPatient = (): PatientContext => ({
     id: DEFAULT_PATIENT_ID,
@@ -55,12 +57,11 @@ const createDefaultPatient = (): PatientContext => ({
 
 const getInitialState = (): PatientStoreState => {
     try {
-        const savedState = sessionStorage.getItem('mediBriefPatientStore');
+        const savedState = localStorage.getItem(STORAGE_KEY);
         if (savedState) {
             const parsed = JSON.parse(savedState);
-            // Validation check to ensure shape matches
             if (parsed.patients && parsed.activePatientId) {
-                // Migration: Ensure clinicalData exists if loading old state
+                // Migration checks
                 Object.keys(parsed.patients).forEach(key => {
                     if (!parsed.patients[key].clinicalData) {
                         parsed.patients[key].clinicalData = { observations: [] };
@@ -70,10 +71,9 @@ const getInitialState = (): PatientStoreState => {
             }
         }
     } catch (e) {
-        console.warn("Failed to load patient store, resetting.");
+        console.warn("Failed to load patient store from localStorage, resetting.");
     }
     
-    // Default / Fallback State
     const defaultPatient = createDefaultPatient();
     return {
         patients: { [DEFAULT_PATIENT_ID]: defaultPatient },
@@ -91,6 +91,8 @@ const patientReducer = (state: PatientStoreState, action: PatientAction): Patien
     const activePatient = state.patients[activeId];
 
     switch (action.type) {
+        case 'HYDRATE':
+            return action.payload;
         case 'CREATE_PATIENT': {
             const newId = uuidv4();
             const newPatient: PatientContext = {
@@ -126,21 +128,15 @@ const patientReducer = (state: PatientStoreState, action: PatientAction): Patien
             const targetPatient = state.patients[targetId];
             if (!targetPatient) return state;
 
-            // Merge Logic: Don't overwrite existing allergies with empty arrays
             const newEntities = { ...targetPatient.entities };
-            
             const incoming = action.payload.entities;
+            
             if (incoming.allergies && incoming.allergies.length > 0) {
-                // Dedup allergies
-                const merged = [...new Set([...newEntities.allergies, ...incoming.allergies])];
-                newEntities.allergies = merged;
+                newEntities.allergies = [...new Set([...newEntities.allergies, ...incoming.allergies])];
             }
-            if (incoming.codeStatus) {
-                newEntities.codeStatus = incoming.codeStatus;
-            }
+            if (incoming.codeStatus) newEntities.codeStatus = incoming.codeStatus;
             if (incoming.diagnosis && incoming.diagnosis.length > 0) {
-                 const mergedDx = [...new Set([...newEntities.diagnosis, ...incoming.diagnosis])];
-                 newEntities.diagnosis = mergedDx;
+                 newEntities.diagnosis = [...new Set([...newEntities.diagnosis, ...incoming.diagnosis])];
             }
 
             return {
@@ -157,7 +153,6 @@ const patientReducer = (state: PatientStoreState, action: PatientAction): Patien
             if (!targetPatient) return state;
 
             const existingObs = targetPatient.clinicalData?.observations || [];
-            // Simple Dedup: If we have an observation with same code, value, and date, ignore
             const newObs = action.payload.observations.filter(obs => 
                 !existingObs.some(ex => 
                     ex.code.text === obs.code.text && 
@@ -181,8 +176,7 @@ const patientReducer = (state: PatientStoreState, action: PatientAction): Patien
             };
         }
         
-        // --- Chat Actions (Scoped to Active Patient) ---
-        
+        // Chat Actions
         case 'START_REQUEST':
             return {
                 ...state,
@@ -215,7 +209,6 @@ const patientReducer = (state: PatientStoreState, action: PatientAction): Patien
                 lastMsg.content += action.payload.chunk;
                 if (action.payload.sources) {
                     const existing = lastMsg.sources || [];
-                    // Simple dedup based on URI
                     const newSources = action.payload.sources.filter(ns => 
                         !existing.some(es => 
                             (es.web?.uri && es.web.uri === ns.web?.uri) || 
@@ -274,7 +267,6 @@ const patientReducer = (state: PatientStoreState, action: PatientAction): Patien
         case 'REQUEST_FAILED': {
              const history = [...activePatient.chatHistory];
              const lastMsg = history[history.length - 1];
-             // If the last message was empty placeholder, update it. Otherwise add new error msg.
              if (lastMsg && lastMsg.role === 'model' && !lastMsg.content) {
                  lastMsg.content = `Sorry, I encountered an error.\n\n**Details:** ${action.payload}`;
              } else {
@@ -299,8 +291,6 @@ const patientReducer = (state: PatientStoreState, action: PatientAction): Patien
                 }
             };
 
-        // --- Global Actions ---
-        
         case 'SET_CHAT_MODE':
             return { ...state, globalChatMode: action.payload };
         case 'SET_LOADING':
@@ -311,13 +301,23 @@ const patientReducer = (state: PatientStoreState, action: PatientAction): Patien
     }
 };
 
-export const usePatientStore = () => {
+// --- Context ---
+
+interface PatientContextType {
+    state: PatientStoreState;
+    dispatch: React.Dispatch<PatientAction>;
+    activePatient: PatientContext;
+    activeMessages: ChatMessage[];
+}
+
+const PatientStoreContext = createContext<PatientContextType | undefined>(undefined);
+
+export const PatientProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [state, dispatch] = useReducer(patientReducer, getInitialState());
 
     // Persistence Effect
     useEffect(() => {
         try {
-            // Optimization: Strip base64 from images in history before saving to avoid QuotaExceeded
             const stateToSave = {
                 ...state,
                 patients: Object.entries(state.patients).reduce((acc, [id, patient]) => {
@@ -327,7 +327,7 @@ export const usePatientStore = () => {
                             if (msg.filePreview?.base64) {
                                 return { 
                                     ...msg, 
-                                    filePreview: { ...msg.filePreview, base64: undefined } // Don't persist base64 to storage
+                                    filePreview: { ...msg.filePreview, base64: undefined } 
                                 };
                             }
                             return msg;
@@ -336,18 +336,28 @@ export const usePatientStore = () => {
                     return acc;
                 }, {} as Record<string, PatientContext>)
             };
-            sessionStorage.setItem('mediBriefPatientStore', JSON.stringify(stateToSave));
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
         } catch (e) {
-            console.error("Failed to save patient store", e);
+            console.error("Failed to save patient store to localStorage", e);
         }
     }, [state]);
 
     const activePatient = state.patients[state.activePatientId];
 
-    return { 
-        state, 
-        dispatch,
-        activePatient,
-        activeMessages: activePatient?.chatHistory || []
-    };
+    return React.createElement(PatientStoreContext.Provider, {
+        value: { 
+            state, 
+            dispatch, 
+            activePatient, 
+            activeMessages: activePatient?.chatHistory || [] 
+        }
+    }, children);
+};
+
+export const usePatientStore = () => {
+    const context = useContext(PatientStoreContext);
+    if (!context) {
+        throw new Error("usePatientStore must be used within a PatientProvider");
+    }
+    return context;
 };
