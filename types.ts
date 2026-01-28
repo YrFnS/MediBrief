@@ -3,6 +3,7 @@ export enum ChatMode {
   Standard = 'Normal',
   Deep = 'Deep Analysis',
   Live = 'Live',
+  Scribe = 'Ambient Scribe',
 }
 
 export interface GroundingSource {

@@ -1,15 +1,20 @@
 
 import React, { useRef, useCallback } from 'react';
+import { v4 as uuidv4 } from 'uuid';
 import { ChatMode as ChatModeEnum, UploadedFile, ChatMessage, GroundingSource } from '../types';
 import { generateResponseStream } from '../services/geminiService';
 import { exportBriefingToPdf } from '../services/exportService';
-import { cleanJsonOutput, isJsonBriefing, getFriendlyErrorMessage } from '../utils';
+import { cleanJsonOutput, isJsonBriefing, getFriendlyErrorMessage, isLabReport, parseJsonSafe } from '../utils';
 import { FILE_ANALYSIS_PROMPT, BRIEFING_TRIGGERS, SHIFT_BRIEFING_PROMPT, HELP_COMMAND_RESPONSE, DRUG_ANALYSIS_PROMPT } from '../constants';
-import { AppState, AppAction } from './useAppStore';
+import { PatientAction } from '../features/patient-management/usePatientStore';
+import { useEntityExtractor } from './useEntityExtractor';
+import { FHIRObservation } from '../features/fhir/types';
 
 interface UseChatOrchestratorProps {
-    state: AppState;
-    dispatch: React.Dispatch<AppAction>;
+    messages: ChatMessage[];
+    activePatientId?: string;
+    chatMode: ChatModeEnum;
+    dispatch: React.Dispatch<PatientAction>;
     uploadedFile: UploadedFile | null;
     setUploadedFile: (file: UploadedFile | null) => void;
     isLive: boolean;
@@ -19,7 +24,9 @@ interface UseChatOrchestratorProps {
 }
 
 export const useChatOrchestrator = ({
-    state,
+    messages,
+    activePatientId,
+    chatMode,
     dispatch,
     uploadedFile,
     setUploadedFile,
@@ -29,7 +36,7 @@ export const useChatOrchestrator = ({
     clearFile
 }: UseChatOrchestratorProps) => {
     const abortControllerRef = useRef<AbortController | null>(null);
-    const { messages, chatMode } = state;
+    const { triggerExtraction } = useEntityExtractor(dispatch);
 
     const handleStop = useCallback(() => {
         if (abortControllerRef.current) abortControllerRef.current.abort();
@@ -37,7 +44,7 @@ export const useChatOrchestrator = ({
     }, [dispatch]);
 
     const handleClearChat = useCallback(() => {
-        dispatch({ type: 'RESET_CHAT' });
+        dispatch({ type: 'RESET_ACTIVE_CHAT' });
         clearFile();
     }, [dispatch, clearFile]);
 
@@ -114,6 +121,11 @@ export const useChatOrchestrator = ({
         const isDrugCommand = trimmedPrompt.toLowerCase().startsWith('/drugs');
 
         if (uploadedFile) {
+             // TRIGGER BACKGROUND EXTRACTION
+             if (activePatientId) {
+                 triggerExtraction(uploadedFile, activePatientId);
+             }
+
              try {
                 let analysisPrompt: string;
                 if (uploadedFile.type === 'application/pdf') {
@@ -175,6 +187,8 @@ export const useChatOrchestrator = ({
 
         // API Call
         abortControllerRef.current = new AbortController();
+        let fullResponseBuffer = '';
+
         try {
             const history = [...messages];
             const stream = generateResponseStream(finalApiPrompt, history, modeForRequest, { file: fileForApi, responseType, location: userLocation });
@@ -182,6 +196,9 @@ export const useChatOrchestrator = ({
             for await (const chunk of stream) {
                 if (abortControllerRef.current?.signal.aborted) throw new Error("Aborted");
                 
+                const textChunk = chunk.text || '';
+                fullResponseBuffer += textChunk;
+
                 const groundingMetadata = chunk.candidates?.[0]?.groundingMetadata;
                 let sources: GroundingSource[] | undefined = undefined;
 
@@ -193,7 +210,7 @@ export const useChatOrchestrator = ({
                     }).filter(Boolean) as GroundingSource[];
                 }
 
-                dispatch({ type: 'APPEND_TO_LAST_MESSAGE', payload: { chunk: chunk.text || '', sources } });
+                dispatch({ type: 'APPEND_TO_LAST_MESSAGE', payload: { chunk: textChunk, sources } });
             }
         } catch (e) {
              if (e.message === "Aborted") {
@@ -203,9 +220,50 @@ export const useChatOrchestrator = ({
             }
         } finally {
             dispatch({ type: 'REQUEST_FINISH' });
+            
+            // --- AUTO-INGESTION PROTOCOL ---
+            // If the response was a Lab Report, automatically ingest the data into FHIR store.
+            if (activePatientId && isLabReport(fullResponseBuffer)) {
+                const report = parseJsonSafe<any>(fullResponseBuffer);
+                if (report && report.labs) {
+                    const newObs: FHIRObservation[] = report.labs.map((lab: any) => {
+                         // Parse Value (remove non-numeric)
+                         const val = parseFloat(lab.value.replace(/[^0-9.-]/g, ''));
+                         // Parse Reference Range (simple split)
+                         const rangeMatch = lab.refRange.match(/([\d.]+)\s*-\s*([\d.]+)/);
+                         
+                         if (isNaN(val)) return null;
+
+                         const obs: FHIRObservation = {
+                             resourceType: 'Observation',
+                             id: uuidv4(),
+                             status: 'final',
+                             code: { text: lab.testName },
+                             valueQuantity: { value: val, unit: lab.units },
+                             effectiveDateTime: report.date && report.date !== 'Not Visible' ? new Date(report.date).toISOString() : new Date().toISOString(),
+                         };
+
+                         if (rangeMatch) {
+                             obs.referenceRange = [{
+                                 low: { value: parseFloat(rangeMatch[1]), unit: lab.units },
+                                 high: { value: parseFloat(rangeMatch[2]), unit: lab.units }
+                             }];
+                         }
+                         return obs;
+                    }).filter(Boolean);
+
+                    if (newObs.length > 0) {
+                        dispatch({
+                            type: 'INGEST_CLINICAL_DATA',
+                            payload: { id: activePatientId, observations: newObs }
+                        });
+                    }
+                }
+            }
+
             abortControllerRef.current = null;
         }
-    }, [messages, chatMode, uploadedFile, isLive, stopSession, userLocation, dispatch, setUploadedFile]);
+    }, [messages, activePatientId, chatMode, uploadedFile, isLive, stopSession, userLocation, dispatch, setUploadedFile, triggerExtraction]);
 
     return {
         handleSend,

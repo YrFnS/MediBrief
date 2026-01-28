@@ -10,11 +10,13 @@
   },
   "dependencies": {
     "@google/genai": "^1.29.1",
+    "react-dom": "^19.2.0",
     "react": "^19.2.0",
     "jspdf": "2.5.2",
     "dompurify": "3.0.6",
-    "react-dom": "^19.2.0",
-    "marked": "^17.0.0"
+    "marked": "^17.0.0",
+    "uuid": "^13.0.0",
+    "recharts": "2.12.7"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

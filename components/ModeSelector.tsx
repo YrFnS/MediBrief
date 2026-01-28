@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ChatMode } from '../types';
 import { MODEL_CONFIGS } from '../constants';
-import { BoltIcon, DeepAnalysisIcon, SparklesIcon, LiveIcon } from './icons';
+import { BoltIcon, DeepAnalysisIcon, SparklesIcon, LiveIcon, ScribeIcon } from './icons';
 
 interface ModeSelectorProps {
     currentMode: ChatMode;
@@ -13,6 +13,7 @@ const ICONS: Record<ChatMode, React.FC<{className: string}>> = {
     [ChatMode.Standard]: SparklesIcon,
     [ChatMode.Deep]: DeepAnalysisIcon,
     [ChatMode.Live]: LiveIcon,
+    [ChatMode.Scribe]: ScribeIcon,
 };
 
 const ModeSelector: React.FC<ModeSelectorProps> = ({ currentMode, onModeChange }) => {

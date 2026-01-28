@@ -1,6 +1,9 @@
+
 import React, { useMemo } from 'react';
-import { BeakerIcon, UserIcon, CalendarIcon, AlertTriangleIcon } from './icons';
+import { BeakerIcon } from './icons';
 import { parseJsonSafe } from '../utils';
+import { usePatientStore } from '../features/patient-management/usePatientStore';
+import TrendGraph from '../features/analytics/TrendGraph';
 
 interface LabResult {
     testName: string;
@@ -77,10 +80,19 @@ const RangeVisualizer: React.FC<{ value: string; range: string }> = ({ value, ra
 
 const LabReport: React.FC<LabReportProps> = ({ content }) => {
     const report = useMemo(() => parseJsonSafe<ParsedLabReport>(content), [content]);
+    const { activePatient } = usePatientStore();
 
     if (!report || !report.labs) {
         return <div className="text-red-500 text-sm">Error parsing lab data.</div>;
     }
+
+    const observations = activePatient?.clinicalData?.observations || [];
+
+    // Find a test that has at least 2 data points in history to graph
+    const trendCandidate = report.labs.find(lab => {
+        const historyCount = observations.filter(o => o.code.text === lab.testName).length;
+        return historyCount >= 2;
+    });
 
     return (
         <div className="bg-white dark:bg-slate-900/40 -m-5 p-5 border-t border-slate-200 dark:border-slate-800">
@@ -133,6 +145,13 @@ const LabReport: React.FC<LabReportProps> = ({ content }) => {
                     </tbody>
                 </table>
             </div>
+
+            {/* AUTOMATED TREND ANALYSIS */}
+            {trendCandidate && (
+                <div className="mb-4 animate-fade-in">
+                    <TrendGraph testName={trendCandidate.testName} observations={observations} />
+                </div>
+            )}
 
             {report.interpretation && (
                 <div className="bg-slate-50 dark:bg-slate-800/30 p-3 border border-slate-200 dark:border-slate-700 rounded-sm">

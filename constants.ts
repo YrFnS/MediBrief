@@ -43,7 +43,10 @@ export const HELP_COMMAND_RESPONSE = `🔧 **Clinical Intelligence Layer // Comm
 **Intelligence Modes:**
 - **Normal:** Balanced synthesis with Search Grounding enabled.
 - **Deep Analysis:** Gemini Pro reasoning + Search for complex differentials.
-- **Live:** Real-time voice telemetry with auditory safety alerts.`;
+- **Live:** Real-time voice conversation with auditory safety alerts.
+- **Ambient Scribe:** Passive listening mode that generates structured SOAP notes.`;
+
+// --- Tool Definitions ---
 
 const scheduleAppointmentFunctionDeclaration = {
   name: 'scheduleAppointment',
@@ -51,33 +54,36 @@ const scheduleAppointmentFunctionDeclaration = {
     type: Type.OBJECT,
     description: 'Schedules a patient appointment for a follow-up.',
     properties: {
-      patientId: {
-        type: Type.STRING,
-        description: 'The unique identifier for the patient.',
-      },
-      date: {
-        type: Type.STRING,
-        description: 'The date of the appointment, e.g., "2024-08-15".',
-      },
-      time: {
-        type: Type.STRING,
-        description: 'The time of the appointment in 24-hour format, e.g., "14:30".',
-      },
-       notes: {
-        type: Type.STRING,
-        description: 'Optional notes for the appointment, such as reason for visit.',
-      },
+      patientId: { type: Type.STRING, description: 'The unique identifier for the patient.' },
+      date: { type: Type.STRING, description: 'The date of the appointment, e.g., "2024-08-15".' },
+      time: { type: Type.STRING, description: 'The time of the appointment in 24-hour format, e.g., "14:30".' },
+      notes: { type: Type.STRING, description: 'Optional notes for the appointment.' },
     },
     required: ['patientId', 'date', 'time'],
   },
 };
 
+const updateSoapNoteFunctionDeclaration = {
+    name: 'updateSoapNote',
+    parameters: {
+        type: Type.OBJECT,
+        description: 'Updates the structured SOAP note based on the ongoing consultation.',
+        properties: {
+            subjective: { type: Type.STRING, description: 'Patient symptoms, complaints, and history.' },
+            objective: { type: Type.STRING, description: 'Physical findings, vital signs, and observations.' },
+            assessment: { type: Type.STRING, description: 'Diagnosis and differential diagnoses.' },
+            plan: { type: Type.STRING, description: 'Treatment plan, medications, and follow-up.' }
+        },
+        required: ['subjective', 'objective', 'assessment', 'plan']
+    }
+};
+
+// --- Model Configs ---
 
 export const MODEL_CONFIGS = {
   [ChatMode.Standard]: {
     model: 'gemini-3-flash-preview',
     config: {
-        // ALWAYS ENABLED TRUTH VERIFICATION
         tools: [{ googleSearch: {} }], 
     },
     description: "Standard clinical synthesis with active search verification."
@@ -86,7 +92,6 @@ export const MODEL_CONFIGS = {
     model: 'gemini-3-pro-preview',
     config: {
       thinkingConfig: { thinkingBudget: 8192 },
-      // ALWAYS ENABLED TRUTH VERIFICATION
       tools: [{ googleSearch: {} }],
     },
     description: "Deep reasoning with literature verification (High Compute)."
@@ -104,6 +109,17 @@ export const MODEL_CONFIGS = {
     },
     description: "Real-time voice conversation with the AI assistant."
   },
+  [ChatMode.Scribe]: {
+    model: 'gemini-2.5-flash-native-audio-preview-09-2025',
+    config: {
+        responseModalities: [Modality.AUDIO], // Required by model, but we suppress playback
+        speechConfig: {
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } }
+        },
+        tools: [{ functionDeclarations: [updateSoapNoteFunctionDeclaration] }],
+    },
+    description: "Passive ambient listening. Generates SOAP notes automatically."
+  }
 };
 
 // SYSTEM INSTRUCTION: REBRANDED FOR CLINICAL INTELLIGENCE LAYER WITH TRUTH PROTOCOL
@@ -133,6 +149,20 @@ Before generating ANY response, you must execute a "Safety Scan":
 *   **Tone:** Clinical, precise, objective, and efficient.
 *   **Format:** Prioritize structured data (Bullet points, Tables, JSON) over paragraphs.
 *   **JSON:** If asked for a briefing or lab report, return ONLY valid JSON.`;
+
+export const SCRIBE_SYSTEM_INSTRUCTION = `
+You are an Ambient Medical Scribe.
+**OBJECTIVE**: Listen to the doctor-patient consultation and generate a structured SOAP note in real-time.
+**BEHAVIOR**:
+1.  **SILENCE**: You must NOT speak to the patient or doctor. Your goal is to listen and document.
+2.  **TOOL USE**: As you hear relevant medical information, you MUST call the \`updateSoapNote\` function to update the structured note.
+3.  **STRUCTURE**:
+    *   **Subjective**: Patient's complaints, history of present illness, symptoms.
+    *   **Objective**: Physical findings, vital signs mentioned, observations.
+    *   **Assessment**: Diagnoses discussed, differential diagnoses.
+    *   **Plan**: Medications prescribed, tests ordered, follow-up instructions.
+4.  **ACCURACY**: Capture values (BP, HR, Dosage) exactly as spoken.
+`;
 
 export const FILE_ANALYSIS_PROMPT = (filename: string) => `Analyze the attached file named "${filename}". Follow these instructions precisely.
 
@@ -378,3 +408,27 @@ If you are unsure about any interaction, use Google Search to verify. Do not gue
   "summary": "Clinical summary of the findings."
 }
 \`\`\``;
+
+export const ENTITY_EXTRACTION_PROMPT = `
+**CRITICAL SAFETY EXTRACTION TASK**
+
+You are a background clinical processor. Your ONLY job is to extract safety-critical entities from the provided medical document/text.
+Do NOT summarize. Do NOT chat.
+
+**EXTRACT THE FOLLOWING:**
+1. **ALLERGIES**: List all allergies found (Drugs, Foods, Latex, etc).
+2. **CODE STATUS**: Extract status if present (e.g., "Full Code", "DNR", "DNI", "Comfort Measures"). If not found, ignore.
+3. **DIAGNOSIS**: Extract the primary diagnosis or reason for admission.
+
+**OUTPUT FORMAT:**
+Return ONLY a valid JSON object:
+\`\`\`json
+{
+  "allergies": ["Penicillin", "Peanuts"],
+  "codeStatus": "DNR", 
+  "diagnosis": ["Sepsis", "Pneumonia"]
+}
+\`\`\`
+
+If a field is not found, return an empty array or null.
+`;

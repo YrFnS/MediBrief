@@ -1,3 +1,5 @@
+
+
 import React from 'react';
 
 export const UserIcon: React.FC<{className?: string}> = (props) => (
@@ -90,6 +92,18 @@ export const NewChatIcon: React.FC<{className?: string}> = (props) => (
 export const LiveIcon: React.FC<{className?: string}> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px" fill="currentColor" {...props}>
         <path d="M7 18h2V6H7v12zm4 4h2V2h-2v20zm-8-8h2v-4H3v4zm12 4h2V6h-2v12zm4-8v4h2v-4h-2z"/>
+    </svg>
+);
+
+export const ScribeIcon: React.FC<{className?: string}> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9v-2h2v2zm0-4H9V8h2v4zm6 2c-.67 1.15-1.9 1.93-3.32 1.99v.01h-2v-1.1c1.55-.17 2.82-1.28 3.22-2.73.08-.29.1-.59.1-.9 0-.31-.02-.61-.1-.9-.4-1.45-1.67-2.56-3.22-2.73V7h2v.01c1.42.06 2.65.84 3.32 1.99.34.58.53 1.25.53 1.97s-.19 1.4-.53 1.97z"/>
+    </svg>
+);
+
+export const RecordIcon: React.FC<{className?: string}> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
+        <circle cx="12" cy="12" r="8" />
     </svg>
 );
 
@@ -231,5 +245,29 @@ export const BeakerIcon: React.FC<{className?: string}> = (props) => (
 export const ShieldCheckIcon: React.FC<{className?: string}> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
         <path d="M12 2L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-3zm-2 16l-4-4 1.41-1.41L10 15.17l6.59-6.59L18 10l-8 8z" />
+    </svg>
+);
+
+export const PlusIcon: React.FC<{className?: string}> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
+        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+    </svg>
+);
+
+export const ChevronLeftIcon: React.FC<{className?: string}> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
+        <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
+    </svg>
+);
+
+export const ChevronRightIcon: React.FC<{className?: string}> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
+        <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
+    </svg>
+);
+
+export const ActivityIcon: React.FC<{className?: string}> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
+        <path d="M22 12h-4l-3 9L9 3l-3 9H2" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
 );
