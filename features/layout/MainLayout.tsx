@@ -143,6 +143,7 @@ const MainLayout: React.FC = () => {
                     onModeChange={(mode) => dispatch({ type: 'SET_CHAT_MODE', payload: mode })}
                     onClearChat={handleClearChat}
                     onExportChat={handleExportChat}
+                    onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
                 />
                 
                 {/* 3. Heads Up Display (HUD) */}

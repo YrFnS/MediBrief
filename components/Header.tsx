@@ -1,16 +1,18 @@
+
 import React from 'react';
 import type { ChatMode } from '../types';
 import ModeSelector from './ModeSelector';
-import { LogoIcon, NewChatIcon, DownloadIcon } from './icons';
+import { LogoIcon, NewChatIcon, DownloadIcon, MenuIcon } from './icons';
 
 interface HeaderProps {
     currentMode: ChatMode;
     onModeChange: (mode: ChatMode) => void;
     onClearChat: () => void;
     onExportChat: () => void;
+    onToggleSidebar: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ currentMode, onModeChange, onClearChat, onExportChat }) => {
+const Header: React.FC<HeaderProps> = ({ currentMode, onModeChange, onClearChat, onExportChat, onToggleSidebar }) => {
     return (
         <header className="flex-shrink-0 bg-white dark:bg-slate-950 border-b-2 border-slate-200 dark:border-slate-800 z-30 shadow-sm relative">
              {/* Decorative Scan Line */}
@@ -18,21 +20,32 @@ const Header: React.FC<HeaderProps> = ({ currentMode, onModeChange, onClearChat,
 
             <div className="max-w-6xl mx-auto px-3 md:px-4 py-2 md:py-3 flex justify-between items-center gap-2">
                 
-                {/* Brand / Status Block */}
-                <div className="flex items-center gap-2 md:gap-3 overflow-hidden">
-                    <div className="relative flex-shrink-0">
-                        <div className="p-1 md:p-1.5 bg-slate-900 dark:bg-white rounded-none shadow-sm">
-                            <LogoIcon className="w-4 h-4 md:w-5 md:h-5 text-white dark:text-slate-900" />
+                <div className="flex items-center gap-2">
+                    {/* Mobile Menu Button */}
+                    <button
+                        onClick={onToggleSidebar}
+                        className="md:hidden p-2 -ml-2 text-slate-500 hover:text-blue-500 transition-colors"
+                        aria-label="Toggle Menu"
+                    >
+                        <MenuIcon className="w-5 h-5" />
+                    </button>
+
+                    {/* Brand / Status Block */}
+                    <div className="flex items-center gap-2 md:gap-3 overflow-hidden">
+                        <div className="relative flex-shrink-0">
+                            <div className="p-1 md:p-1.5 bg-slate-900 dark:bg-white rounded-none shadow-sm">
+                                <LogoIcon className="w-4 h-4 md:w-5 md:h-5 text-white dark:text-slate-900" />
+                            </div>
+                            <div className="absolute -bottom-1 -right-1 w-1.5 h-1.5 md:w-2 md:h-2 bg-green-500 rounded-none shadow-sm border border-white dark:border-slate-900"></div>
                         </div>
-                        <div className="absolute -bottom-1 -right-1 w-1.5 h-1.5 md:w-2 md:h-2 bg-green-500 rounded-none shadow-sm border border-white dark:border-slate-900"></div>
-                    </div>
-                    <div className="min-w-0">
-                        <h1 className="font-display font-bold text-base md:text-lg tracking-tight leading-none text-slate-900 dark:text-white truncate">
-                            MEDIBRIEF<span className="hidden sm:inline text-slate-400 font-mono text-xs font-normal ml-2 tracking-widest">C.I.L. v3.0</span>
-                        </h1>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                             <span className="w-1 md:w-1.5 h-1 md:h-1.5 bg-emerald-500 animate-pulse"></span>
-                             <span className="text-[9px] md:text-[10px] uppercase font-mono text-slate-500 dark:text-slate-400 tracking-wider truncate">System Active</span>
+                        <div className="min-w-0">
+                            <h1 className="font-display font-bold text-base md:text-lg tracking-tight leading-none text-slate-900 dark:text-white truncate">
+                                MEDIBRIEF<span className="hidden sm:inline text-slate-400 font-mono text-xs font-normal ml-2 tracking-widest">C.I.L. v4.2</span>
+                            </h1>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                                 <span className="w-1 md:w-1.5 h-1 md:h-1.5 bg-emerald-500 animate-pulse"></span>
+                                 <span className="text-[9px] md:text-[10px] uppercase font-mono text-slate-500 dark:text-slate-400 tracking-wider truncate">System Active</span>
+                            </div>
                         </div>
                     </div>
                 </div>

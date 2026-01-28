@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { WELCOME_CONTENT } from '../constants';
 import { LogoIcon, CheckIcon, SparklesIcon, DocumentTextIcon, UsersIcon, ShieldCheckIcon } from './icons';
@@ -41,7 +42,7 @@ const WelcomeScreen: React.FC = () => {
                         MEDIBRIEF<span className="text-blue-500">.CIL</span>
                     </h1>
                     <div className="flex items-center gap-2 md:gap-3 text-[9px] md:text-xs font-mono text-slate-500 dark:text-slate-400 tracking-widest uppercase">
-                        <span>v3.0.0 Stable</span>
+                        <span>v4.2.0 Stable</span>
                         <span className="w-0.5 h-0.5 md:w-1 md:h-1 bg-slate-400 rounded-full"></span>
                         <span>Clinical Intelligence Layer</span>
                     </div>

@@ -4,7 +4,7 @@ import { Type, Modality } from '@google/genai';
 
 export const WELCOME_CONTENT = {
     title: "MediBrief C.I.L.",
-    subtitle: "Clinical Intelligence Layer v3.0",
+    subtitle: "Clinical Intelligence Layer v4.2",
     introduction: "System initialized. Acting as your primary safety and data synthesis layer. I am designed to:",
     features: [
         { icon: "🛡️", text: "Enforce Protocol: Active allergy & contraindication scanning" },
@@ -97,7 +97,7 @@ export const MODEL_CONFIGS = {
     description: "Deep reasoning with literature verification (High Compute)."
   },
   [ChatMode.Live]: {
-    model: 'gemini-2.5-flash-native-audio-preview-09-2025',
+    model: 'gemini-2.5-flash-native-audio-preview-12-2025',
     config: {
       responseModalities: [Modality.AUDIO],
       outputAudioTranscription: {},
@@ -110,7 +110,7 @@ export const MODEL_CONFIGS = {
     description: "Real-time voice conversation with the AI assistant."
   },
   [ChatMode.Scribe]: {
-    model: 'gemini-2.5-flash-native-audio-preview-09-2025',
+    model: 'gemini-2.5-flash-native-audio-preview-12-2025',
     config: {
         responseModalities: [Modality.AUDIO], // Required by model, but we suppress playback
         speechConfig: {

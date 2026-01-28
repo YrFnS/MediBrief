@@ -52,7 +52,7 @@ MediBrief enforces a strict "Truth Above All" protocol:
 
 ## 🛠️ Technical Stack
 
-*   **Frontend**: React 19, Tailwind CSS (Medical Slate/Blue Theme).
+*   **Frontend**: React 18, Tailwind CSS (Medical Slate/Blue Theme).
 *   **State Management**: Custom `usePatientStore` with Context API.
 *   **AI SDK**: `@google/genai` (v1.29.1).
 *   **Audio**: Web Audio API (Worklet-free implementation) with PCM 16kHz streaming.
