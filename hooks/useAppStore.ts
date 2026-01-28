@@ -48,7 +48,7 @@ const getInitialMode = (): ChatMode => {
     } catch (error) {
         console.error("Failed to parse chat mode.", error);
     }
-    return ChatModeEnum.Auto;
+    return ChatModeEnum.Standard;
 };
 
 const initialState: AppState = {

@@ -1,3 +1,4 @@
+
 import React, { useMemo } from 'react';
 import { parse } from 'marked';
 import DOMPurify from 'dompurify';
@@ -51,7 +52,7 @@ const MessageContent: React.FC<MessageContentProps> = ({ content, role, isLoadin
     if (isInteraction) return <InteractionMatrix content={content} />;
 
     if (isPlaceholderLoading) {
-        return <ReasoningIndicator mode={ChatMode.Auto} />;
+        return <ReasoningIndicator mode={ChatMode.Standard} />;
     }
 
     if (isStreamingJson) {

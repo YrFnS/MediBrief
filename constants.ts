@@ -1,3 +1,4 @@
+
 import { ChatMode } from './types';
 import { Type, Modality } from '@google/genai';
 
@@ -40,8 +41,7 @@ export const HELP_COMMAND_RESPONSE = `🔧 **Clinical Intelligence Layer // Comm
 - **Critical Alerts:** Conflicts trigger immediate "STOP" warnings in Red.
 
 **Intelligence Modes:**
-- **Auto:** Context-aware routing (Search/Maps/Reasoning).
-- **Standard:** Balanced synthesis with Search Grounding enabled.
+- **Normal:** Balanced synthesis with Search Grounding enabled.
 - **Deep Analysis:** Gemini Pro reasoning + Search for complex differentials.
 - **Live:** Real-time voice telemetry with auditory safety alerts.`;
 
@@ -74,44 +74,22 @@ const scheduleAppointmentFunctionDeclaration = {
 
 
 export const MODEL_CONFIGS = {
-  [ChatMode.Auto]: {
-    model: 'gemini-2.5-flash',
-    config: {
-      tools: [{ googleSearch: {} }, { googleMaps: {} }],
-    },
-    description: "Smart AI: Verifies facts via Search and finds locations via Maps."
-  },
   [ChatMode.Standard]: {
     model: 'gemini-3-flash-preview',
     config: {
-        // ENABLED TRUTH VERIFICATION FOR STANDARD MODE
+        // ALWAYS ENABLED TRUTH VERIFICATION
         tools: [{ googleSearch: {} }], 
     },
-    description: "Balanced performance with active Search Verification."
-  },
-  [ChatMode.Quick]: {
-    model: 'gemini-3-flash-preview',
-    config: {
-        // Quick mode also gets search to prevent fast hallucinations
-        tools: [{ googleSearch: {} }],
-    },
-    description: "Optimized for speed. Uses Search if uncertain."
+    description: "Standard clinical synthesis with active search verification."
   },
   [ChatMode.Deep]: {
     model: 'gemini-3-pro-preview',
     config: {
       thinkingConfig: { thinkingBudget: 8192 },
-      // ENABLED TRUTH VERIFICATION FOR DEEP REASONING
+      // ALWAYS ENABLED TRUTH VERIFICATION
       tools: [{ googleSearch: {} }],
     },
-    description: "Maximum reasoning power with deep literature verification."
-  },
-  [ChatMode.Web]: {
-    model: 'gemini-2.5-flash',
-    config: {
-      tools: [{ googleSearch: {} }, { googleMaps: {} }],
-    },
-    description: "Accesses up-to-date information and location services."
+    description: "Deep reasoning with literature verification (High Compute)."
   },
   [ChatMode.Live]: {
     model: 'gemini-2.5-flash-native-audio-preview-09-2025',

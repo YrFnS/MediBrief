@@ -1,10 +1,7 @@
 
 export enum ChatMode {
-  Auto = 'Auto',
-  Standard = 'Standard',
-  Quick = 'Quick Query',
+  Standard = 'Normal',
   Deep = 'Deep Analysis',
-  Web = 'Web Search',
   Live = 'Live',
 }
 

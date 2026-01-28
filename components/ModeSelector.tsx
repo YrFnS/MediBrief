@@ -1,7 +1,8 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { ChatMode } from '../types';
 import { MODEL_CONFIGS } from '../constants';
-import { BoltIcon, DeepAnalysisIcon, MagnifyingGlassIcon, SparklesIcon, AutoModeIcon, LiveIcon } from './icons';
+import { BoltIcon, DeepAnalysisIcon, SparklesIcon, LiveIcon } from './icons';
 
 interface ModeSelectorProps {
     currentMode: ChatMode;
@@ -9,18 +10,15 @@ interface ModeSelectorProps {
 }
 
 const ICONS: Record<ChatMode, React.FC<{className: string}>> = {
-    [ChatMode.Auto]: AutoModeIcon,
     [ChatMode.Standard]: SparklesIcon,
-    [ChatMode.Quick]: BoltIcon,
     [ChatMode.Deep]: DeepAnalysisIcon,
-    [ChatMode.Web]: MagnifyingGlassIcon,
     [ChatMode.Live]: LiveIcon,
 };
 
 const ModeSelector: React.FC<ModeSelectorProps> = ({ currentMode, onModeChange }) => {
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
-    const CurrentIcon = ICONS[currentMode];
+    const CurrentIcon = ICONS[currentMode] || SparklesIcon;
 
     // Close dropdown when clicking outside
     useEffect(() => {

@@ -47,7 +47,7 @@ export const useChatOrchestrator = ({
 
         if (isLive) {
             stopSession();
-            dispatch({ type: 'SET_CHAT_MODE', payload: ChatModeEnum.Auto });
+            dispatch({ type: 'SET_CHAT_MODE', payload: ChatModeEnum.Standard });
         }
         
         // --- Export Command ---
@@ -107,7 +107,7 @@ export const useChatOrchestrator = ({
         let historyContent = trimmedPrompt;
         let fileForApi: UploadedFile | undefined = uploadedFile || undefined;
         let displayOverride = undefined;
-        let modeForRequest: ChatModeEnum = chatMode === ChatModeEnum.Live ? ChatModeEnum.Auto : chatMode;
+        let modeForRequest: ChatModeEnum = chatMode === ChatModeEnum.Live ? ChatModeEnum.Standard : chatMode;
         let responseType: 'json' | 'text' = 'text';
 
         const isBriefingCommand = BRIEFING_TRIGGERS.some(trigger => trimmedPrompt.toLowerCase().includes(trigger)) || trimmedPrompt.toLowerCase() === '/brief';
@@ -155,7 +155,7 @@ export const useChatOrchestrator = ({
             responseType = 'json';
         } else if (isDrugCommand) {
             finalApiPrompt = DRUG_ANALYSIS_PROMPT(trimmedPrompt);
-            modeForRequest = ChatModeEnum.Auto; // Use Auto to allow Search access for drugs
+            modeForRequest = ChatModeEnum.Standard; 
             responseType = 'json';
         }
 
