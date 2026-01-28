@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useCallback, KeyboardEvent, useLayoutEffect, useEffect } from 'react';
 import type { UploadedFile, ChatMode } from '../types';
 import { ChatMode as ChatModeEnum } from '../types';
@@ -116,18 +117,18 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
     const showStopButton = isLoading && !isLiveSessionActive && onStop;
 
     return (
-        <footer className="flex-shrink-0 p-4 pb-6 z-30 pointer-events-none">
+        <footer className="flex-shrink-0 px-4 pb-6 pt-2 z-30 pointer-events-none">
             <div className="max-w-4xl mx-auto pointer-events-auto">
                 <div className={`relative transition-all duration-300 transform ${isLiveSessionActive ? 'scale-[1.02]' : ''}`}>
                     
                     {/* Attachment Pill */}
                      {uploadedFile && (
                         <div className="absolute bottom-full left-0 mb-3 animate-slide-up z-20">
-                             <div className="flex items-center gap-3 bg-slate-900 text-white p-2 pr-4 rounded-sm shadow-xl border-l-4 border-blue-500">
+                             <div className="flex items-center gap-3 bg-slate-900/90 backdrop-blur-md text-white p-2 pr-4 rounded-lg shadow-xl border border-blue-500/30">
                                 {uploadedFile.url && uploadedFile.type.startsWith('image/') ? (
-                                     <img src={uploadedFile.url} alt="Attachment" className="w-8 h-8 object-cover rounded-sm" />
+                                     <img src={uploadedFile.url} alt="Attachment" className="w-8 h-8 object-cover rounded-md" />
                                 ) : (
-                                    <div className="w-8 h-8 flex items-center justify-center bg-slate-800 rounded-sm">
+                                    <div className="w-8 h-8 flex items-center justify-center bg-slate-800 rounded-md">
                                         <DocumentTextIcon className="w-4 h-4 text-slate-400" />
                                     </div>
                                 )}
@@ -144,18 +145,18 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
 
                     {/* Quick Command Menu */}
                      {showCommands && (
-                        <div className="absolute bottom-full left-0 mb-2 bg-white dark:bg-slate-900 rounded-sm shadow-2xl border border-slate-300 dark:border-slate-700 w-64 animate-slide-up z-20 overflow-hidden">
-                            <div className="bg-slate-100 dark:bg-slate-800 px-3 py-1.5 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
+                        <div className="absolute bottom-full left-0 mb-2 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 w-64 animate-slide-up z-20 overflow-hidden">
+                            <div className="bg-slate-100/50 dark:bg-slate-800/50 px-3 py-2 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
                                  <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500">Quick Execute</p>
                             </div>
-                            <ul className="p-0">
+                            <ul className="p-1">
                                 {QUICK_COMMANDS.map(({ command, description, icon: Icon }) => (
-                                    <li key={command} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
+                                    <li key={command}>
                                         <button
                                             onClick={() => handleCommandSelect(command)}
-                                            className="w-full text-left flex items-center gap-3 p-3 hover:bg-blue-50 dark:hover:bg-slate-800/50 transition-colors group"
+                                            className="w-full text-left flex items-center gap-3 p-2.5 hover:bg-blue-50 dark:hover:bg-slate-800 rounded-lg transition-colors group"
                                         >
-                                            <div className="text-slate-400 group-hover:text-blue-500">
+                                            <div className="p-1.5 bg-slate-100 dark:bg-slate-800 rounded-md text-slate-400 group-hover:text-blue-500 group-hover:bg-blue-100 dark:group-hover:bg-blue-900/20 transition-colors">
                                                 <Icon className="w-4 h-4" />
                                             </div>
                                             <div>
@@ -169,21 +170,21 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
                         </div>
                     )}
 
-                    {/* Main Console Container with Technical Border */}
+                    {/* FLOATING COMMAND DECK CONTAINER */}
                     <div className={`
-                        flex items-end gap-0 rounded-sm shadow-2xl transition-all duration-300 border-2 overflow-hidden technical-border
+                        flex items-end gap-0 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.2)] transition-all duration-300 border overflow-hidden backdrop-blur-xl
                         ${isLiveSessionActive 
-                            ? 'bg-slate-900 border-red-500 shadow-red-900/30' 
-                            : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600 focus-within:border-blue-500 focus-within:shadow-blue-500/20'
+                            ? 'bg-slate-900/95 border-red-500/50 shadow-[0_0_30px_rgba(239,68,68,0.2)]' 
+                            : 'bg-white/80 dark:bg-[#0f172a]/70 border-white/20 dark:border-white/5 focus-within:border-blue-500/50 focus-within:ring-1 focus-within:ring-blue-500/20'
                         }
                     `}>
                         {/* Live Mode Toggle */}
                         <button
                             onClick={toggleLiveSession}
-                            className={`flex-shrink-0 self-stretch w-14 flex flex-col items-center justify-center transition-all border-r ${
+                            className={`flex-shrink-0 self-stretch w-14 flex flex-col items-center justify-center transition-all border-r border-r-white/5 ${
                                 isLiveSessionActive 
-                                ? 'bg-red-600 text-white border-red-500' 
-                                : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:text-red-500 hover:bg-red-50 dark:hover:bg-slate-700'
+                                ? 'bg-red-600 text-white border-red-500 hover:bg-red-700' 
+                                : 'bg-slate-50/50 dark:bg-slate-900/30 text-slate-500 dark:text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20'
                             }`}
                             title={isLiveSessionActive ? "Stop Live Session" : "Start Live Consult"}
                         >
@@ -229,16 +230,16 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
 
                             {!isLiveSessionActive && (
                                 <>
-                                    <button onClick={() => fileInputRef.current?.click()} className="p-2 text-slate-400 hover:text-blue-500 transition-colors rounded-sm hover:bg-slate-100 dark:hover:bg-slate-800" title="Attach File">
+                                    <button onClick={() => fileInputRef.current?.click()} className="p-2 text-slate-400 hover:text-blue-500 transition-colors rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" title="Attach File">
                                         <PaperclipIcon className="w-5 h-5" />
                                     </button>
-                                    <button onClick={() => cameraInputRef.current?.click()} className="p-2 text-slate-400 hover:text-blue-500 transition-colors rounded-sm hover:bg-slate-100 dark:hover:bg-slate-800" title="Camera Capture">
+                                    <button onClick={() => cameraInputRef.current?.click()} className="p-2 text-slate-400 hover:text-blue-500 transition-colors rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" title="Camera Capture">
                                         <CameraIcon className="w-5 h-5" />
                                     </button>
                                     {currentMode !== ChatModeEnum.Live && (
                                         <button 
                                             onClick={() => toggleListening(prompt)} 
-                                            className={`p-2 transition-colors rounded-sm hover:bg-slate-100 dark:hover:bg-slate-800 ${isListening ? 'text-red-500 bg-red-50 dark:bg-red-900/20 animate-pulse border border-red-200 dark:border-red-900' : 'text-slate-400 hover:text-blue-500'}`}
+                                            className={`p-2 transition-colors rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 ${isListening ? 'text-red-500 bg-red-50 dark:bg-red-900/20 animate-pulse border border-red-200 dark:border-red-900' : 'text-slate-400 hover:text-blue-500'}`}
                                             title="Dictate Text"
                                         >
                                             <MicrophoneIcon className="w-5 h-5" />
@@ -252,7 +253,7 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
                                 <button 
                                     onClick={showStopButton ? onStop : handleSendClick}
                                     disabled={!showStopButton && (isInputDisabled || (!prompt.trim() && !uploadedFile))}
-                                    className={`ml-2 flex-shrink-0 h-10 w-10 rounded-sm flex items-center justify-center transition-all shadow-sm ${
+                                    className={`ml-2 flex-shrink-0 h-10 w-10 rounded-xl flex items-center justify-center transition-all shadow-lg hover:shadow-blue-500/20 ${
                                         showStopButton
                                         ? 'bg-slate-700 text-white hover:bg-slate-600'
                                         : 'bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50 disabled:bg-slate-200 dark:disabled:bg-slate-800 dark:disabled:text-slate-600'

@@ -9,6 +9,7 @@ import SidebarRoster from '../patient-roster/SidebarRoster';
 import HeadsUpDisplay from '../hud/HeadsUpDisplay';
 import ScribeInterface from '../scribe/ScribeInterface';
 import CDSSContainer from '../cdss/CDSSContainer';
+import BioMetricBackground from './BioMetricBackground';
 import { useLiveSession } from '../../hooks/useLiveSession';
 import { useFileDragAndDrop } from '../../hooks/useFileDragAndDrop';
 import { useChatOrchestrator } from '../../hooks/useChatOrchestrator';
@@ -101,12 +102,15 @@ const MainLayout: React.FC = () => {
 
     return (
         <div 
-            className="flex h-[100dvh] font-sans overflow-hidden relative bg-slate-50 dark:bg-slate-900"
+            className="flex h-[100dvh] font-sans overflow-hidden relative text-slate-900 dark:text-slate-100"
             {...dragHandlers}
         >
+            {/* --- ATMOSPHERIC BACKGROUND SYSTEM --- */}
+            <BioMetricBackground />
+
             {/* Overlay for Drag & Drop */}
             {isDragging && (
-                <div className="absolute inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center m-4 rounded-sm animate-fade-in pointer-events-none technical-border text-blue-500 border-2 border-blue-500">
+                <div className="absolute inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center m-4 rounded-xl animate-fade-in pointer-events-none border-2 border-blue-500/50 shadow-[0_0_50px_rgba(59,130,246,0.3)]">
                     <div className="flex flex-col items-center text-blue-400 animate-pulse">
                         <DocumentTextIcon className="w-20 h-20 mb-6" />
                         <h2 className="text-3xl font-display font-bold tracking-tight">DATA INGESTION PROTOCOL</h2>
@@ -126,14 +130,14 @@ const MainLayout: React.FC = () => {
 
             {/* --- LAYOUT STRUCTURE --- */}
             
-            {/* 1. Sidebar (Left) */}
+            {/* 1. Sidebar (Left) - Glassmorphic */}
             <SidebarRoster 
                 isOpen={isSidebarOpen} 
                 toggle={() => setIsSidebarOpen(!isSidebarOpen)} 
             />
 
             {/* 2. Main Content (Right) */}
-            <div className="flex-1 flex flex-col min-w-0 relative">
+            <div className="flex-1 flex flex-col min-w-0 relative z-10">
                 <Header
                     currentMode={globalChatMode}
                     onModeChange={(mode) => dispatch({ type: 'SET_CHAT_MODE', payload: mode })}
