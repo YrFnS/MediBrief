@@ -2,8 +2,9 @@
 import React, { useState, useRef, useCallback, KeyboardEvent, useLayoutEffect, useEffect } from 'react';
 import type { UploadedFile, ChatMode } from '../types';
 import { ChatMode as ChatModeEnum } from '../types';
-import { PaperclipIcon, SendIcon, XCircleIcon, BriefingIcon, UserIcon, DrugsIcon, DownloadIcon, DocumentTextIcon, MicrophoneIcon, CameraIcon, LiveIcon, StopIcon } from './icons';
+import { PaperclipIcon, SendIcon, XCircleIcon, BriefingIcon, UserIcon, DrugsIcon, DownloadIcon, DocumentTextIcon, MicrophoneIcon, CameraIcon, LiveIcon, StopIcon, BodyIcon } from './icons';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
+import BodyMap from './BodyMap';
 
 interface InputBarProps {
     onSend: (prompt: string) => void;
@@ -27,6 +28,7 @@ const QUICK_COMMANDS = [
 const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFile, isLoading, currentMode, uploadedFile, toggleLiveSession, isLiveSessionActive, onStop }) => {
     const [prompt, setPrompt] = useState('');
     const [showCommands, setShowCommands] = useState(false);
+    const [showBodyMap, setShowBodyMap] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const cameraInputRef = useRef<HTMLInputElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -80,6 +82,13 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
         setTimeout(() => textareaRef.current?.focus(), 0);
     };
 
+    const handleBodyMapSelect = (region: string, symptom: string) => {
+        const note = `[Observation] Patient reports ${symptom.toLowerCase()} in the ${region}.`;
+        setPrompt(prev => prev ? `${prev}\n${note}` : note);
+        setShowBodyMap(false);
+        setTimeout(() => textareaRef.current?.focus(), 0);
+    };
+
     const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
         if (event.key === 'Enter' && !event.shiftKey) {
             event.preventDefault();
@@ -118,6 +127,12 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
 
     return (
         <footer className="flex-shrink-0 px-4 pb-6 pt-2 z-30 pointer-events-none">
+            {showBodyMap && (
+                <div className="pointer-events-auto">
+                    <BodyMap onClose={() => setShowBodyMap(false)} onSelect={handleBodyMapSelect} />
+                </div>
+            )}
+
             <div className="max-w-4xl mx-auto pointer-events-auto">
                 <div className={`relative transition-all duration-300 transform ${isLiveSessionActive ? 'scale-[1.02]' : ''}`}>
                     
@@ -230,6 +245,9 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
 
                             {!isLiveSessionActive && (
                                 <>
+                                    <button onClick={() => setShowBodyMap(true)} className="p-2 text-slate-400 hover:text-blue-500 transition-colors rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" title="Open Body Map">
+                                        <BodyIcon className="w-5 h-5" />
+                                    </button>
                                     <button onClick={() => fileInputRef.current?.click()} className="p-2 text-slate-400 hover:text-blue-500 transition-colors rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" title="Attach File">
                                         <PaperclipIcon className="w-5 h-5" />
                                     </button>

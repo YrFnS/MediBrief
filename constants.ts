@@ -82,11 +82,11 @@ const updateSoapNoteFunctionDeclaration = {
 
 export const MODEL_CONFIGS = {
   [ChatMode.Standard]: {
-    model: 'gemini-3-flash-preview',
+    model: 'gemini-2.5-flash',
     config: {
-        tools: [{ googleSearch: {} }], 
+        tools: [{ googleSearch: {}, googleMaps: {} }], 
     },
-    description: "Standard clinical synthesis with active search verification."
+    description: "Standard clinical synthesis with Search & Maps verification."
   },
   [ChatMode.Deep]: {
     model: 'gemini-3-pro-preview',

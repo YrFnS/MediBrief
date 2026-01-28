@@ -276,3 +276,10 @@ export const ActivityIcon: React.FC<{className?: string}> = (props) => (
         <path d="M22 12h-4l-3 9L9 3l-3 9H2" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
 );
+
+export const BodyIcon: React.FC<{className?: string}> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
+        <circle cx="12" cy="4" r="2" />
+        <path d="M19 13v-2c-1.54.02-3.09-.75-4.07-1.83l-1.29-1.43c-.17-.19-.44-.34-.73-.34h-1.82c-.29 0-.56.15-.73.34L9.07 9.17C8.09 10.25 6.54 11.02 5 11v2c2.01-.02 3.88-1.22 4.8-2.9L11 8.8V15h-2v7h2v-5h2v5h2v-7h-2V8.8l1.2 1.3c.92 1.68 2.79 2.88 4.8 2.9z" />
+    </svg>
+);
