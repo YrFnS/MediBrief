@@ -3,7 +3,7 @@ import React, { useState, useRef } from 'react';
 import { usePatientStore } from '../patient-management/usePatientStore';
 import PatientCard from './PatientCard';
 import AddPatientDialog from './AddPatientDialog';
-import { ChevronLeftIcon, ChevronRightIcon, PlusIcon, UsersIcon, DownloadIcon, ClipboardIcon } from '../../components/icons';
+import { ChevronLeftIcon, UsersIcon, DownloadIcon, ClipboardIcon, PlusIcon } from '../../components/icons';
 import { useToast } from '../../components/Toast';
 
 interface SidebarRosterProps {
@@ -21,6 +21,18 @@ const SidebarRoster: React.FC<SidebarRosterProps> = ({ isOpen, toggle }) => {
 
     const handleSwitch = (id: string) => {
         dispatch({ type: 'SWITCH_PATIENT', payload: { id } });
+    };
+
+    const handleDelete = (id: string, name: string) => {
+        if (Object.keys(state.patients).length <= 1) {
+            showToast("Cannot delete the only active patient context.", 'error');
+            return;
+        }
+
+        if (confirm(`Are you sure you want to delete the context for "${name}"?\nThis action cannot be undone.`)) {
+             dispatch({ type: 'DELETE_PATIENT', payload: { id } });
+             showToast(`Patient context deleted`, 'info');
+        }
     };
 
     const handleCreate = (name: string) => {
@@ -123,6 +135,7 @@ const SidebarRoster: React.FC<SidebarRosterProps> = ({ isOpen, toggle }) => {
                                     patient={patient}
                                     isActive={patient.id === state.activePatientId}
                                     onClick={() => handleSwitch(patient.id)}
+                                    onDelete={(e) => handleDelete(patient.id, patient.name)}
                                 />
                             ))
                         ) : (

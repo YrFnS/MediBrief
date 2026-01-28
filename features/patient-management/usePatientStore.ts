@@ -19,6 +19,7 @@ export interface PatientStoreState {
 
 export type PatientAction =
     | { type: 'CREATE_PATIENT'; payload: { name?: string } }
+    | { type: 'DELETE_PATIENT'; payload: { id: string } }
     | { type: 'SWITCH_PATIENT'; payload: { id: string } }
     | { type: 'UPDATE_PATIENT_DETAILS'; payload: { id: string; updates: Partial<PatientContext> } }
     | { type: 'UPDATE_PATIENT_ENTITIES'; payload: { id: string; entities: Partial<PatientEntityData> } }
@@ -105,6 +106,26 @@ const patientReducer = (state: PatientStoreState, action: PatientAction): Patien
                 ...state,
                 patients: { ...state.patients, [newId]: newPatient },
                 activePatientId: newId
+            };
+        }
+        case 'DELETE_PATIENT': {
+            const targetId = action.payload.id;
+            // Prevent deleting the last patient or default context if it's the only one
+            if (Object.keys(state.patients).length <= 1) return state;
+
+            const newPatients = { ...state.patients };
+            delete newPatients[targetId];
+
+            // If we deleted the active patient, switch to another one
+            let newActiveId = state.activePatientId;
+            if (state.activePatientId === targetId) {
+                newActiveId = Object.keys(newPatients)[0];
+            }
+
+            return {
+                ...state,
+                patients: newPatients,
+                activePatientId: newActiveId
             };
         }
         case 'SWITCH_PATIENT':
