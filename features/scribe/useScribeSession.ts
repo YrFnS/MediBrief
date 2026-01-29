@@ -6,8 +6,9 @@ import { ChatMode } from '../../types';
 import { SoapNote } from './types';
 
 // --- Audio Worklet Code ---
+// Renamed class and processor ID to avoid collision with useLiveSession
 const PCM_PROCESSOR_CODE = `
-class PCMProcessor extends AudioWorkletProcessor {
+class ScribePCMProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
     this.bufferSize = 4096;
@@ -29,7 +30,7 @@ class PCMProcessor extends AudioWorkletProcessor {
     return true;
   }
 }
-registerProcessor('pcm-processor', PCMProcessor);
+registerProcessor('scribe-pcm-processor', ScribePCMProcessor);
 `;
 
 const encode = (bytes: Uint8Array) => {
@@ -126,7 +127,8 @@ export const useScribeSession = () => {
                     onopen: async () => {
                          if (!audioContextRef.current) return;
                          mediaStreamSourceRef.current = audioContextRef.current.createMediaStreamSource(stream);
-                         workletNodeRef.current = new AudioWorkletNode(audioContextRef.current, 'pcm-processor');
+                         // Use the unique processor name
+                         workletNodeRef.current = new AudioWorkletNode(audioContextRef.current, 'scribe-pcm-processor');
                          
                          workletNodeRef.current.port.onmessage = (e) => {
                              const inputData = e.data;

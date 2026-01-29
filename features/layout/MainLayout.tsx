@@ -2,8 +2,8 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { ChatMode as ChatModeEnum } from '../../types';
 import Header from '../../components/Header';
-import MessageList from '../../components/MessageList';
-import InputBar from '../../components/InputBar';
+import MessageList from '../chat/components/MessageList';
+import InputBar from '../chat/components/InputBar';
 import ImageViewer from '../../components/ImageViewer';
 import SidebarRoster from '../patient-roster/SidebarRoster';
 import HeadsUpDisplay from '../hud/HeadsUpDisplay';
@@ -12,7 +12,7 @@ import CDSSContainer from '../cdss/CDSSContainer';
 import BioMetricBackground from './BioMetricBackground';
 import { useLiveSession } from '../../hooks/useLiveSession';
 import { useFileDragAndDrop } from '../../hooks/useFileDragAndDrop';
-import { useChatOrchestrator } from '../../hooks/useChatOrchestrator';
+import { useChatOrchestrator } from '../chat/hooks/useChatOrchestrator';
 import { DocumentTextIcon, ShieldCheckIcon } from '../../components/icons';
 import { usePatientStore } from '../patient-management/usePatientStore';
 import { useUIStore } from '../ui/UIContext';
@@ -174,10 +174,8 @@ const MainLayout: React.FC = () => {
             className="flex h-[100dvh] font-sans overflow-hidden relative text-slate-900 dark:text-slate-100"
             {...dragHandlers}
         >
-            {/* --- ATMOSPHERIC BACKGROUND SYSTEM --- */}
             <BioMetricBackground />
 
-            {/* Overlay for Drag & Drop */}
             {isDragging && (
                 <div className="absolute inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center m-4 rounded-xl animate-fade-in pointer-events-none border-2 border-blue-500/50 shadow-[0_0_50px_rgba(59,130,246,0.3)]">
                     <div className="flex flex-col items-center text-blue-400 animate-pulse">
@@ -188,7 +186,6 @@ const MainLayout: React.FC = () => {
                 </div>
             )}
             
-            {/* Image Modal */}
             {viewingImage && (
                 <ImageViewer 
                     src={viewingImage.src} 
@@ -197,15 +194,11 @@ const MainLayout: React.FC = () => {
                 />
             )}
 
-            {/* --- LAYOUT STRUCTURE --- */}
-            
-            {/* 1. Sidebar (Left) - Glassmorphic */}
             <SidebarRoster 
                 isOpen={isSidebarOpen} 
                 toggle={() => setIsSidebarOpen(!isSidebarOpen)} 
             />
 
-            {/* 2. Main Content (Right) */}
             <div className="flex-1 flex flex-col min-w-0 relative z-10">
                 <Header
                     currentMode={chatMode}
@@ -215,15 +208,12 @@ const MainLayout: React.FC = () => {
                     onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
                 />
                 
-                {/* 3. Heads Up Display (HUD) */}
                 {activePatient && (
                     <HeadsUpDisplay patient={activePatient} />
                 )}
                 
-                {/* 4. CDSS Overlay */}
                 <CDSSContainer />
                 
-                {/* CONDITIONAL RENDER: SCRIBE vs CHAT */}
                 {chatMode === ChatModeEnum.Scribe ? (
                     <ScribeInterface />
                 ) : (
