@@ -16,7 +16,7 @@ const STATUS_OPTIONS: { value: PatientStatus; color: string; label: string }[] =
 ];
 
 const HeadsUpDisplay: React.FC<HeadsUpDisplayProps> = ({ patient }) => {
-    const { dispatch } = usePatientStore();
+    const actions = usePatientStore(state => state.actions);
     const { entities, name, status, id } = patient;
     const hasAllergies = entities.allergies.length > 0;
     const isCritical = status === 'Critical';
@@ -42,10 +42,7 @@ const HeadsUpDisplay: React.FC<HeadsUpDisplayProps> = ({ patient }) => {
 
     const handleNameSave = () => {
         if (nameInput.trim() !== name) {
-            dispatch({ 
-                type: 'UPDATE_PATIENT_DETAILS', 
-                payload: { id, updates: { name: nameInput.trim() } } 
-            });
+            actions.updatePatientDetails(id, { name: nameInput.trim() });
         }
         setIsEditingName(false);
     };
@@ -59,10 +56,7 @@ const HeadsUpDisplay: React.FC<HeadsUpDisplayProps> = ({ patient }) => {
     };
 
     const handleStatusChange = (newStatus: PatientStatus) => {
-        dispatch({ 
-            type: 'UPDATE_PATIENT_DETAILS', 
-            payload: { id, updates: { status: newStatus } } 
-        });
+        actions.updatePatientDetails(id, { status: newStatus });
         setIsStatusMenuOpen(false);
     };
 
@@ -152,8 +146,6 @@ const HeadsUpDisplay: React.FC<HeadsUpDisplayProps> = ({ patient }) => {
                             </span>
                         </div>
                     ) : (
-                        // SAFETY UPDATE: Changed from "Green/NKDA" to "Grey/Verify" to reduce false confidence.
-                        // "Absence of evidence is not evidence of absence."
                         <div 
                             className="hidden md:flex items-center gap-1.5 px-2 py-1 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-sm opacity-70 hover:opacity-100 transition-opacity cursor-help group"
                             title="The AI has not detected allergies in the current files. This does NOT guarantee NKDA. Please verify manually."

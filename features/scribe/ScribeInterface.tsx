@@ -51,7 +51,7 @@ const NoteSection: React.FC<{
 
 const ScribeInterface: React.FC = () => {
     const { isActive, startSession, stopSession, soapNote, setSoapNote, error } = useScribeSession();
-    const { dispatch, activePatient } = usePatientStore();
+    const actions = usePatientStore(state => state.actions);
     const [isSaved, setIsSaved] = useState(false);
 
     const handleSave = () => {
@@ -73,16 +73,11 @@ ${soapNote.assessment || 'N/A'}
 ${soapNote.plan || 'N/A'}
         `.trim();
 
-        // Dispatch action to save as a message/document
-        dispatch({ 
-            type: 'ADD_FULL_RESPONSE', 
-            payload: { 
-                message: { 
-                    role: 'model', 
-                    content: noteContent,
-                    displayContent: noteContent // Will render as markdown
-                } 
-            } 
+        // Save as model message
+        actions.addFullResponse({ 
+            role: 'model', 
+            content: noteContent,
+            displayContent: noteContent 
         });
 
         setIsSaved(true);

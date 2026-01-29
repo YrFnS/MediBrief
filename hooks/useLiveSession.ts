@@ -111,7 +111,12 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
     const audioSourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
     const nextStartTimeRef = useRef<number>(0);
     const mediaStreamSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+    
+    // Processors
     const workletNodeRef = useRef<AudioWorkletNode | null>(null);
+    const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
+    const workletSupportedRef = useRef<boolean>(false);
+    
     const isStoppingRef = useRef(false);
 
     const stopSession = useCallback(async () => {
@@ -127,8 +132,11 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
 
             // 2. Disconnect audio nodes
             workletNodeRef.current?.disconnect();
+            scriptProcessorRef.current?.disconnect();
             mediaStreamSourceRef.current?.disconnect();
+            
             workletNodeRef.current = null;
+            scriptProcessorRef.current = null;
             mediaStreamSourceRef.current = null;
 
             // 3. Stop all playing audio
@@ -187,15 +195,16 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
             if (inputAudioContextRef.current.state === 'suspended') await inputAudioContextRef.current.resume();
             if (outputAudioContextRef.current.state === 'suspended') await outputAudioContextRef.current.resume();
 
-            // 2. Load AudioWorklet Module
+            // 2. Load AudioWorklet Module (Robust Fallback)
             try {
                 const blob = new Blob([PCM_PROCESSOR_CODE], { type: 'application/javascript' });
                 const url = URL.createObjectURL(blob);
                 await inputAudioContextRef.current.audioWorklet.addModule(url);
                 URL.revokeObjectURL(url);
+                workletSupportedRef.current = true;
             } catch (e) {
-                // Module might already be loaded in this context, safe to ignore
-                console.debug("Worklet module load check:", e);
+                console.warn("AudioWorklet module load failed, defaulting to ScriptProcessor fallback:", e);
+                workletSupportedRef.current = false;
             }
 
             // 3. Get User Media
@@ -242,20 +251,31 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
                 callbacks: {
                     onopen: async () => {
                         if (!inputAudioContextRef.current) return;
-                        // Setup Input Stream via Worklet
                         mediaStreamSourceRef.current = inputAudioContextRef.current.createMediaStreamSource(stream);
-                        workletNodeRef.current = new AudioWorkletNode(inputAudioContextRef.current, 'pcm-processor');
                         
-                        workletNodeRef.current.port.onmessage = (event) => {
-                             const inputData = event.data;
-                             const pcmBlob = createBlob(inputData);
-                             sessionPromise.then((session) => {
-                                session.sendRealtimeInput({ media: pcmBlob });
-                             });
-                        };
-                        
-                        mediaStreamSourceRef.current.connect(workletNodeRef.current);
-                        workletNodeRef.current.connect(inputAudioContextRef.current.destination);
+                        if (workletSupportedRef.current) {
+                            // PRIMARY: AudioWorklet
+                            try {
+                                workletNodeRef.current = new AudioWorkletNode(inputAudioContextRef.current, 'pcm-processor');
+                                workletNodeRef.current.port.onmessage = (event) => {
+                                    const inputData = event.data;
+                                    const pcmBlob = createBlob(inputData);
+                                    sessionPromise.then((session) => session.sendRealtimeInput({ media: pcmBlob }));
+                                };
+                                mediaStreamSourceRef.current.connect(workletNodeRef.current);
+                                workletNodeRef.current.connect(inputAudioContextRef.current.destination);
+                            } catch (e) {
+                                // Double safety catch if creation fails despite module load
+                                console.error("Worklet creation failed:", e);
+                                workletSupportedRef.current = false; 
+                                // Will degrade gracefully if we could re-trigger, but simpler to fail safely here or fallback inline?
+                                // Let's fallback inline to ScriptProcessor if Worklet instantiation fails
+                                fallbackToScriptProcessor(sessionPromise);
+                            }
+                        } else {
+                            // FALLBACK: ScriptProcessor
+                            fallbackToScriptProcessor(sessionPromise);
+                        }
                     },
                     onmessage: async (message: LiveServerMessage) => {
                         if (message.serverContent?.inputTranscription) {
@@ -346,6 +366,21 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
             setError(errMsg);
         }
     }, [isLive, stopSession, onTurnComplete]);
+
+    // Helper for ScriptProcessor fallback
+    const fallbackToScriptProcessor = (sessionPromise: Promise<LiveSession>) => {
+        if (!inputAudioContextRef.current || !mediaStreamSourceRef.current) return;
+        
+        console.log("Using ScriptProcessorNode fallback for audio input.");
+        scriptProcessorRef.current = inputAudioContextRef.current.createScriptProcessor(4096, 1, 1);
+        scriptProcessorRef.current.onaudioprocess = (e) => {
+            const inputData = e.inputBuffer.getChannelData(0);
+            const pcmBlob = createBlob(inputData);
+            sessionPromise.then((session) => session.sendRealtimeInput({ media: pcmBlob }));
+        };
+        mediaStreamSourceRef.current.connect(scriptProcessorRef.current);
+        scriptProcessorRef.current.connect(inputAudioContextRef.current.destination);
+    };
 
     useEffect(() => {
         return () => { if (isLive) stopSession(); };

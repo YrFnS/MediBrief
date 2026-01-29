@@ -80,7 +80,8 @@ const RangeVisualizer: React.FC<{ value: string; range: string }> = ({ value, ra
 
 const LabReport: React.FC<LabReportProps> = ({ content }) => {
     const report = useMemo(() => parseJsonSafe<ParsedLabReport>(content), [content]);
-    const { activePatient } = usePatientStore();
+    // Zustand Selector
+    const activePatient = usePatientStore(state => state.patients[state.activePatientId]);
 
     if (!report || !report.labs) {
         return <div className="text-red-500 text-sm">Error parsing lab data.</div>;

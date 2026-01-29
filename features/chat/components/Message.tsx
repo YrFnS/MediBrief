@@ -1,8 +1,9 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import type { ChatMessage } from '../../../types';
-import { LinkIcon, DocumentTextIcon, ClipboardIcon, CheckIcon, AlertTriangleIcon, ShieldCheckIcon } from '../../../components/icons';
+import { LinkIcon, DocumentTextIcon, ClipboardIcon, CheckIcon, AlertTriangleIcon, ShieldCheckIcon, BoltIcon } from '../../../components/icons';
 import MessageContent from './MessageContent';
+import { verifyDosages } from '../../safety/dosageVerifier';
 
 const isHighCredibilitySource = (uri: string) => {
     try {
@@ -39,8 +40,18 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLo
     const isModel = message.role === 'model';
     const [isCopied, setIsCopied] = useState(false);
 
-    const isCriticalAlert = isModel && message.content.includes("🛑 CRITICAL SAFETY WARNING");
+    // Run Deterministic Safety Check on every model message
+    const safetyCheck = useMemo(() => {
+        if (!isModel || !message.content) return { isSafe: true, warnings: [], verifiedItems: [] };
+        return verifyDosages(message.content);
+    }, [isModel, message.content]);
+
+    // AI-generated alerts (from prompt engineering)
+    const isCriticalPromptAlert = isModel && message.content.includes("🛑 CRITICAL SAFETY WARNING");
     
+    // Combined Alert Logic (Deterministic overrides AI)
+    const hasSafetyWarning = isCriticalPromptAlert || !safetyCheck.isSafe;
+
     const contentToRender = (message.role === 'user' && message.displayContent) 
         ? message.displayContent 
         : message.content;
@@ -55,9 +66,9 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLo
         <div className={`flex flex-col gap-2 group animate-slide-up ${isModel ? 'items-start' : 'items-end'}`}>
             
             <div className={`flex items-center gap-2 px-1 select-none transition-opacity duration-300 ${isModel ? 'opacity-70' : 'opacity-50'}`}>
-                {isModel && <div className={`h-1.5 w-1.5 rounded-full ${isCriticalAlert ? 'bg-red-500 animate-pulse' : 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]'}`}></div>}
-                <span className={`text-[10px] font-mono uppercase tracking-widest ${isModel ? (isCriticalAlert ? 'text-red-500 font-bold' : 'text-blue-400') : 'text-slate-500'}`}>
-                    {isModel ? (isCriticalAlert ? 'CRITICAL_SAFETY_INTERVENTION' : 'CIL_OUTPUT') : 'USER_INPUT'}
+                {isModel && <div className={`h-1.5 w-1.5 rounded-full ${hasSafetyWarning ? 'bg-red-500 animate-pulse' : 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]'}`}></div>}
+                <span className={`text-[10px] font-mono uppercase tracking-widest ${isModel ? (hasSafetyWarning ? 'text-red-500 font-bold' : 'text-blue-400') : 'text-slate-500'}`}>
+                    {isModel ? (hasSafetyWarning ? 'SAFETY_GUARDRAIL_ACTIVE' : 'CIL_OUTPUT') : 'USER_INPUT'}
                 </span>
                 {isModel && (
                      <span className="text-[9px] font-mono text-slate-400 border-l border-slate-700 pl-2">
@@ -69,17 +80,46 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLo
             <div className={`
                 relative max-w-full md:max-w-3xl p-4 md:p-6 rounded-xl transition-all duration-300 overflow-hidden
                 ${isModel 
-                    ? isCriticalAlert 
+                    ? hasSafetyWarning 
                         ? 'bg-red-950/40 border-l-4 border-red-500 shadow-[0_0_30px_rgba(239,68,68,0.1)] backdrop-blur-md'
                         : 'bg-white/5 dark:bg-[#0f172a]/40 border border-white/10 dark:border-white/5 border-l-4 border-l-blue-500 text-left shadow-lg backdrop-blur-md' 
                     : 'bg-white/10 dark:bg-white/5 border border-white/10 text-left backdrop-blur-md rounded-tr-none'
                 }
             `}>
                 
-                {isCriticalAlert && (
+                {hasSafetyWarning && (
                     <div className="absolute top-0 right-0 bg-red-600 text-white px-3 py-1 text-[9px] font-bold uppercase tracking-widest rounded-bl-xl shadow-md flex items-center gap-2 z-10">
                         <AlertTriangleIcon className="w-3 h-3" />
                         <span>Protocol Violation</span>
+                    </div>
+                )}
+
+                {/* DETERMINISTIC GUARDRAIL ALERTS */}
+                {!safetyCheck.isSafe && (
+                    <div className="mb-4 bg-red-500/10 border border-red-500/30 rounded-sm p-3">
+                         <div className="flex items-center gap-2 text-red-500 mb-2 border-b border-red-500/20 pb-1">
+                            <BoltIcon className="w-4 h-4" />
+                            <span className="text-[10px] font-mono font-bold uppercase tracking-widest">Automatic Safety Intercept</span>
+                        </div>
+                        <ul className="space-y-1">
+                            {safetyCheck.warnings.map((warn, i) => (
+                                <li key={i} className="text-xs text-red-300 font-mono flex items-start gap-2">
+                                    <span className="text-red-500">>></span> {warn.replace('🛑 **SAFETY VIOLATION**:', '')}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
+                
+                {/* VERIFICATION BADGES (Positive Reinforcement) */}
+                {safetyCheck.isSafe && safetyCheck.verifiedItems.length > 0 && (
+                     <div className="mb-4 bg-green-500/5 border border-green-500/20 rounded-sm p-2 flex flex-col gap-1">
+                        {safetyCheck.verifiedItems.map((item, i) => (
+                             <div key={i} className="flex items-center gap-2">
+                                <ShieldCheckIcon className="w-3 h-3 text-green-500" />
+                                <span className="text-[10px] text-green-400 font-mono tracking-wide">{item.replace('✅ Verified:', '')}</span>
+                            </div>
+                        ))}
                     </div>
                 )}
 

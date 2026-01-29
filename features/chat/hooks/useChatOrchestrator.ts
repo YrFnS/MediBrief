@@ -6,7 +6,7 @@ import { generateResponseStream } from '../../../services/geminiService';
 import { exportBriefingToPdf } from '../../../services/exportService';
 import { cleanJsonOutput, isJsonBriefing, getFriendlyErrorMessage, isLabReport, parseJsonSafe } from '../../../utils';
 import { FILE_ANALYSIS_PROMPT, BRIEFING_TRIGGERS, SHIFT_BRIEFING_PROMPT, HELP_COMMAND_RESPONSE, DRUG_ANALYSIS_PROMPT } from '../../../constants';
-import { PatientAction } from '../../patient-management/store.types';
+import { usePatientStore } from '../../patient-management/usePatientStore';
 import { useEntityExtractor } from '../../../hooks/useEntityExtractor';
 import { FHIRObservation } from '../../fhir/types';
 import { evaluateClinicalSafety } from '../../cdss/rulesEngine';
@@ -18,7 +18,6 @@ interface UseChatOrchestratorProps {
     activePatientId?: string;
     activePatient?: PatientContext;
     chatMode: ChatModeEnum;
-    dispatch: React.Dispatch<PatientAction>;
     uiDispatch: React.Dispatch<UIAction>;
     uploadedFile: UploadedFile | null;
     setUploadedFile: (file: UploadedFile | null) => void;
@@ -33,7 +32,6 @@ export const useChatOrchestrator = ({
     activePatientId,
     activePatient,
     chatMode,
-    dispatch,
     uiDispatch,
     uploadedFile,
     setUploadedFile,
@@ -42,19 +40,20 @@ export const useChatOrchestrator = ({
     userLocation,
     clearFile
 }: UseChatOrchestratorProps) => {
+    const actions = usePatientStore(state => state.actions);
     const abortControllerRef = useRef<AbortController | null>(null);
-    const { triggerExtraction } = useEntityExtractor(dispatch);
+    const { triggerExtraction } = useEntityExtractor();
 
     const handleStop = useCallback(() => {
         if (abortControllerRef.current) abortControllerRef.current.abort();
-        dispatch({ type: 'REQUEST_FINISH' });
+        actions.requestFinish();
         uiDispatch({ type: 'SET_LOADING', payload: false });
-    }, [dispatch, uiDispatch]);
+    }, [actions, uiDispatch]);
 
     const handleClearChat = useCallback(() => {
-        dispatch({ type: 'RESET_ACTIVE_CHAT' });
+        actions.resetActiveChat();
         clearFile();
-    }, [dispatch, clearFile]);
+    }, [actions, clearFile]);
 
     const handleSend = useCallback(async (userPrompt: string) => {
         const trimmedPrompt = userPrompt.trim();
@@ -69,11 +68,11 @@ export const useChatOrchestrator = ({
         if (trimmedPrompt.toLowerCase() === '/export') {
             const history = messages.filter(m => !isJsonBriefing(m.content));
             if (history.length === 0) {
-                 dispatch({ type: 'ADD_INTERIM_MESSAGE', payload: { role: 'model', content: '⚠️ **Cannot Export:** No history available.' } });
+                 actions.addInterimMessage({ role: 'model', content: '⚠️ **Cannot Export:** No history available.' });
                  return;
             }
 
-            dispatch({ type: 'ADD_INTERIM_MESSAGE', payload: { role: 'model', content: '📥 Generating briefing for PDF export...' } });
+            actions.addInterimMessage({ role: 'model', content: '📥 Generating briefing for PDF export...' });
             uiDispatch({ type: 'SET_LOADING', payload: true });
             
             abortControllerRef.current = new AbortController();
@@ -95,13 +94,13 @@ export const useChatOrchestrator = ({
                 if (parsedBriefing.briefingTitle && parsedBriefing.briefingTitle.includes("NO DATA")) throw new Error("Insufficient clinical data.");
 
                 await exportBriefingToPdf(parsedBriefing);
-                dispatch({ type: 'UPDATE_LAST_MESSAGE_CONTENT', payload: '✅ Shift briefing PDF downloaded.' });
+                actions.updateLastMessageContent('✅ Shift briefing PDF downloaded.');
             } catch (e) {
                 if (e.message === "Aborted") {
-                     dispatch({ type: 'UPDATE_LAST_MESSAGE_CONTENT', payload: '🛑 Export cancelled.' });
+                     actions.updateLastMessageContent('🛑 Export cancelled.');
                 } else {
                     const friendlyError = getFriendlyErrorMessage(e);
-                    dispatch({ type: 'UPDATE_LAST_MESSAGE_CONTENT', payload: `Sorry, PDF generation failed.\n\n**Reason:** ${friendlyError}` });
+                    actions.updateLastMessageContent(`Sorry, PDF generation failed.\n\n**Reason:** ${friendlyError}`);
                 }
             } finally {
                 uiDispatch({ type: 'SET_LOADING', payload: false });
@@ -112,8 +111,8 @@ export const useChatOrchestrator = ({
 
         // --- Help Command ---
         if (trimmedPrompt.toLowerCase() === '/help') {
-             dispatch({ type: 'ADD_FULL_RESPONSE', payload: { message: { role: 'user', content: '/help' } }});
-             dispatch({ type: 'ADD_FULL_RESPONSE', payload: { message: { role: 'model', content: HELP_COMMAND_RESPONSE } } });
+             actions.addFullResponse({ role: 'user', content: '/help' });
+             actions.addFullResponse({ role: 'model', content: HELP_COMMAND_RESPONSE });
              return;
         }
 
@@ -165,7 +164,7 @@ export const useChatOrchestrator = ({
                     if (!displayOverride) historyContent = trimmedPrompt || "/brief (with file)";
                 }
              } catch (error) {
-                 dispatch({ type: 'REQUEST_FAILED', payload: getFriendlyErrorMessage(error) });
+                 actions.requestFailed(getFriendlyErrorMessage(error));
                  uiDispatch({ type: 'SET_ERROR', payload: getFriendlyErrorMessage(error) });
                  return;
              }
@@ -190,8 +189,8 @@ export const useChatOrchestrator = ({
             userMessage.filePreview = { name: uploadedFile.file.name, type: uploadedFile.type, url: persistenceUrl, base64: fileForApi ? uploadedFile.base64 : undefined };
         }
         
-        dispatch({ type: 'START_REQUEST', payload: { userMessage } });
-        dispatch({ type: 'ADD_RESPONSE_PLACEHOLDER' });
+        actions.startRequest(userMessage);
+        actions.addResponsePlaceholder();
         uiDispatch({ type: 'SET_LOADING', payload: true });
         uiDispatch({ type: 'SET_ERROR', payload: null });
         setUploadedFile(null);
@@ -221,16 +220,16 @@ export const useChatOrchestrator = ({
                     }).filter(Boolean) as GroundingSource[];
                 }
 
-                dispatch({ type: 'APPEND_TO_LAST_MESSAGE', payload: { chunk: textChunk, sources } });
+                actions.appendToLastMessage(textChunk, sources);
             }
         } catch (e) {
              if (e.message === "Aborted") {
-                 dispatch({ type: 'APPEND_TO_LAST_MESSAGE', payload: { chunk: " [Stopped]" } });
+                 actions.appendToLastMessage(" [Stopped]", undefined);
             } else {
-                dispatch({ type: 'REQUEST_FAILED', payload: getFriendlyErrorMessage(e) });
+                actions.requestFailed(getFriendlyErrorMessage(e));
             }
         } finally {
-            dispatch({ type: 'REQUEST_FINISH' });
+            actions.requestFinish();
             uiDispatch({ type: 'SET_LOADING', payload: false });
             
             // --- AUTO-INGESTION PROTOCOL ---
@@ -262,10 +261,7 @@ export const useChatOrchestrator = ({
                     }).filter(Boolean);
 
                     if (newObs.length > 0) {
-                        dispatch({
-                            type: 'INGEST_CLINICAL_DATA',
-                            payload: { id: activePatientId, observations: newObs }
-                        });
+                        actions.ingestClinicalData(activePatientId, newObs);
 
                         // TRIGGER AI SAFETY CHECK
                         const existingObs = activePatient?.clinicalData.observations || [];
@@ -273,10 +269,7 @@ export const useChatOrchestrator = ({
                         
                         evaluateClinicalSafety(combinedObs).then(alerts => {
                             if (alerts.length > 0) {
-                                dispatch({ 
-                                    type: 'UPDATE_ALERTS', 
-                                    payload: { id: activePatientId, alerts } 
-                                });
+                                actions.updateAlerts(activePatientId, alerts);
                             }
                         });
                     }
@@ -285,7 +278,7 @@ export const useChatOrchestrator = ({
 
             abortControllerRef.current = null;
         }
-    }, [messages, activePatientId, activePatient, chatMode, uploadedFile, isLive, stopSession, userLocation, dispatch, uiDispatch, setUploadedFile, triggerExtraction]);
+    }, [messages, activePatientId, activePatient, chatMode, uploadedFile, isLive, stopSession, userLocation, actions, uiDispatch, setUploadedFile, triggerExtraction]);
 
     return {
         handleSend,

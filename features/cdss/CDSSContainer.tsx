@@ -6,7 +6,10 @@ import { usePatientStore } from '../patient-management/usePatientStore';
 import { CDSSAlert } from './types';
 
 const CDSSContainer: React.FC = () => {
-    const { activePatient, dispatch } = usePatientStore();
+    const { activePatient, actions } = usePatientStore(state => ({
+        activePatient: state.patients[state.activePatientId],
+        actions: state.actions
+    }));
     const { activeAlerts, dismissAlert } = useCDSS(activePatient);
 
     if (activeAlerts.length === 0) return null;
@@ -19,14 +22,9 @@ const CDSSContainer: React.FC = () => {
         } else if (action.type === 'order' || action.type === 'acknowledge') {
             // Inject the action into the chat as a system note or user action
             if (action.payload) {
-                dispatch({ 
-                    type: 'ADD_FULL_RESPONSE', 
-                    payload: { 
-                        message: { 
-                            role: 'model', 
-                            content: `✅ **ACTION EXECUTED**: ${action.payload}\n\n*Protocol: ${alert.title}*` 
-                        } 
-                    } 
+                actions.addFullResponse({ 
+                    role: 'model', 
+                    content: `✅ **ACTION EXECUTED**: ${action.payload}\n\n*Protocol: ${alert.title}*` 
                 });
             }
             dismissAlert(alert.ruleId);

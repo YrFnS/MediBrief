@@ -69,6 +69,8 @@ export const useScribeSession = () => {
     const audioContextRef = useRef<AudioContext | null>(null);
     const mediaStreamSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
     const workletNodeRef = useRef<AudioWorkletNode | null>(null);
+    const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
+    const workletSupportedRef = useRef<boolean>(false);
 
     const stopSession = useCallback(async () => {
         try {
@@ -77,7 +79,12 @@ export const useScribeSession = () => {
                 liveSessionRef.current = null;
             }
             workletNodeRef.current?.disconnect();
+            scriptProcessorRef.current?.disconnect();
             mediaStreamSourceRef.current?.disconnect();
+            
+            workletNodeRef.current = null;
+            scriptProcessorRef.current = null;
+            
             if (audioContextRef.current && audioContextRef.current.state === 'running') {
                 await audioContextRef.current.suspend();
             }
@@ -99,14 +106,16 @@ export const useScribeSession = () => {
             }
             if (audioContextRef.current.state === 'suspended') await audioContextRef.current.resume();
 
-            // Load Worklet
+            // Load Worklet (Robust Fallback)
             try {
                 const blob = new Blob([PCM_PROCESSOR_CODE], { type: 'application/javascript' });
                 const url = URL.createObjectURL(blob);
                 await audioContextRef.current.audioWorklet.addModule(url);
                 URL.revokeObjectURL(url);
+                workletSupportedRef.current = true;
             } catch (e) {
-                 console.debug("Worklet module load check:", e);
+                 console.warn("Scribe Worklet module load failed, defaulting to ScriptProcessor fallback:", e);
+                 workletSupportedRef.current = false;
             }
 
             const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -127,21 +136,39 @@ export const useScribeSession = () => {
                     onopen: async () => {
                          if (!audioContextRef.current) return;
                          mediaStreamSourceRef.current = audioContextRef.current.createMediaStreamSource(stream);
-                         // Use the unique processor name
-                         workletNodeRef.current = new AudioWorkletNode(audioContextRef.current, 'scribe-pcm-processor');
                          
-                         workletNodeRef.current.port.onmessage = (e) => {
-                             const inputData = e.data;
-                             const pcmBlob = createBlob(inputData);
-                             sessionPromise.then(session => session.sendRealtimeInput({ media: pcmBlob }));
+                         const setupScriptProcessor = () => {
+                             console.log("Using ScriptProcessorNode fallback for Scribe.");
+                             scriptProcessorRef.current = audioContextRef.current!.createScriptProcessor(4096, 1, 1);
+                             scriptProcessorRef.current.onaudioprocess = (e) => {
+                                 const inputData = e.inputBuffer.getChannelData(0);
+                                 const pcmBlob = createBlob(inputData);
+                                 sessionPromise.then(session => session.sendRealtimeInput({ media: pcmBlob }));
+                             };
+                             mediaStreamSourceRef.current!.connect(scriptProcessorRef.current);
+                             scriptProcessorRef.current.connect(audioContextRef.current!.destination);
                          };
-                         
-                         mediaStreamSourceRef.current.connect(workletNodeRef.current);
-                         workletNodeRef.current.connect(audioContextRef.current.destination);
+
+                         if (workletSupportedRef.current) {
+                             try {
+                                 workletNodeRef.current = new AudioWorkletNode(audioContextRef.current, 'scribe-pcm-processor');
+                                 workletNodeRef.current.port.onmessage = (e) => {
+                                     const inputData = e.data;
+                                     const pcmBlob = createBlob(inputData);
+                                     sessionPromise.then(session => session.sendRealtimeInput({ media: pcmBlob }));
+                                 };
+                                 mediaStreamSourceRef.current.connect(workletNodeRef.current);
+                                 workletNodeRef.current.connect(audioContextRef.current.destination);
+                             } catch (e) {
+                                 console.error("Scribe Worklet creation failed:", e);
+                                 setupScriptProcessor();
+                             }
+                         } else {
+                             setupScriptProcessor();
+                         }
                     },
                     onmessage: async (message: LiveServerMessage) => {
                         // We ONLY care about Tool Calls for Scribe mode.
-                        // We ignore audio output because the scribe should be silent.
                         if (message.toolCall) {
                             for (const fc of message.toolCall.functionCalls) {
                                 if (fc.name === 'updateSoapNote') {

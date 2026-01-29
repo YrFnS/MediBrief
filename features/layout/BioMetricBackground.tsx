@@ -5,7 +5,7 @@ import { usePatientStore } from '../patient-management/usePatientStore';
 const EKG_PATH = "M0,50 L50,50 L60,45 L70,55 L80,50 L90,50 L95,20 L100,80 L105,50 L115,50 L125,40 L135,60 L145,50 L200,50 M200,50 L250,50 L260,45 L270,55 L280,50 L290,50 L295,20 L300,80 L305,50 L315,50 L325,40 L335,60 L345,50 L400,50";
 
 const BioMetricBackground: React.FC = () => {
-    const { activePatient } = usePatientStore();
+    const activePatient = usePatientStore(state => state.patients[state.activePatientId]);
     
     // Determine system state based on patient status
     const systemState = useMemo(() => {

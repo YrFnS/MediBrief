@@ -21,8 +21,13 @@ import { useUIStore } from '../ui/UIContext';
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 5 Minutes
 
 const MainLayout: React.FC = () => {
-    // --- Stores ---
-    const { state: patientState, dispatch: patientDispatch, activePatient, activeMessages } = usePatientStore();
+    // --- Stores (Zustand Migration) ---
+    const { activePatient, activeMessages, actions } = usePatientStore(state => ({
+        activePatient: state.patients[state.activePatientId],
+        activeMessages: state.patients[state.activePatientId]?.chatHistory || [],
+        actions: state.actions
+    }));
+
     const { uiState, uiDispatch } = useUIStore();
     
     // --- UI State ---
@@ -89,20 +94,18 @@ const MainLayout: React.FC = () => {
 
     // --- Live Session Integration ---
     const handleLiveTurnComplete = useCallback((userInput: string, modelOutput: string) => {
-        if (userInput) patientDispatch({ type: 'ADD_FULL_RESPONSE', payload: { message: { role: 'user', content: userInput } } });
-        if (modelOutput) patientDispatch({ type: 'ADD_FULL_RESPONSE', payload: { message: { role: 'model', content: modelOutput } } });
-    }, [patientDispatch]);
+        if (userInput) actions.addFullResponse({ role: 'user', content: userInput });
+        if (modelOutput) actions.addFullResponse({ role: 'model', content: modelOutput });
+    }, [actions]);
 
     const { isLive, transcript, startSession, stopSession, error: liveError } = useLiveSession(handleLiveTurnComplete);
 
     useEffect(() => {
         if (liveError) {
-            // Log error to chat
-            patientDispatch({ type: 'REQUEST_FAILED', payload: liveError });
-            // Notify UI (optional, usually handled by toast/component state)
+            actions.requestFailed(liveError);
             uiDispatch({ type: 'SET_ERROR', payload: liveError });
         }
-    }, [liveError, patientDispatch, uiDispatch]);
+    }, [liveError, actions, uiDispatch]);
 
     useEffect(() => {
         if (chatMode !== ChatModeEnum.Live && isLive) stopSession();
@@ -118,8 +121,7 @@ const MainLayout: React.FC = () => {
         activePatientId: activePatient?.id,
         activePatient: activePatient, 
         chatMode: chatMode,
-        dispatch: patientDispatch,
-        uiDispatch: uiDispatch, // Pass UI dispatch
+        uiDispatch: uiDispatch, 
         uploadedFile,
         setUploadedFile,
         isLive,
