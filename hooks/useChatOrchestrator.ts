@@ -6,7 +6,7 @@ import { generateResponseStream } from '../services/geminiService';
 import { exportBriefingToPdf } from '../services/exportService';
 import { cleanJsonOutput, isJsonBriefing, getFriendlyErrorMessage, isLabReport, parseJsonSafe } from '../utils';
 import { FILE_ANALYSIS_PROMPT, BRIEFING_TRIGGERS, SHIFT_BRIEFING_PROMPT, HELP_COMMAND_RESPONSE, DRUG_ANALYSIS_PROMPT } from '../constants';
-import { PatientAction } from '../features/patient-management/usePatientStore';
+import { PatientAction } from '../features/patient-management/store.types';
 import { useEntityExtractor } from './useEntityExtractor';
 import { FHIRObservation } from '../features/fhir/types';
 import { evaluateClinicalSafety } from '../features/cdss/rulesEngine';

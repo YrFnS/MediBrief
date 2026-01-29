@@ -2,7 +2,7 @@
 import React, { useCallback } from 'react';
 import { UploadedFile } from '../types';
 import { extractEntitiesFromUpload } from '../features/clinical-analysis/entityExtractionService';
-import { PatientAction } from '../features/patient-management/usePatientStore';
+import { PatientAction } from '../features/patient-management/store.types';
 
 export const useEntityExtractor = (dispatch: React.Dispatch<PatientAction>) => {
     
