@@ -1,0 +1,72 @@
+
+import { cleanJsonOutput } from '../../utils';
+
+const FDA_API_BASE = 'https://api.fda.gov/drug/label.json';
+
+export interface DrugSafetyInfo {
+    found: boolean;
+    brandName?: string;
+    genericName?: string;
+    boxedWarning?: string[]; // The critical "Black Box" warning
+    generalWarnings?: string[];
+    source: 'openFDA' | 'Unknown';
+}
+
+// Simple in-memory cache to prevent redundant network calls during a session
+const SAFETY_CACHE: Record<string, DrugSafetyInfo> = {};
+
+/**
+ * Queries openFDA for drug label information.
+ * Focuses on 'boxed_warning' which is the highest safety alert level.
+ */
+export const fetchDrugSafetyInfo = async (drugName: string): Promise<DrugSafetyInfo> => {
+    // 1. Check Cache
+    const cacheKey = drugName.toLowerCase().trim();
+    if (SAFETY_CACHE[cacheKey]) {
+        return SAFETY_CACHE[cacheKey];
+    }
+
+    try {
+        // 2. Construct Query
+        // We search both brand and generic names for best coverage
+        const searchQuery = `openfda.brand_name:"${drugName}"+OR+openfda.generic_name:"${drugName}"`;
+        const url = `${FDA_API_BASE}?search=${searchQuery}&limit=1`;
+
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+            // 404 means drug not found in FDA database (or name mismatch)
+            const result: DrugSafetyInfo = { found: false, source: 'openFDA' };
+            SAFETY_CACHE[cacheKey] = result;
+            return result;
+        }
+
+        const data = await response.json();
+        const resultEntry = data.results?.[0];
+
+        if (!resultEntry) {
+            const result: DrugSafetyInfo = { found: false, source: 'openFDA' };
+            SAFETY_CACHE[cacheKey] = result;
+            return result;
+        }
+
+        // 3. Extract Critical Safety Data
+        const info: DrugSafetyInfo = {
+            found: true,
+            brandName: resultEntry.openfda?.brand_name?.[0],
+            genericName: resultEntry.openfda?.generic_name?.[0],
+            boxedWarning: resultEntry.boxed_warning, // This is the key field for safety
+            generalWarnings: resultEntry.warnings ? resultEntry.warnings.slice(0, 1) : undefined, // Grab first paragraph of general warnings
+            source: 'openFDA'
+        };
+
+        // 4. Cache and Return
+        SAFETY_CACHE[cacheKey] = info;
+        return info;
+
+    } catch (error) {
+        console.warn(`openFDA Fetch Error for ${drugName}:`, error);
+        // Fail open - we don't want to block the UI, but we can't verify.
+        return { found: false, source: 'Unknown' };
+    }
+};

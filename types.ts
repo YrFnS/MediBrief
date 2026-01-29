@@ -23,19 +23,21 @@ export interface ChatMessage {
   content: string;
   displayContent?: string;
   filePreview?: {
-    url?: string; // Optional, only for image previews
+    url?: string; // Ephemeral URL (blob:...) for display
     name: string;
     type: string;
-    base64?: string; // Persisted data for multi-turn history
+    storageId?: string; // ID referencing IndexedDB record (Persistent)
+    // Removed: base64 (Do not store in main state!)
   };
   sources?: GroundingSource[]; 
 }
 
 export interface UploadedFile {
   file: File;
-  base64: string;
+  base64: string; // Kept here momentarily for ingestion, but stripped before storage
   type: string;
-  url?: string; // Optional, only for images
+  url?: string;
+  storageId?: string; // New field
 }
 
 export interface LiveTranscript {

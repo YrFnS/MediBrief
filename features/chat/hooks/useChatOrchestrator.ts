@@ -86,6 +86,9 @@ export const useChatOrchestrator = ({
             abortControllerRef.current = new AbortController();
             try {
                 const modeForRequest = ChatModeEnum.Standard;
+                // Note: History messages in store do not have base64 now. 
+                // geminiService handles fetching text. For images in export, it might be tricky, 
+                // but PDF export usually just needs text structure.
                 const stream = generateResponseStream(SHIFT_BRIEFING_PROMPT(), history, modeForRequest, { responseType: 'json' });
                 let fullResponseText = '';
                 for await (const chunk of stream) {
@@ -127,7 +130,10 @@ export const useChatOrchestrator = ({
         // --- Standard Message & File Handling ---
         let finalApiPrompt = trimmedPrompt;
         let historyContent = trimmedPrompt;
+        
+        // This object is for the API call (needs base64)
         let fileForApi: UploadedFile | undefined = uploadedFile || undefined;
+        
         let displayOverride = undefined;
         let modeForRequest: ChatModeEnum = chatMode === ChatModeEnum.Live ? ChatModeEnum.Standard : chatMode;
         let responseType: 'json' | 'text' = 'text';
@@ -147,14 +153,18 @@ export const useChatOrchestrator = ({
                     const promptBase = trimmedPrompt ? `User Query: ${trimmedPrompt}` : `Analyze this medical document.`;
                     analysisPrompt = FILE_ANALYSIS_PROMPT(uploadedFile.file.name) + `\n\n${promptBase}`;
                 } else if (uploadedFile.type === 'text/plain' || uploadedFile.file.name.endsWith('.txt') || uploadedFile.file.name.endsWith('.md')) {
+                     // Text files are embedded directly, no need for blob handling in message
+                     // We read the file here since it's already in memory from the input
+                     // NOTE: uploadedFile.file is the File object.
                      const textContent = await uploadedFile.file.text();
                      const promptBase = trimmedPrompt ? `User Query: ${trimmedPrompt}` : `Analyze this document.`;
                      const fullEmbeddedContent = `*** BEGIN FILE CONTENT: ${uploadedFile.file.name} ***\n${textContent}\n*** END FILE CONTENT ***\n\n${promptBase}`;
                      analysisPrompt = fullEmbeddedContent;
                      historyContent = fullEmbeddedContent;
                      displayOverride = `📄 **Uploaded ${uploadedFile.file.name}**\n\n${trimmedPrompt || "Requested analysis."}`;
-                     fileForApi = undefined; 
+                     fileForApi = undefined; // Don't send as inlineData
                 } else {
+                    // Images
                     const baseAnalysisPrompt = FILE_ANALYSIS_PROMPT(uploadedFile.file.name);
                     if (!trimmedPrompt) {
                         analysisPrompt = baseAnalysisPrompt;
@@ -189,12 +199,17 @@ export const useChatOrchestrator = ({
 
         if (trimmedPrompt.toLowerCase().startsWith('/patient')) modeForRequest = ChatModeEnum.Standard;
 
-        // UI Updates
+        // UI Updates - Store Message (NO BASE64 HERE)
         const userMessage: ChatMessage = { role: 'user', content: historyContent };
         if (displayOverride) userMessage.displayContent = displayOverride;
-        if (uploadedFile) {
-            const persistenceUrl = uploadedFile.type.startsWith('image/') && uploadedFile.base64 ? `data:${uploadedFile.type};base64,${uploadedFile.base64}` : undefined;
-            userMessage.filePreview = { name: uploadedFile.file.name, type: uploadedFile.type, url: persistenceUrl, base64: fileForApi ? uploadedFile.base64 : undefined };
+        
+        if (uploadedFile && fileForApi) { // Only add filePreview if we are actually treating it as an image/blob
+            userMessage.filePreview = { 
+                name: uploadedFile.file.name, 
+                type: uploadedFile.type, 
+                url: uploadedFile.url, // Keep ephemeral URL for immediate display
+                storageId: uploadedFile.storageId // Persist ID
+            };
         }
         
         chatActions.addMessage(activePatientId, userMessage);
@@ -209,6 +224,8 @@ export const useChatOrchestrator = ({
 
         try {
             const history = [...messages];
+            // Pass fileForApi which contains base64 for the active request.
+            // geminiService will use this active file for the request.
             const stream = generateResponseStream(finalApiPrompt, history, modeForRequest, { file: fileForApi, responseType, location: userLocation });
             
             for await (const chunk of stream) {
@@ -275,7 +292,6 @@ export const useChatOrchestrator = ({
                              }];
                          }
                          
-                         // Map Flag to Interpretation
                          if (lab.flag && lab.flag !== 'Normal') {
                              obs.interpretation = [{ text: lab.flag }];
                          }
@@ -285,9 +301,7 @@ export const useChatOrchestrator = ({
 
                     if (newObs.length > 0) {
                         clinicalActions.ingestObservations(activePatientId, newObs);
-
-                        // TRIGGER AI SAFETY CHECK
-                        // Need to fetch current observations to check safety
+                        
                         const existingObs = useClinicalStore.getState().data[activePatientId]?.observations || [];
                         const combinedObs = [...existingObs, ...newObs];
                         

@@ -33,18 +33,46 @@ const CDSSContainer: React.FC = () => {
         }
     };
 
+    // Filter alerts into visibility tiers
+    const criticalAlerts = activeAlerts.filter(a => a.level === 'Critical');
+    const standardAlerts = activeAlerts.filter(a => a.level !== 'Critical');
+
     return (
-        <div className="absolute bottom-4 right-4 z-40 flex flex-col items-end pointer-events-none">
-            <div className="pointer-events-auto flex flex-col items-end">
-                {activeAlerts.map(alert => (
-                    <InterventionCard 
-                        key={alert.id} 
-                        alert={alert} 
-                        onAction={handleAction} 
-                    />
-                ))}
-            </div>
-        </div>
+        <>
+            {/* TIER 1: CRITICAL INTERVENTION LAYER (BLOCKING OVERLAY) */}
+            {/* Sits on top of everything except the absolute header, dims the chat content */}
+            {criticalAlerts.length > 0 && (
+                <div className="fixed inset-0 z-[60] flex items-start justify-center pt-20 md:pt-32 bg-slate-900/40 backdrop-blur-[3px] pointer-events-auto px-4 pb-4 overflow-y-auto animate-fade-in">
+                    <div className="w-full max-w-3xl flex flex-col gap-4">
+                        {criticalAlerts.map(alert => (
+                            <InterventionCard 
+                                key={alert.id} 
+                                alert={alert} 
+                                onAction={handleAction} 
+                                variant="banner"
+                            />
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* TIER 2: STANDARD NOTIFICATION LAYER (BOTTOM RIGHT TOASTS) */}
+            {/* Non-intrusive updates for warnings and info */}
+            {standardAlerts.length > 0 && (
+                <div className="absolute bottom-4 right-4 z-40 flex flex-col items-end pointer-events-none">
+                    <div className="pointer-events-auto flex flex-col items-end w-full max-w-sm gap-2">
+                        {standardAlerts.map(alert => (
+                            <InterventionCard 
+                                key={alert.id} 
+                                alert={alert} 
+                                onAction={handleAction}
+                                variant="toast" 
+                            />
+                        ))}
+                    </div>
+                </div>
+            )}
+        </>
     );
 };
 

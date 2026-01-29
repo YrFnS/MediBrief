@@ -13,13 +13,14 @@ import BioMetricBackground from './BioMetricBackground';
 import { useLiveSession } from '../../hooks/useLiveSession';
 import { useFileDragAndDrop } from '../../hooks/useFileDragAndDrop';
 import { useChatOrchestrator } from '../chat/hooks/useChatOrchestrator';
-import { DocumentTextIcon, ShieldCheckIcon } from '../../components/icons';
+import { DocumentTextIcon, ShieldCheckIcon, EyeIcon } from '../../components/icons';
 import { usePatientStore } from '../patient-management/usePatientStore';
 import { useChatStore } from '../chat/stores/useChatStore';
 import { useUIStore } from '../ui/UIContext';
 
 // --- IDLE TIMER CONSTANTS ---
-const IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 5 Minutes
+const PRIVACY_BLUR_MS = 2 * 60 * 1000; // 2 Minutes -> Blur
+const AUTO_LOCK_MS = 15 * 60 * 1000;   // 15 Minutes -> Full Lock
 
 const MainLayout: React.FC = () => {
     // --- STORES ---
@@ -41,18 +42,26 @@ const MainLayout: React.FC = () => {
     const [userLocation, setUserLocation] = useState<{latitude: number, longitude: number} | undefined>(undefined);
     const [viewingImage, setViewingImage] = useState<{src: string, alt: string} | null>(null);
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    
+    // Security State
     const [isLocked, setIsLocked] = useState(false);
+    const [isBlurred, setIsBlurred] = useState(false);
     const lastActivityRef = useRef(Date.now());
 
     // --- IDLE LOCK LOGIC ---
     useEffect(() => {
         const resetTimer = () => {
             lastActivityRef.current = Date.now();
+            setIsBlurred(prev => prev ? false : prev); // Optimistic unblur
         };
 
         const checkIdle = () => {
-            if (Date.now() - lastActivityRef.current > IDLE_TIMEOUT_MS) {
+            const idleTime = Date.now() - lastActivityRef.current;
+            
+            if (idleTime > AUTO_LOCK_MS) {
                 setIsLocked(true);
+            } else if (idleTime > PRIVACY_BLUR_MS) {
+                setIsBlurred(true);
             }
         };
 
@@ -63,7 +72,7 @@ const MainLayout: React.FC = () => {
         window.addEventListener('scroll', resetTimer);
         
         // Check interval
-        const intervalId = setInterval(checkIdle, 10000); // Check every 10s
+        const intervalId = setInterval(checkIdle, 5000); // Check every 5s
 
         return () => {
             window.removeEventListener('mousemove', resetTimer);
@@ -139,7 +148,7 @@ const MainLayout: React.FC = () => {
 
     const toggleLiveSession = useCallback(() => isLive ? stopSession() : startSession(activeMessages), [isLive, stopSession, startSession, activeMessages]);
 
-    // --- LOCK SCREEN UI ---
+    // --- LOCK SCREEN UI (Full Security) ---
     if (isLocked) {
         return (
             <div className="flex flex-col items-center justify-center h-screen bg-slate-950 text-white relative overflow-hidden">
@@ -147,11 +156,12 @@ const MainLayout: React.FC = () => {
                 <div className="z-10 bg-slate-900 border border-slate-700 p-8 rounded-md shadow-2xl max-w-sm w-full text-center technical-border">
                     <ShieldCheckIcon className="w-12 h-12 text-blue-500 mx-auto mb-4 animate-pulse" />
                     <h2 className="text-xl font-display font-bold uppercase tracking-widest mb-2">Session Locked</h2>
-                    <p className="text-sm text-slate-400 font-mono mb-6">Security Timeout Triggered (5m)</p>
+                    <p className="text-sm text-slate-400 font-mono mb-6">Security Timeout (15m)</p>
                     <button 
                         onClick={() => {
                             lastActivityRef.current = Date.now();
                             setIsLocked(false);
+                            setIsBlurred(false);
                         }}
                         className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold uppercase tracking-widest rounded-sm transition-colors"
                     >
@@ -181,6 +191,65 @@ const MainLayout: React.FC = () => {
         >
             <BioMetricBackground />
 
+            {/* CONTENT WRAPPER: Applied Blur Filter here */}
+            <div className={`flex flex-1 w-full h-full relative transition-all duration-700 ${isBlurred ? 'blur-md opacity-60 grayscale scale-[0.99] pointer-events-none' : ''}`}>
+                <SidebarRoster 
+                    isOpen={isSidebarOpen} 
+                    toggle={() => setIsSidebarOpen(!isSidebarOpen)} 
+                />
+
+                <div className="flex-1 flex flex-col min-w-0 relative z-10">
+                    <Header
+                        currentMode={chatMode}
+                        onModeChange={(mode) => uiDispatch({ type: 'SET_CHAT_MODE', payload: mode })}
+                        onClearChat={handleClearChat}
+                        onExportChat={handleExportChat}
+                        onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+                    />
+                    
+                    {activePatient && (
+                        <HeadsUpDisplay patient={activePatient} />
+                    )}
+                    
+                    <CDSSContainer />
+                    
+                    {chatMode === ChatModeEnum.Scribe ? (
+                        <ScribeInterface />
+                    ) : (
+                        <>
+                            <MessageList 
+                                messages={activeMessages} 
+                                isLoading={isLoading} 
+                                isLive={isLive} 
+                                liveTranscript={transcript} 
+                                onViewImage={handleViewImage}
+                            />
+                            
+                            <InputBar
+                                onSend={handleSend}
+                                onClearFile={clearFile}
+                                setUploadedFile={setUploadedFile}
+                                uploadedFile={uploadedFile}
+                                isLoading={isLoading}
+                                currentMode={chatMode}
+                                toggleLiveSession={toggleLiveSession}
+                                isLiveSessionActive={isLive}
+                                onStop={handleStop}
+                            />
+                        </>
+                    )}
+                </div>
+            </div>
+
+            {/* PRIVACY SHIELD OVERLAY (Visible only when blurred) */}
+            <div className={`absolute inset-0 z-[60] flex items-center justify-center pointer-events-none transition-opacity duration-500 ${isBlurred ? 'opacity-100' : 'opacity-0'}`}>
+                 <div className="bg-slate-900/90 text-white px-8 py-4 rounded-full font-mono text-sm uppercase tracking-widest shadow-2xl border border-white/10 flex items-center gap-3 animate-slide-up">
+                    <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                    <EyeIcon className="w-4 h-4 text-emerald-500" />
+                    <span>Privacy Shield Active</span>
+                 </div>
+            </div>
+
             {isDragging && (
                 <div className="absolute inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center m-4 rounded-xl animate-fade-in pointer-events-none border-2 border-blue-500/50 shadow-[0_0_50px_rgba(59,130,246,0.3)]">
                     <div className="flex flex-col items-center text-blue-400 animate-pulse">
@@ -198,53 +267,6 @@ const MainLayout: React.FC = () => {
                     onClose={() => setViewingImage(null)} 
                 />
             )}
-
-            <SidebarRoster 
-                isOpen={isSidebarOpen} 
-                toggle={() => setIsSidebarOpen(!isSidebarOpen)} 
-            />
-
-            <div className="flex-1 flex flex-col min-w-0 relative z-10">
-                <Header
-                    currentMode={chatMode}
-                    onModeChange={(mode) => uiDispatch({ type: 'SET_CHAT_MODE', payload: mode })}
-                    onClearChat={handleClearChat}
-                    onExportChat={handleExportChat}
-                    onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
-                />
-                
-                {activePatient && (
-                    <HeadsUpDisplay patient={activePatient} />
-                )}
-                
-                <CDSSContainer />
-                
-                {chatMode === ChatModeEnum.Scribe ? (
-                    <ScribeInterface />
-                ) : (
-                    <>
-                        <MessageList 
-                            messages={activeMessages} 
-                            isLoading={isLoading} 
-                            isLive={isLive} 
-                            liveTranscript={transcript} 
-                            onViewImage={handleViewImage}
-                        />
-                        
-                        <InputBar
-                            onSend={handleSend}
-                            onClearFile={clearFile}
-                            setUploadedFile={setUploadedFile}
-                            uploadedFile={uploadedFile}
-                            isLoading={isLoading}
-                            currentMode={chatMode}
-                            toggleLiveSession={toggleLiveSession}
-                            isLiveSessionActive={isLive}
-                            onStop={handleStop}
-                        />
-                    </>
-                )}
-            </div>
         </div>
     );
 };

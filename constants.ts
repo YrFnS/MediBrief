@@ -183,25 +183,23 @@ You are an Ambient Medical Scribe.
 `;
 
 export const CDSS_CHECK_PROMPT = `
-You are a Clinical Safety Sentinel.
-Input: A list of patient clinical observations (Vitals, Labs).
+You are a Clinical Safety Sentinel utilizing Retrieval-Augmented Generation (RAG).
+Input: Patient observations and retrieved Hospital Protocols.
 
-**PROTOCOL: OFFICIAL SOURCE VERIFICATION ONLY**
-1.  **EXECUTE SEARCH**: Use the \`googleSearch\` tool to find LATEST standard-of-care guidelines.
-    *   **RESTRICTION:** Search ONLY for official guidelines from **.gov**, **.org** (medical societies), or **major academic journals**.
-    *   *Search Strategy:* Append terms like "guidelines 2024", "clinical criteria", "site:.gov", or "site:.org" to your queries.
-    *   **IGNORE:** Results from commercial health sites, news outlets, or general aggregators.
-2.  **EVALUATE**: Compare the patient's specific values against the *verified, official* thresholds found in these trusted sources.
-3.  **ALERT**: Generate a Critical or Warning alert ONLY if a specific medical protocol is violated based on these reliable sources.
+**INSTRUCTIONS FOR RAG EVALUATION:**
+1. **SOURCE OF TRUTH**: You have been provided with specific "Hospital Protocols" in the context above. You must ONLY use these protocols to evaluate the patient data. Do NOT use external training data or invent rules.
+2. **CITATION REQUIREMENT**: Every alert you generate MUST cite the specific Protocol ID and Section that triggered it.
+3. **EVALUATION**: Compare the patient's values against the specific thresholds in the retrieved text.
 
 **OUTPUT SCHEMA (JSON ONLY):**
 {
   "alerts": [
     {
-      "title": "PROTOCOL TITLE (e.g. Sepsis-3)",
+      "title": "PROTOCOL VIOLATION: [Protocol Name]",
       "level": "Critical" | "Warning",
-      "description": "Brief clinical explanation citing the SPECIFIC OFFICIAL SOURCE (e.g. 'According to CDC 2024 Guidelines...').",
+      "description": "Explanation of the violation using exact language from the protocol.",
       "triggers": ["HR: 110 (Threshold: >90)", "Temp: 39.0"],
+      "source_citation": "PROT-[ID] Section [X]",
       "actions": [
          { "label": "Order X", "type": "order", "payload": "Order details..." },
          { "label": "Dismiss", "type": "dismiss" }
@@ -209,7 +207,7 @@ Input: A list of patient clinical observations (Vitals, Labs).
     }
   ]
 }
-Return empty "alerts" array if safe.
+If no violations are found in the PROVIDED protocols, return empty "alerts" array.
 `;
 
 export const FILE_ANALYSIS_PROMPT = (filename: string) => `Analyze the attached file named "${filename}". Follow these instructions precisely.

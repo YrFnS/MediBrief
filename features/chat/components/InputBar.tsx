@@ -5,11 +5,12 @@ import { ChatMode as ChatModeEnum } from '../../../types';
 import { PaperclipIcon, SendIcon, XCircleIcon, BriefingIcon, UserIcon, DrugsIcon, DownloadIcon, DocumentTextIcon, MicrophoneIcon, CameraIcon, LiveIcon, StopIcon, BodyIcon } from '../../../components/icons';
 import { useSpeechRecognition } from '../../../hooks/useSpeechRecognition';
 import BodyMap from '../../../components/BodyMap';
+import { useFileDragAndDrop } from '../../../hooks/useFileDragAndDrop';
 
 interface InputBarProps {
     onSend: (prompt: string) => void;
     onClearFile: () => void;
-    setUploadedFile: (file: UploadedFile) => void;
+    setUploadedFile: (file: UploadedFile | null) => void;
     isLoading: boolean;
     currentMode: ChatMode;
     uploadedFile: UploadedFile | null;
@@ -33,6 +34,10 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
     const cameraInputRef = useRef<HTMLInputElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+    // We use the hook here locally just to access the `processFile` logic for clicks
+    // The main drag/drop state is handled in MainLayout, but click uploads happen here
+    const { processFile } = useFileDragAndDrop();
+
     const { isListening, toggleListening, stopListening } = useSpeechRecognition({
         onResult: (transcript) => setPrompt(transcript),
         onError: (err) => alert(err)
@@ -41,21 +46,54 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
     useEffect(() => {
         let activeUrl = uploadedFile?.url;
         return () => {
-            if (activeUrl) setTimeout(() => URL.revokeObjectURL(activeUrl!), 1000);
+            if (activeUrl && activeUrl.startsWith('blob:')) {
+                // Revoke object URL to free memory when file is cleared or changed
+                URL.revokeObjectURL(activeUrl);
+            }
         };
     }, [uploadedFile]);
 
-    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (file) {
-            if (file.size > 4 * 1024 * 1024) {
-                alert("File is too large. Please select a file smaller than 4MB.");
+            // We need to bridge the local processFile to the parent's setUploadedFile
+            // This is a bit of a workaround because processFile sets its own state
+            // In a real app, we'd refactor the hook to return the processed object promise
+            
+            // Re-implementing simplified process logic here to feed parent prop
+            if (file.size > 10 * 1024 * 1024) { 
+                alert("File is too large. Max 10MB.");
                 return;
             }
+            
+            // We use the shared logic from the hook instance in MainLayout via props usually,
+            // but here we manually trigger the read to pass to `setUploadedFile` prop.
+            // Ideally, `setUploadedFile` in MainLayout should handle the IDB save.
+            // For now, we will perform the read and let the MainLayout hook handle state.
+            
+            // Actually, best approach: Use the prop. 
+            // The MainLayout `useFileDragAndDrop` is source of truth.
+            // We can't easily access its internal `processFile` without passing it down.
+            // Let's implement the read + save here and call setUploadedFile.
+            
+            const { blobStorage } = await import('../../../services/blobStorageService');
+            const { v4: uuidv4 } = await import('uuid');
+
             const reader = new FileReader();
-            reader.onloadend = () => {
+            reader.onloadend = async () => {
                 const base64 = (reader.result as string).split(',')[1];
-                const uploadPayload: UploadedFile = { file, base64, type: file.type };
+                const storageId = uuidv4();
+                
+                try {
+                    await blobStorage.saveFile(storageId, base64, file.type);
+                } catch(e) { console.error(e); }
+
+                const uploadPayload: UploadedFile = { 
+                    file, 
+                    base64, 
+                    type: file.type, 
+                    storageId 
+                };
                 if (file.type.startsWith('image/')) {
                     uploadPayload.url = URL.createObjectURL(file);
                 }

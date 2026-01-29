@@ -2,45 +2,59 @@
 import { GoogleGenAI, GenerateContentResponse, Content, Part, GenerateContentParameters } from "@google/genai";
 import type { ChatMessage, ChatMode, UploadedFile } from '../types';
 import { MODEL_CONFIGS, SYSTEM_INSTRUCTION } from '../constants';
+import { cleanJsonOutput } from '../utils';
+
+// Helper to extract a concise summary from a previous model response to substitute for an image
+const extractImageInsights = (modelResponseText: string): string | null => {
+    if (!modelResponseText) return null;
+    
+    try {
+        // 1. Try JSON parsing first (Common for MediBrief's file analysis)
+        const jsonStr = cleanJsonOutput(modelResponseText);
+        if (jsonStr.startsWith('{')) {
+            const data = JSON.parse(jsonStr);
+            // Prioritize fields that describe the visual content
+            if (data.visualObservations) return data.visualObservations;
+            if (data.interpretation) return data.interpretation;
+            if (data.summary) return data.summary;
+            if (data.findings) return data.findings;
+        }
+    } catch (e) {
+        // Fallback to text heuristics if JSON parse fails
+    }
+
+    // 2. Text fallback: Look for "Visual Observations:" or similar headers in Markdown
+    const match = modelResponseText.match(/\*\*Visual Observations\*\*:\s*(.*?)(\n|$)/i);
+    if (match && match[1]) return match[1].trim();
+
+    // 3. Fallback: Take a truncated version of the response as context
+    // Limit to 300 chars to be token-efficient
+    return modelResponseText.slice(0, 300).replace(/\n/g, ' ') + (modelResponseText.length > 300 ? "..." : "");
+};
 
 // Helper to convert our app's message format to Gemini's format.
-const messageToContent = (message: ChatMessage, isHistory: boolean = false): Content => {
+const messageToContent = (message: ChatMessage, isHistory: boolean = false, injectedContext?: string | null): Content => {
     const parts: Part[] = [];
 
     // If the message has a persistent file attached
     if (message.filePreview) {
-        // COST OPTIMIZATION & ZOMBIE FILE LOGIC:
+        // COST OPTIMIZATION & STORAGE SAFETY:
         // We strictly control when to send base64 image data.
-        // Sending high-res images in the chat history (every turn) is extremely expensive and redundant
-        // because the model (Assistant) has already processed and described the image in the previous turn.
+        // 1. We NEVER send base64 if isHistory is true (saves tokens).
+        // 2. We check if the message object even HAS base64 (it shouldn't if loaded from store).
         
-        const hasData = message.filePreview.base64 && message.filePreview.type;
-        const shouldSendImage = !isHistory && hasData;
-
-        if (shouldSendImage) {
-            parts.push({
-                inlineData: {
-                    mimeType: message.filePreview.type,
-                    data: message.filePreview.base64!,
-                }
-            });
-        } else {
-            // "Zombie" / Context Preservation Logic:
-            // If data is missing (reload) OR if we intentionally stripped it (history optimization),
-            // we inject a System Note. This prevents the model from hallucinating that it "can't see" anything,
-            // by explicitly telling it to rely on memory/previous analysis.
-            
-            const isImage = message.filePreview.type.startsWith('image/');
-            
-            // We only inject a text placeholder if this was an image.
-            // Text files are already embedded in `message.content` by App.tsx logic, so they don't need this
-            // UNLESS the text content was also huge and stripped (future optimization).
-            if (isImage) {
-                 parts.push({ 
-                    text: `[System Note: The user attached an image named "${message.filePreview.name}" in a previous turn. To conserve tokens, the image data is not re-sent. Please rely on your previous analysis of this image.]` 
-                });
-            } 
-        }
+        const isImage = message.filePreview.type.startsWith('image/');
+        
+        if (isImage && isHistory) {
+             // INTELLIGENT CONTEXT SUBSTITUTION:
+             // Instead of sending raw bytes (expensive/impossible for history) or a blank placeholder (lossy),
+             // we inject the *previous analysis* of this image if available.
+             const contextNote = injectedContext 
+                ? `[System: User uploaded image "${message.filePreview.name}". Context from previous analysis: ${injectedContext}]`
+                : `[System: User attached image "${message.filePreview.name}". Image data not re-sent. Rely on previous analysis.]`;
+             
+             parts.push({ text: contextNote });
+        } 
     }
 
     if (message.content) {
@@ -99,33 +113,42 @@ export const generateResponseStream = async function* (
   // Different models have different cost/latency profiles.
   // We dynamically adjust the window size based on the active mode.
   
-  // Default to 15 if not specified (legacy safety), but prefer config value.
   const MAX_TEXT_TURNS = (modelConfig as any).contextLimit || 15;
   
-  // Identify "Medical Records" (Messages with file attachments)
-  // We generally assume these are CRITICAL and "Sticky" (should not be pruned easily).
   const medicalRecords = rawHistory.filter(msg => msg.filePreview !== undefined);
-  
-  // Identify "Conversation" (Text-only messages)
   const conversation = rawHistory.filter(msg => msg.filePreview === undefined);
-  
-  // Prune the conversation based on the model's budget
   const recentConversation = conversation.slice(-MAX_TEXT_TURNS);
   
-  // Re-assemble and sort by original order to maintain logical flow.
-  // Using a Set for O(1) lookups to reconstruct order efficiently.
+  // Combine sets but maintain chronological order
   const keptMessagesSet = new Set([...medicalRecords, ...recentConversation]);
-  
   const historyToProcess = rawHistory.filter(msg => keptMessagesSet.has(msg));
 
-  // Map history to API Content objects.
-  // Pass 'true' to isHistory to strip expensive image binaries, but KEEP text.
-  let contents: Content[] = historyToProcess.map(msg => messageToContent(msg, true));
+  // 3. Map history to API Content objects with Context Injection
+  let contents: Content[] = [];
+  
+  for (let i = 0; i < historyToProcess.length; i++) {
+      const msg = historyToProcess[i];
+      const nextMsg = historyToProcess[i + 1];
+      
+      let imageContext = null;
+      
+      // Check if this is an image upload turn followed by a model response
+      if (msg.role === 'user' && msg.filePreview?.type.startsWith('image/') && nextMsg && nextMsg.role === 'model') {
+          // Extract insights from the *next* message (the model's analysis)
+          // to substitute for the missing image data in this *user* message.
+          imageContext = extractImageInsights(nextMsg.content);
+      }
+      
+      contents.push(messageToContent(msg, true, imageContext));
+  }
+
   contents = consolidateContents(contents);
 
   const currentMessageParts: Part[] = [];
 
-  if (file) {
+  // This is the ONLY place where actual image binary data is sent to the model
+  // It comes from the 'file' option (current upload), NOT the chat history state.
+  if (file && file.base64) {
     currentMessageParts.push({
       inlineData: {
         mimeType: file.type,
@@ -145,7 +168,6 @@ export const generateResponseStream = async function* (
       systemInstruction: SYSTEM_INSTRUCTION,
       ...modelConfig.config,
       ...(options?.responseType === 'json' ? { responseMimeType: 'application/json' } : {}),
-      // GROUNDING: If options provide location, inject it into toolConfig
       ...(options?.location ? {
          toolConfig: {
              retrievalConfig: {

@@ -5,6 +5,7 @@ import { FHIRObservation } from '../fhir/types';
 import { CDSSAlert } from './types';
 import { CDSS_CHECK_PROMPT } from '../../constants';
 import { cleanJsonOutput } from '../../utils';
+import { retrieveRelevantProtocols } from './retrievalService';
 
 export const evaluateClinicalSafety = async (observations: FHIRObservation[]): Promise<CDSSAlert[]> => {
     if (!observations || observations.length === 0) return [];
@@ -12,29 +13,33 @@ export const evaluateClinicalSafety = async (observations: FHIRObservation[]): P
     try {
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         
-        // Format observations for the model
-        // Safe access for optional FHIR fields
+        // 1. Format observations for the model
         const obsString = observations.map(o => 
-            `${o.code.text || 'Unknown Test'}: ${o.valueQuantity?.value ?? 'N/A'} ${o.valueQuantity?.unit || ''} (${o.effectiveDateTime || 'No Date'})`
+            `- ${o.code.text || 'Unknown Test'}: ${o.valueQuantity?.value ?? 'N/A'} ${o.valueQuantity?.unit || ''} (Time: ${o.effectiveDateTime || 'Unknown'})`
         ).join('\n');
 
+        // 2. RAG STEP: Retrieve relevant protocols based on the data
+        const protocolContext = retrieveRelevantProtocols(observations);
+
+        // 3. Construct Prompt
         const contents = [
             {
                 role: 'user',
                 parts: [
                     { text: CDSS_CHECK_PROMPT },
-                    { text: `\n\n**PATIENT OBSERVATIONS:**\n${obsString}` }
+                    { text: protocolContext }, // INJECTED KNOWLEDGE
+                    { text: `\n\n*** PATIENT OBSERVATIONS TO EVALUATE ***\n${obsString}` }
                 ]
             }
         ];
 
-        // UPGRADE: Use Gemini 3.0 Flash for better reasoning + search tool use
+        // 4. Generate with Low Temperature for adherence to protocol
         const response = await ai.models.generateContent({
             model: 'gemini-3-flash-preview',
             contents: contents,
             config: {
                 responseMimeType: 'application/json',
-                tools: [{ googleSearch: {} }] // MANDATORY: AI must verify via search
+                temperature: 0.1 // Strict adherence
             }
         });
 
@@ -47,7 +52,7 @@ export const evaluateClinicalSafety = async (observations: FHIRObservation[]): P
         if (parsed.alerts && Array.isArray(parsed.alerts)) {
             return parsed.alerts.map((alert: any) => ({
                 id: uuidv4(),
-                ruleId: `ai-gen-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                ruleId: alert.source_citation ? `prot-${alert.source_citation}` : `ai-${Date.now()}`, // Use protocol ID as key if avail
                 title: alert.title || 'CLINICAL ALERT',
                 description: alert.description || 'Potential protocol violation detected.',
                 level: (alert.level === 'Critical' || alert.level === 'Warning') ? alert.level : 'Info',
