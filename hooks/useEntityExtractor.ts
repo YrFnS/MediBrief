@@ -1,5 +1,5 @@
 
-import { useCallback } from 'react';
+import React, { useCallback } from 'react';
 import { UploadedFile } from '../types';
 import { extractEntitiesFromUpload } from '../features/clinical-analysis/entityExtractionService';
 import { PatientAction } from '../features/patient-management/usePatientStore';

@@ -5,6 +5,7 @@ import PatientCard from './PatientCard';
 import AddPatientDialog from './AddPatientDialog';
 import { ChevronLeftIcon, UsersIcon, DownloadIcon, ClipboardIcon, PlusIcon } from '../../components/icons';
 import { useToast } from '../../components/Toast';
+import { PatientContext } from '../patient-management/types';
 
 interface SidebarRosterProps {
     isOpen: boolean;
@@ -17,7 +18,7 @@ const SidebarRoster: React.FC<SidebarRosterProps> = ({ isOpen, toggle }) => {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const patientsList = Object.values(state.patients).sort((a, b) => b.lastActive - a.lastActive);
+    const patientsList = (Object.values(state.patients) as PatientContext[]).sort((a, b) => b.lastActive - a.lastActive);
 
     const handleSwitch = (id: string) => {
         dispatch({ type: 'SWITCH_PATIENT', payload: { id } });

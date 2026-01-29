@@ -15,12 +15,16 @@ import { useFileDragAndDrop } from '../../hooks/useFileDragAndDrop';
 import { useChatOrchestrator } from '../../hooks/useChatOrchestrator';
 import { DocumentTextIcon } from '../../components/icons';
 import { usePatientStore } from '../patient-management/usePatientStore';
+import { useUIStore } from '../ui/UIContext';
 
 const MainLayout: React.FC = () => {
-    // --- State & Stores ---
-    const { state, dispatch, activePatient, activeMessages } = usePatientStore();
+    // --- Stores ---
+    const { state: patientState, dispatch: patientDispatch, activePatient, activeMessages } = usePatientStore();
+    const { uiState, uiDispatch } = useUIStore();
+    
+    // --- UI State ---
     const { uploadedFile, setUploadedFile, isDragging, clearFile, dragHandlers } = useFileDragAndDrop();
-    const { globalChatMode, isLoading } = state;
+    const { chatMode, isLoading } = uiState;
     
     // --- Local UI State ---
     const [userLocation, setUserLocation] = useState<{latitude: number, longitude: number} | undefined>(undefined);
@@ -50,30 +54,37 @@ const MainLayout: React.FC = () => {
 
     // --- Live Session Integration ---
     const handleLiveTurnComplete = useCallback((userInput: string, modelOutput: string) => {
-        if (userInput) dispatch({ type: 'ADD_FULL_RESPONSE', payload: { message: { role: 'user', content: userInput } } });
-        if (modelOutput) dispatch({ type: 'ADD_FULL_RESPONSE', payload: { message: { role: 'model', content: modelOutput } } });
-    }, [dispatch]);
+        if (userInput) patientDispatch({ type: 'ADD_FULL_RESPONSE', payload: { message: { role: 'user', content: userInput } } });
+        if (modelOutput) patientDispatch({ type: 'ADD_FULL_RESPONSE', payload: { message: { role: 'model', content: modelOutput } } });
+    }, [patientDispatch]);
 
     const { isLive, transcript, startSession, stopSession, error: liveError } = useLiveSession(handleLiveTurnComplete);
 
     useEffect(() => {
-        if (liveError) dispatch({ type: 'REQUEST_FAILED', payload: liveError });
-    }, [liveError, dispatch]);
+        if (liveError) {
+            // Log error to chat
+            patientDispatch({ type: 'REQUEST_FAILED', payload: liveError });
+            // Notify UI (optional, usually handled by toast/component state)
+            uiDispatch({ type: 'SET_ERROR', payload: liveError });
+        }
+    }, [liveError, patientDispatch, uiDispatch]);
 
     useEffect(() => {
-        if (globalChatMode !== ChatModeEnum.Live && isLive) stopSession();
-    }, [globalChatMode, isLive, stopSession]);
+        if (chatMode !== ChatModeEnum.Live && isLive) stopSession();
+    }, [chatMode, isLive, stopSession]);
 
     useEffect(() => {
-        if (isLive && globalChatMode !== ChatModeEnum.Live) dispatch({ type: 'SET_CHAT_MODE', payload: ChatModeEnum.Live });
-    }, [isLive, globalChatMode, dispatch]);
+        if (isLive && chatMode !== ChatModeEnum.Live) uiDispatch({ type: 'SET_CHAT_MODE', payload: ChatModeEnum.Live });
+    }, [isLive, chatMode, uiDispatch]);
 
     // --- Chat Orchestrator ---
     const { handleSend, handleStop, handleClearChat, handleExportChat } = useChatOrchestrator({
-        messages: activeMessages, // Pass the ACTIVE patient's messages
+        messages: activeMessages, 
         activePatientId: activePatient?.id,
-        chatMode: globalChatMode,
-        dispatch,
+        activePatient: activePatient, 
+        chatMode: chatMode,
+        dispatch: patientDispatch,
+        uiDispatch: uiDispatch, // Pass UI dispatch
         uploadedFile,
         setUploadedFile,
         isLive,
@@ -139,8 +150,8 @@ const MainLayout: React.FC = () => {
             {/* 2. Main Content (Right) */}
             <div className="flex-1 flex flex-col min-w-0 relative z-10">
                 <Header
-                    currentMode={globalChatMode}
-                    onModeChange={(mode) => dispatch({ type: 'SET_CHAT_MODE', payload: mode })}
+                    currentMode={chatMode}
+                    onModeChange={(mode) => uiDispatch({ type: 'SET_CHAT_MODE', payload: mode })}
                     onClearChat={handleClearChat}
                     onExportChat={handleExportChat}
                     onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -155,7 +166,7 @@ const MainLayout: React.FC = () => {
                 <CDSSContainer />
                 
                 {/* CONDITIONAL RENDER: SCRIBE vs CHAT */}
-                {globalChatMode === ChatModeEnum.Scribe ? (
+                {chatMode === ChatModeEnum.Scribe ? (
                     <ScribeInterface />
                 ) : (
                     <>
@@ -173,7 +184,7 @@ const MainLayout: React.FC = () => {
                             setUploadedFile={setUploadedFile}
                             uploadedFile={uploadedFile}
                             isLoading={isLoading}
-                            currentMode={globalChatMode}
+                            currentMode={chatMode}
                             toggleLiveSession={toggleLiveSession}
                             isLiveSessionActive={isLive}
                             onStop={handleStop}

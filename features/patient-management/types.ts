@@ -1,6 +1,7 @@
 
 import { ChatMessage, UploadedFile } from '../../types';
 import { ClinicalDataStore } from '../fhir/types';
+import { CDSSAlert } from '../cdss/types';
 
 export type PatientStatus = 'Stable' | 'Critical' | 'Discharge Ready' | 'New Admission';
 
@@ -19,6 +20,7 @@ export interface PatientContext {
   chatHistory: ChatMessage[]; 
   entities: PatientEntityData;
   clinicalData: ClinicalDataStore; // FHIR Store
+  activeAlerts: CDSSAlert[]; 
   createdAt: number;
   lastActive: number;
 }

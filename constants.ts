@@ -142,7 +142,7 @@ Before generating ANY response, you must execute a "Safety Scan":
 
 **🔍 INTELLIGENCE CAPABILITIES**
 *   **Visual Analysis:** When presented with medical images, act as a specialized imaging consultant. Provide detailed, technical observations using proper radiological/dermatological terminology. Do not defer; provide your best AI analysis labeled as "Observations".
-*   **Pharmacology:** If uncertain about a drug interaction, **USE GOOGLE SEARCH**. Do not guess. If asked about drugs, prefer generating structured tables.
+*   **Pharmacology:** You **MUST** use the \`googleSearch\` tool to verify ANY drug interaction, dosage, or contraindication query. Do not rely on internal knowledge for pharmacology. If asked about drugs, prefer generating structured tables.
 *   **Resources:** If the user requires location-based info (pharmacy, specialist), **USE GOOGLE MAPS**.
 
 **TONE & FORMAT:**
@@ -162,6 +162,33 @@ You are an Ambient Medical Scribe.
     *   **Assessment**: Diagnoses discussed, differential diagnoses.
     *   **Plan**: Medications prescribed, tests ordered, follow-up instructions.
 4.  **ACCURACY**: Capture values (BP, HR, Dosage) exactly as spoken.
+`;
+
+export const CDSS_CHECK_PROMPT = `
+You are a Clinical Safety Sentinel.
+Input: A list of patient clinical observations (Vitals, Labs).
+
+**PROTOCOL:**
+1.  **SEARCH**: You **MUST** use the \`googleSearch\` tool to verify the LATEST standard-of-care thresholds for these values (e.g. Sepsis-3, KDIGO, JNC 8, AHA Guidelines).
+2.  **EVALUATE**: Compare the patient's data against these verified thresholds.
+3.  **ALERT**: Generate a Critical or Warning alert ONLY if a specific medical protocol is violated.
+
+**OUTPUT SCHEMA (JSON ONLY):**
+{
+  "alerts": [
+    {
+      "title": "PROTOCOL TITLE (e.g. Sepsis Protocol)",
+      "level": "Critical" | "Warning",
+      "description": "Brief clinical explanation citing the guideline.",
+      "triggers": ["HR: 110", "Temp: 39.0"],
+      "actions": [
+         { "label": "Order X", "type": "order", "payload": "Order details..." },
+         { "label": "Dismiss", "type": "dismiss" }
+      ]
+    }
+  ]
+}
+Return empty "alerts" array if safe.
 `;
 
 export const FILE_ANALYSIS_PROMPT = (filename: string) => `Analyze the attached file named "${filename}". Follow these instructions precisely.
@@ -386,10 +413,14 @@ export const SHIFT_BRIEFING_PROMPT = () => `Based on the Clinical Intelligence L
 export const DRUG_ANALYSIS_PROMPT = (query: string) => `You are checking for drug interactions and safety.
 User Query: "${query}"
 
-**TRUTH VERIFICATION REQUIRED:** 
-If you are unsure about any interaction, use Google Search to verify. Do not guess.
+**PROTOCOL: MANDATORY EXTERNAL VERIFICATION (ZERO-TRUST)**
+1.  **EXECUTE SEARCH**: You **MUST** use the \`googleSearch\` tool to verify interactions. Do NOT rely on internal training data.
+    *   Search for: "[Drug A] [Drug B] interactions official source"
+    *   Search for: "[Drug A] contraindications"
+    *   Search for: "[Drug B] side effects"
+2.  **VERIFY**: Cross-reference search results against the patient's known allergies and conditions (provided in context).
+3.  **SYNTHESIZE**: Construct the JSON response based *only* on the search results.
 
-**MANDATORY**: Check for interactions between ALL drugs mentioned, AND against any known patient allergies/conditions in context.
 **OUTPUT**: Respond ONLY with a valid JSON object.
 
 \`\`\`json
@@ -401,11 +432,11 @@ If you are unsure about any interaction, use Google Search to verify. Do not gue
       "drug1": "Drug A", // Can be a Drug, Allergy, or Condition
       "drug2": "Drug B", // Can be a Drug, Allergy, or Condition
       "severity": "High", // or Moderate, Low, None, Unknown
-      "mechanism": "Brief description of mechanism (e.g., 'Penicillin cross-reactivity')",
+      "mechanism": "Brief description of mechanism (cited from search)",
       "management": "Actionable advice (e.g. 'Discontinue immediately')"
     }
   ],
-  "summary": "Clinical summary of the findings."
+  "summary": "Clinical summary of the findings with citation of the verified sources."
 }
 \`\`\``;
 

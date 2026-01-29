@@ -9,12 +9,17 @@ import { FILE_ANALYSIS_PROMPT, BRIEFING_TRIGGERS, SHIFT_BRIEFING_PROMPT, HELP_CO
 import { PatientAction } from '../features/patient-management/usePatientStore';
 import { useEntityExtractor } from './useEntityExtractor';
 import { FHIRObservation } from '../features/fhir/types';
+import { evaluateClinicalSafety } from '../features/cdss/rulesEngine';
+import { PatientContext } from '../features/patient-management/types';
+import { UIAction } from '../features/ui/UIContext';
 
 interface UseChatOrchestratorProps {
     messages: ChatMessage[];
     activePatientId?: string;
+    activePatient?: PatientContext;
     chatMode: ChatModeEnum;
     dispatch: React.Dispatch<PatientAction>;
+    uiDispatch: React.Dispatch<UIAction>; // NEW: Orchestrates UI state
     uploadedFile: UploadedFile | null;
     setUploadedFile: (file: UploadedFile | null) => void;
     isLive: boolean;
@@ -26,8 +31,10 @@ interface UseChatOrchestratorProps {
 export const useChatOrchestrator = ({
     messages,
     activePatientId,
+    activePatient,
     chatMode,
     dispatch,
+    uiDispatch,
     uploadedFile,
     setUploadedFile,
     isLive,
@@ -41,7 +48,8 @@ export const useChatOrchestrator = ({
     const handleStop = useCallback(() => {
         if (abortControllerRef.current) abortControllerRef.current.abort();
         dispatch({ type: 'REQUEST_FINISH' });
-    }, [dispatch]);
+        uiDispatch({ type: 'SET_LOADING', payload: false });
+    }, [dispatch, uiDispatch]);
 
     const handleClearChat = useCallback(() => {
         dispatch({ type: 'RESET_ACTIVE_CHAT' });
@@ -54,7 +62,7 @@ export const useChatOrchestrator = ({
 
         if (isLive) {
             stopSession();
-            dispatch({ type: 'SET_CHAT_MODE', payload: ChatModeEnum.Standard });
+            uiDispatch({ type: 'SET_CHAT_MODE', payload: ChatModeEnum.Standard });
         }
         
         // --- Export Command ---
@@ -66,7 +74,7 @@ export const useChatOrchestrator = ({
             }
 
             dispatch({ type: 'ADD_INTERIM_MESSAGE', payload: { role: 'model', content: '📥 Generating briefing for PDF export...' } });
-            dispatch({ type: 'SET_LOADING', payload: true });
+            uiDispatch({ type: 'SET_LOADING', payload: true });
             
             abortControllerRef.current = new AbortController();
             try {
@@ -96,7 +104,7 @@ export const useChatOrchestrator = ({
                     dispatch({ type: 'UPDATE_LAST_MESSAGE_CONTENT', payload: `Sorry, PDF generation failed.\n\n**Reason:** ${friendlyError}` });
                 }
             } finally {
-                dispatch({ type: 'SET_LOADING', payload: false });
+                uiDispatch({ type: 'SET_LOADING', payload: false });
                 abortControllerRef.current = null;
             }
             return;
@@ -158,6 +166,7 @@ export const useChatOrchestrator = ({
                 }
              } catch (error) {
                  dispatch({ type: 'REQUEST_FAILED', payload: getFriendlyErrorMessage(error) });
+                 uiDispatch({ type: 'SET_ERROR', payload: getFriendlyErrorMessage(error) });
                  return;
              }
         } else if (isBriefingCommand) {
@@ -183,6 +192,8 @@ export const useChatOrchestrator = ({
         
         dispatch({ type: 'START_REQUEST', payload: { userMessage } });
         dispatch({ type: 'ADD_RESPONSE_PLACEHOLDER' });
+        uiDispatch({ type: 'SET_LOADING', payload: true });
+        uiDispatch({ type: 'SET_ERROR', payload: null });
         setUploadedFile(null);
 
         // API Call
@@ -217,19 +228,18 @@ export const useChatOrchestrator = ({
                  dispatch({ type: 'APPEND_TO_LAST_MESSAGE', payload: { chunk: " [Stopped]" } });
             } else {
                 dispatch({ type: 'REQUEST_FAILED', payload: getFriendlyErrorMessage(e) });
+                // We don't set global error here to avoid blocking UI, the chat message shows the error.
             }
         } finally {
             dispatch({ type: 'REQUEST_FINISH' });
+            uiDispatch({ type: 'SET_LOADING', payload: false });
             
             // --- AUTO-INGESTION PROTOCOL ---
-            // If the response was a Lab Report, automatically ingest the data into FHIR store.
             if (activePatientId && isLabReport(fullResponseBuffer)) {
                 const report = parseJsonSafe<any>(fullResponseBuffer);
                 if (report && report.labs) {
                     const newObs: FHIRObservation[] = report.labs.map((lab: any) => {
-                         // Parse Value (remove non-numeric)
                          const val = parseFloat(lab.value.replace(/[^0-9.-]/g, ''));
-                         // Parse Reference Range (simple split)
                          const rangeMatch = lab.refRange.match(/([\d.]+)\s*-\s*([\d.]+)/);
                          
                          if (isNaN(val)) return null;
@@ -257,13 +267,26 @@ export const useChatOrchestrator = ({
                             type: 'INGEST_CLINICAL_DATA',
                             payload: { id: activePatientId, observations: newObs }
                         });
+
+                        // NEW: TRIGGER AI SAFETY CHECK
+                        const existingObs = activePatient?.clinicalData.observations || [];
+                        const combinedObs = [...existingObs, ...newObs];
+                        
+                        evaluateClinicalSafety(combinedObs).then(alerts => {
+                            if (alerts.length > 0) {
+                                dispatch({ 
+                                    type: 'UPDATE_ALERTS', 
+                                    payload: { id: activePatientId, alerts } 
+                                });
+                            }
+                        });
                     }
                 }
             }
 
             abortControllerRef.current = null;
         }
-    }, [messages, activePatientId, chatMode, uploadedFile, isLive, stopSession, userLocation, dispatch, setUploadedFile, triggerExtraction]);
+    }, [messages, activePatientId, activePatient, chatMode, uploadedFile, isLive, stopSession, userLocation, dispatch, uiDispatch, setUploadedFile, triggerExtraction]);
 
     return {
         handleSend,

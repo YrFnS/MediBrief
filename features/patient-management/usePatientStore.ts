@@ -3,16 +3,14 @@ import React, { useReducer, useEffect, useContext, createContext } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { PatientContext, PatientEntityData } from './types';
 import { FHIRObservation } from '../fhir/types';
-import { ChatMessage, ChatMode, GroundingSource } from '../../types';
+import { ChatMessage, GroundingSource } from '../../types';
+import { CDSSAlert } from '../cdss/types';
 
 // --- State Definitions ---
 
 export interface PatientStoreState {
     patients: Record<string, PatientContext>;
     activePatientId: string;
-    globalChatMode: ChatMode;
-    isLoading: boolean;
-    error: string | null;
 }
 
 // --- Actions ---
@@ -24,7 +22,8 @@ export type PatientAction =
     | { type: 'UPDATE_PATIENT_DETAILS'; payload: { id: string; updates: Partial<PatientContext> } }
     | { type: 'UPDATE_PATIENT_ENTITIES'; payload: { id: string; entities: Partial<PatientEntityData> } }
     | { type: 'INGEST_CLINICAL_DATA'; payload: { id: string; observations: FHIRObservation[] } }
-    // Chat Actions (Target Active Patient)
+    | { type: 'UPDATE_ALERTS'; payload: { id: string; alerts: CDSSAlert[] } }
+    | { type: 'DISMISS_ALERT'; payload: { id: string; alertId: string } }
     | { type: 'START_REQUEST'; payload: { userMessage: ChatMessage } }
     | { type: 'ADD_RESPONSE_PLACEHOLDER' }
     | { type: 'APPEND_TO_LAST_MESSAGE'; payload: { chunk: string; sources?: GroundingSource[] } }
@@ -33,9 +32,6 @@ export type PatientAction =
     | { type: 'UPDATE_LAST_MESSAGE_CONTENT'; payload: string }
     | { type: 'REQUEST_FAILED'; payload: string }
     | { type: 'ADD_INTERIM_MESSAGE'; payload: ChatMessage }
-    // Global Actions
-    | { type: 'SET_CHAT_MODE'; payload: ChatMode }
-    | { type: 'SET_LOADING'; payload: boolean }
     | { type: 'RESET_ACTIVE_CHAT' }
     | { type: 'HYDRATE'; payload: PatientStoreState };
 
@@ -52,6 +48,7 @@ const createDefaultPatient = (): PatientContext => ({
     chatHistory: [],
     entities: { allergies: [], codeStatus: 'Full Code', diagnosis: [] },
     clinicalData: { observations: [] },
+    activeAlerts: [],
     createdAt: Date.now(),
     lastActive: Date.now()
 });
@@ -63,25 +60,28 @@ const getInitialState = (): PatientStoreState => {
             const parsed = JSON.parse(savedState);
             if (parsed.patients && parsed.activePatientId) {
                 // Migration checks
-                Object.keys(parsed.patients).forEach(key => {
-                    if (!parsed.patients[key].clinicalData) {
-                        parsed.patients[key].clinicalData = { observations: [] };
-                    }
+                const cleanState = {
+                    patients: parsed.patients,
+                    activePatientId: parsed.activePatientId
+                };
+                
+                // Ensure data structure integrity
+                Object.keys(cleanState.patients).forEach(key => {
+                    const p = cleanState.patients[key];
+                    if (!p.clinicalData) p.clinicalData = { observations: [] };
+                    if (!p.activeAlerts) p.activeAlerts = [];
                 });
-                return parsed;
+                return cleanState;
             }
         }
     } catch (e) {
-        console.warn("Failed to load patient store from localStorage, resetting.");
+        console.warn("Failed to load patient store, resetting.");
     }
     
     const defaultPatient = createDefaultPatient();
     return {
         patients: { [DEFAULT_PATIENT_ID]: defaultPatient },
         activePatientId: DEFAULT_PATIENT_ID,
-        globalChatMode: ChatMode.Standard,
-        isLoading: false,
-        error: null
     };
 };
 
@@ -110,13 +110,11 @@ const patientReducer = (state: PatientStoreState, action: PatientAction): Patien
         }
         case 'DELETE_PATIENT': {
             const targetId = action.payload.id;
-            // Prevent deleting the last patient or default context if it's the only one
             if (Object.keys(state.patients).length <= 1) return state;
 
             const newPatients = { ...state.patients };
             delete newPatients[targetId];
 
-            // If we deleted the active patient, switch to another one
             let newActiveId = state.activePatientId;
             if (state.activePatientId === targetId) {
                 newActiveId = Object.keys(newPatients)[0];
@@ -152,11 +150,11 @@ const patientReducer = (state: PatientStoreState, action: PatientAction): Patien
             const newEntities = { ...targetPatient.entities };
             const incoming = action.payload.entities;
             
-            if (incoming.allergies && incoming.allergies.length > 0) {
+            if (incoming.allergies) {
                 newEntities.allergies = [...new Set([...newEntities.allergies, ...incoming.allergies])];
             }
             if (incoming.codeStatus) newEntities.codeStatus = incoming.codeStatus;
-            if (incoming.diagnosis && incoming.diagnosis.length > 0) {
+            if (incoming.diagnosis) {
                  newEntities.diagnosis = [...new Set([...newEntities.diagnosis, ...incoming.diagnosis])];
             }
 
@@ -196,13 +194,47 @@ const patientReducer = (state: PatientStoreState, action: PatientAction): Patien
                 }
             };
         }
-        
-        // Chat Actions
+        case 'UPDATE_ALERTS': {
+             const targetId = action.payload.id;
+             const targetPatient = state.patients[targetId];
+             if (!targetPatient) return state;
+
+             // Merge alerts, deduping by title and recent timeframe
+             const currentAlerts = targetPatient.activeAlerts || [];
+             const newAlerts = action.payload.alerts.filter(na => 
+                 !currentAlerts.some(ca => ca.title === na.title && ca.timestamp > Date.now() - 3600000)
+             );
+
+             return {
+                ...state,
+                patients: {
+                    ...state.patients,
+                    [targetId]: {
+                        ...targetPatient,
+                        activeAlerts: [...currentAlerts, ...newAlerts]
+                    }
+                }
+             };
+        }
+        case 'DISMISS_ALERT': {
+            const targetId = action.payload.id;
+             const targetPatient = state.patients[targetId];
+             if (!targetPatient) return state;
+
+             return {
+                 ...state,
+                 patients: {
+                     ...state.patients,
+                     [targetId]: {
+                         ...targetPatient,
+                         activeAlerts: targetPatient.activeAlerts.filter(a => a.id !== action.payload.alertId && a.ruleId !== action.payload.alertId)
+                     }
+                 }
+             }
+        }
         case 'START_REQUEST':
             return {
                 ...state,
-                isLoading: true,
-                error: null,
                 patients: {
                     ...state.patients,
                     [activeId]: {
@@ -248,11 +280,10 @@ const patientReducer = (state: PatientStoreState, action: PatientAction): Patien
             };
         }
         case 'REQUEST_FINISH':
-            return { ...state, isLoading: false };
+            return state; 
         case 'ADD_FULL_RESPONSE':
             return {
                 ...state,
-                isLoading: false,
                 patients: {
                     ...state.patients,
                     [activeId]: {
@@ -288,15 +319,14 @@ const patientReducer = (state: PatientStoreState, action: PatientAction): Patien
         case 'REQUEST_FAILED': {
              const history = [...activePatient.chatHistory];
              const lastMsg = history[history.length - 1];
+             const errorMsg = `Sorry, I encountered an error.\n\n**Details:** ${action.payload}`;
              if (lastMsg && lastMsg.role === 'model' && !lastMsg.content) {
-                 lastMsg.content = `Sorry, I encountered an error.\n\n**Details:** ${action.payload}`;
+                 lastMsg.content = errorMsg;
              } else {
-                 history.push({ role: 'model', content: `Sorry, I encountered an error.\n\n**Details:** ${action.payload}` });
+                 history.push({ role: 'model', content: errorMsg });
              }
              return {
                 ...state,
-                isLoading: false,
-                error: action.payload,
                 patients: {
                     ...state.patients,
                     [activeId]: { ...activePatient, chatHistory: history }
@@ -311,12 +341,6 @@ const patientReducer = (state: PatientStoreState, action: PatientAction): Patien
                     [activeId]: { ...activePatient, chatHistory: [] }
                 }
             };
-
-        case 'SET_CHAT_MODE':
-            return { ...state, globalChatMode: action.payload };
-        case 'SET_LOADING':
-            return { ...state, isLoading: action.payload };
-        
         default:
             return state;
     }
@@ -333,6 +357,7 @@ interface PatientContextType {
 
 const PatientStoreContext = createContext<PatientContextType | undefined>(undefined);
 
+// EXPORT 1: The Provider Component
 export const PatientProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [state, dispatch] = useReducer(patientReducer, getInitialState());
 
@@ -340,8 +365,8 @@ export const PatientProvider: React.FC<{ children: React.ReactNode }> = ({ child
     useEffect(() => {
         try {
             const stateToSave = {
-                ...state,
-                patients: Object.entries(state.patients).reduce((acc, [id, patient]) => {
+                patients: Object.entries(state.patients).reduce((acc, [id, p]) => {
+                    const patient = p as PatientContext;
                     acc[id] = {
                         ...patient,
                         chatHistory: patient.chatHistory.map(msg => {
@@ -355,11 +380,12 @@ export const PatientProvider: React.FC<{ children: React.ReactNode }> = ({ child
                         })
                     };
                     return acc;
-                }, {} as Record<string, PatientContext>)
+                }, {} as Record<string, PatientContext>),
+                activePatientId: state.activePatientId
             };
             localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
         } catch (e) {
-            console.error("Failed to save patient store to localStorage", e);
+            console.error("Failed to save patient store", e);
         }
     }, [state]);
 
@@ -375,6 +401,7 @@ export const PatientProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }, children);
 };
 
+// EXPORT 2: The Hook
 export const usePatientStore = () => {
     const context = useContext(PatientStoreContext);
     if (!context) {
