@@ -42,20 +42,20 @@ const ModeSelector: React.FC<ModeSelectorProps> = ({ currentMode, onModeChange }
             {/* MOBILE / COMPACT TRIGGER */}
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className={`lg:hidden flex items-center gap-2 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-sm min-w-[130px] transition-all active:bg-slate-200 dark:active:bg-slate-800 ${isOpen ? 'ring-1 ring-blue-500 border-blue-500' : ''}`}
+                className={`lg:hidden flex items-center gap-1.5 md:gap-2 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2 py-1.5 md:px-3 md:py-1.5 rounded-lg md:rounded-sm min-w-0 md:min-w-[130px] transition-all active:bg-slate-200 dark:active:bg-slate-800 ${isOpen ? 'ring-1 ring-blue-500 border-blue-500' : ''}`}
             >
-                <CurrentIcon className="w-3.5 h-3.5 text-blue-600 dark:text-blue-500" />
-                <span className="text-xs font-mono font-bold uppercase text-slate-700 dark:text-slate-200 truncate flex-1 text-left">
+                <CurrentIcon className="w-3.5 h-3.5 text-blue-600 dark:text-blue-500 flex-shrink-0" />
+                <span className="text-[10px] md:text-xs font-mono font-bold uppercase text-slate-700 dark:text-slate-200 truncate max-w-[70px] md:max-w-none text-left">
                     {currentMode}
                 </span>
-                <div className="border-l border-slate-300 dark:border-slate-700 pl-2 text-slate-400">
+                <div className="border-l border-slate-300 dark:border-slate-700 pl-1.5 md:pl-2 text-slate-400">
                     <svg className={`w-2.5 h-2.5 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
                 </div>
             </button>
 
             {/* CUSTOM DROPDOWN MENU (Mobile) */}
             {isOpen && (
-                <div className="lg:hidden absolute top-full left-0 mt-1 w-[200px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl z-50 rounded-sm overflow-hidden animate-slide-up origin-top-left">
+                <div className="lg:hidden absolute top-full right-0 md:left-0 mt-1 w-[200px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl z-50 rounded-lg overflow-hidden animate-slide-up origin-top-right md:origin-top-left">
                     <div className="py-1">
                         {Object.values(ChatMode).map((mode) => {
                             const Icon = ICONS[mode];
@@ -71,9 +71,9 @@ const ModeSelector: React.FC<ModeSelectorProps> = ({ currentMode, onModeChange }
                                         }`}
                                 >
                                     <Icon className={`w-4 h-4 ${isActive ? 'text-blue-500' : 'text-slate-400'}`} />
-                                    <div>
-                                        <p className="font-mono text-xs font-bold uppercase">{mode}</p>
-                                        <p className="text-[9px] opacity-70 truncate max-w-[120px] leading-tight">
+                                    <div className="min-w-0">
+                                        <p className="font-mono text-xs font-bold uppercase truncate">{mode}</p>
+                                        <p className="text-[9px] opacity-70 truncate leading-tight">
                                             {MODEL_CONFIGS[mode].description.split(':')[0]}
                                         </p>
                                     </div>
@@ -85,7 +85,7 @@ const ModeSelector: React.FC<ModeSelectorProps> = ({ currentMode, onModeChange }
             )}
 
             {/* DESKTOP: Horizontal Tabs (Visible on lg+ screens) */}
-            <div className="hidden lg:flex items-center bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-1">
+            <div className="hidden lg:flex items-center bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-1 rounded-sm">
                 {Object.values(ChatMode).map((mode) => {
                     const Icon = ICONS[mode];
                     const isActive = currentMode === mode;

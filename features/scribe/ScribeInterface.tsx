@@ -39,8 +39,8 @@ const TranscriptLog: React.FC<{ transcript: string[] }> = ({ transcript }) => {
     }, [transcript]);
 
     return (
-        <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden font-mono">
-            <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 flex items-center gap-2">
+        <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden font-mono min-h-[150px]">
+            <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 flex items-center gap-2 sticky top-0 z-10">
                 <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
                 <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Live Transcript</span>
             </div>
@@ -66,7 +66,7 @@ const NoteSection: React.FC<{
     content: string; 
     onChange: (val: string) => void 
 }> = ({ title, content, onChange }) => (
-    <div className="flex flex-col gap-2 h-full">
+    <div className="flex flex-col gap-2 h-full min-h-[180px]">
         <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
             <h3 className="font-sans text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">{title}</h3>
             <span className="text-[9px] text-slate-300 font-mono">{content.length} chars</span>
@@ -119,10 +119,10 @@ ${soapNote.plan || 'N/A'}
     };
 
     return (
-        <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-50 dark:bg-slate-950 p-3 md:p-6 relative">
+        <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-50 dark:bg-slate-950 p-2 md:p-6 relative">
             
             {/* Header / Controls */}
-            <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-6 flex-shrink-0">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-4 flex-shrink-0">
                 <div>
                     <h1 className="text-xl font-display font-bold text-slate-900 dark:text-white flex items-center gap-2">
                         Ambient Scribe <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold tracking-wide">BETA</span>
@@ -132,11 +132,11 @@ ${soapNote.plan || 'N/A'}
                     </p>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 w-full md:w-auto">
                     {!isActive ? (
                         <button 
                             onClick={() => startSession()}
-                            className="flex items-center gap-2 px-5 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-full shadow-lg hover:shadow-red-500/20 transition-all active:translate-y-0.5 group"
+                            className="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-full shadow-lg hover:shadow-red-500/20 transition-all active:translate-y-0.5 group"
                         >
                             <div className="bg-white/20 p-1 rounded-full"><RecordIcon className="w-3 h-3" /></div>
                             <span className="text-xs font-bold uppercase tracking-wide">Start Recording</span>
@@ -144,7 +144,7 @@ ${soapNote.plan || 'N/A'}
                     ) : (
                         <button 
                             onClick={() => stopSession()}
-                            className="flex items-center gap-2 px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-full shadow-lg transition-all active:translate-y-0.5"
+                            className="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-full shadow-lg transition-all active:translate-y-0.5"
                         >
                             <StopIcon className="w-3 h-3 text-red-400" />
                             <span className="text-xs font-bold uppercase tracking-wide">Stop & Finalize</span>
@@ -160,26 +160,36 @@ ${soapNote.plan || 'N/A'}
                 </div>
             )}
 
-            {/* Main Workspace Grid */}
-            <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-0">
+            {/* Main Workspace Grid - Responsive Layout */}
+            <div className="flex-1 flex flex-col lg:grid lg:grid-cols-12 gap-4 lg:gap-6 min-h-0 overflow-y-auto lg:overflow-hidden pb-10 lg:pb-0">
                 
-                {/* LEFT: SOAP Note Editor (8 cols) */}
-                <div className="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-4 h-full overflow-hidden">
-                    <div className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-xl shadow-float transition-shadow hover:shadow-lg">
+                {/* RIGHT PANEL (Visualizer/Transcript) - Moved to TOP on mobile via Order */}
+                <div className="lg:col-span-4 flex flex-col gap-4 flex-shrink-0 lg:h-full min-h-[250px] lg:min-h-0 order-1 lg:order-2">
+                    <div className="flex-shrink-0">
+                        <AudioVisualizer isActive={isActive} />
+                    </div>
+                    <div className="flex-1 min-h-0 h-[200px] lg:h-auto shadow-sm">
+                        <TranscriptLog transcript={transcript} />
+                    </div>
+                </div>
+
+                {/* LEFT PANEL (SOAP Note Editor) - Stacks on mobile */}
+                <div className="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-4 flex-shrink-0 lg:h-full lg:overflow-y-auto order-2 lg:order-1">
+                    <div className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 md:p-5 rounded-xl shadow-float transition-shadow hover:shadow-lg">
                         <NoteSection 
                             title="Subjective" 
                             content={soapNote.subjective} 
                             onChange={(v) => setSoapNote(prev => ({...prev, subjective: v}))}
                         />
                     </div>
-                    <div className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-xl shadow-float transition-shadow hover:shadow-lg">
+                    <div className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 md:p-5 rounded-xl shadow-float transition-shadow hover:shadow-lg">
                         <NoteSection 
                             title="Objective" 
                             content={soapNote.objective} 
                             onChange={(v) => setSoapNote(prev => ({...prev, objective: v}))}
                         />
                     </div>
-                    <div className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-xl shadow-float transition-shadow hover:shadow-lg">
+                    <div className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 md:p-5 rounded-xl shadow-float transition-shadow hover:shadow-lg">
                         <NoteSection 
                             title="Assessment" 
                             content={soapNote.assessment} 
@@ -187,7 +197,7 @@ ${soapNote.plan || 'N/A'}
                         />
                     </div>
                     <div className="flex-1 flex flex-col gap-4">
-                        <div className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-xl shadow-float transition-shadow hover:shadow-lg">
+                        <div className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 md:p-5 rounded-xl shadow-float transition-shadow hover:shadow-lg">
                             <NoteSection 
                                 title="Plan" 
                                 content={soapNote.plan} 
@@ -205,15 +215,6 @@ ${soapNote.plan || 'N/A'}
                     </div>
                 </div>
 
-                {/* RIGHT: Live Feed & Visuals (4 cols) */}
-                <div className="lg:col-span-4 flex flex-col gap-4 h-full min-h-[300px]">
-                    <div className="flex-shrink-0">
-                        <AudioVisualizer isActive={isActive} />
-                    </div>
-                    <div className="flex-1 min-h-0">
-                        <TranscriptLog transcript={transcript} />
-                    </div>
-                </div>
             </div>
         </div>
     );
