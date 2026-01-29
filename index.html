@@ -1,16 +1,16 @@
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="light">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <meta name="theme-color" content="#0f172a" />
+  <meta name="theme-color" content="#ffffff" />
   <title>MediBrief - Clinical Intelligence Layer</title>
   <link rel="manifest" href="/manifest.json" />
   <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
@@ -23,7 +23,7 @@
   </script>
   <script>
     tailwind.config = {
-      darkMode: 'media',
+      darkMode: 'class', // Manual toggle, defaulting to light
       theme: {
         extend: {
           fontFamily: {
@@ -32,42 +32,36 @@
             display: ['Space Grotesk', 'sans-serif'],
           },
           colors: {
-            medical: {
-              50: '#F0F4F8',
-              100: '#D9E2EC',
-              200: '#BCCCDC',
-              300: '#9FB3C8',
-              400: '#829AB1',
-              500: '#627D98', // Slate Blue
-              600: '#486581',
-              700: '#334E68',
-              800: '#243B53',
-              900: '#102A43',
+            brand: {
+              50: '#F0F9FF',
+              100: '#E0F2FE',
+              500: '#0EA5E9',
+              600: '#0284C7',
+              900: '#0C4A6E',
             },
-            alert: {
-               500: '#EF4444',
-               900: '#7F1D1D'
-            },
-            surface: {
-               light: '#FFFFFF',
-               dark: '#0B0F19' // Deep specialized dark
+            slate: {
+              50: '#F8FAFC',
+              100: '#F1F5F9',
+              200: '#E2E8F0',
+              300: '#CBD5E1',
+              400: '#94A3B8',
+              500: '#64748B',
+              600: '#475569',
+              700: '#334155',
+              800: '#1E293B',
+              900: '#0F172A',
             }
           },
-          backgroundImage: {
-            'medical-cross': `url("data:image/svg+xml,%3Csvg width='24' height='24' viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 11h-2v2h2v2h2v-2h2v-2h-2v-2h-2v2z' fill='%2394a3b8' fill-opacity='0.08'/%3E%3C/svg%3E")`,
-            'medical-cross-dark': `url("data:image/svg+xml,%3Csvg width='24' height='24' viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 11h-2v2h2v2h2v-2h2v-2h-2v-2h-2v2z' fill='%23475569' fill-opacity='0.15'/%3E%3C/svg%3E")`
+          boxShadow: {
+            'soft': '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
+            'float': '0 10px 40px -10px rgba(0, 0, 0, 0.08)',
           },
           animation: {
-            'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-            'fade-in': 'fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+            'fade-in': 'fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards',
             'slide-up': 'slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards',
-            'scan': 'scan 2s linear infinite',
-            'soft-stream': 'softStream 0.3s ease-out forwards',
+            'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'breathe': 'breathe 6s ease-in-out infinite',
             'music': 'music 1s ease-in-out infinite',
-            'spin-slow': 'spin 3s linear infinite',
-            'cardiac-slow': 'cardiac 4s ease-out infinite',
-            'cardiac-fast': 'cardiac 1.2s ease-out infinite',
-            'ekg-flow': 'ekg 6s linear infinite',
           },
           keyframes: {
             fadeIn: {
@@ -75,32 +69,16 @@
               '100%': { opacity: '1' },
             },
             slideUp: {
-              '0%': { transform: 'translateY(20px)', opacity: '0' },
+              '0%': { transform: 'translateY(10px)', opacity: '0' },
               '100%': { transform: 'translateY(0)', opacity: '1' },
             },
-            scan: {
-               '0%': { transform: 'translateY(-100%)' },
-               '100%': { transform: 'translateY(100%)' }
-            },
-            softStream: {
-              '0%': { opacity: '0.4', transform: 'translateY(2px)' },
-              '100%': { opacity: '1', transform: 'translateY(0)' },
+            breathe: {
+              '0%, 100%': { transform: 'scale(1)', opacity: '0.3' },
+              '50%': { transform: 'scale(1.05)', opacity: '0.5' },
             },
             music: {
               '0%, 100%': { height: '20%' },
               '50%': { height: '100%' }
-            },
-            cardiac: {
-              '0%': { transform: 'scale(1)', opacity: '0.1' },
-              '10%': { transform: 'scale(1.08)', opacity: '0.25' },   /* Systole (Lub) */
-              '20%': { transform: 'scale(1)', opacity: '0.1' },
-              '30%': { transform: 'scale(1.04)', opacity: '0.18' },  /* Diastole (Dub) */
-              '40%': { transform: 'scale(1)', opacity: '0.1' },
-              '100%': { transform: 'scale(1)', opacity: '0.1' },
-            },
-            ekg: {
-              '0%': { transform: 'translateX(0%)' },
-              '100%': { transform: 'translateX(-50%)' } /* Move half width to loop seamlessly */
             }
           }
         }
@@ -110,63 +88,18 @@
   <style>
     body {
       font-family: 'Inter', sans-serif;
+      background-color: #F8FAFC; /* Slate-50 */
     }
     
-    .technical-border {
-      position: relative;
-    }
-    .technical-border::before {
-      content: '';
-      position: absolute;
-      top: -1px; left: -1px; width: 8px; height: 8px;
-      border-top: 2px solid currentColor;
-      border-left: 2px solid currentColor;
-      opacity: 0.8;
-      pointer-events: none;
-    }
-    .technical-border::after {
-      content: '';
-      position: absolute;
-      bottom: -1px; right: -1px; width: 8px; height: 8px;
-      border-bottom: 2px solid currentColor;
-      border-right: 2px solid currentColor;
-      opacity: 0.8;
-      pointer-events: none;
-    }
-    
-    .scanline {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.02) 50%, rgba(0,0,0,0.02));
-        background-size: 100% 4px;
-        pointer-events: none;
-        z-index: 9999;
-    }
-
-    /* Gradient Masks for Polished Fade Effects */
-    .mask-linear-fade {
-        mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
-        -webkit-mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
-    }
-    
-    .mask-radial-center {
-        mask-image: radial-gradient(circle at center, black 40%, transparent 100%);
-        -webkit-mask-image: radial-gradient(circle at center, black 40%, transparent 100%);
-    }
-
-    /* Clinical Scrollbar - Slim & Dark */
+    /* Clean scrollbar */
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb {
-      background: #334155;
+      background: #CBD5E1;
       border-radius: 3px;
     }
-    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+    ::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
     
-    /* Hide scrollbar for clean UI areas */
     .no-scrollbar::-webkit-scrollbar {
         display: none;
     }
@@ -175,12 +108,16 @@
         scrollbar-width: none;
     }
 
-    /* Animation Delays */
-    .animation-delay-100 { animation-delay: 100ms; }
-    .animation-delay-200 { animation-delay: 200ms; }
-    .animation-delay-300 { animation-delay: 300ms; }
-    .animation-delay-400 { animation-delay: 400ms; }
-    .animation-delay-500 { animation-delay: 500ms; }
+    /* Remove technical clutter */
+    .technical-border::before, .technical-border::after, .scanline {
+      display: none;
+    }
+    
+    /* Utility for masking */
+    .mask-fade-b {
+        mask-image: linear-gradient(to bottom, black 80%, transparent 100%);
+        -webkit-mask-image: linear-gradient(to bottom, black 80%, transparent 100%);
+    }
   </style>
 <script type="importmap">
 {
@@ -203,8 +140,7 @@
 }
 </script>
 </head>
-<body class="bg-slate-50 dark:bg-[#080b14] text-slate-800 dark:text-slate-200 antialiased selection:bg-blue-500/30 selection:text-blue-200 fixed inset-0 overflow-hidden">
-  <div class="scanline"></div>
+<body class="bg-slate-50 text-slate-800 antialiased selection:bg-blue-100 selection:text-blue-900 fixed inset-0 overflow-hidden">
   <div id="root" class="h-full w-full relative z-10"></div>
   <script type="module" src="/index.tsx"></script>
 </body>
