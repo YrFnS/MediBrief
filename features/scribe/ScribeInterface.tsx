@@ -8,13 +8,12 @@ import { useChatStore } from '../chat/stores/useChatStore';
 
 const AudioVisualizer: React.FC<{ isActive: boolean }> = ({ isActive }) => {
     return (
-        <div className="h-12 flex items-center justify-center gap-1 bg-slate-900 rounded-sm border border-slate-800 overflow-hidden relative">
-            <div className="absolute inset-0 bg-grid-pattern opacity-10"></div>
+        <div className="h-16 flex items-center justify-center gap-1 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden relative shadow-sm">
             {isActive ? (
                 [...Array(30)].map((_, i) => (
                     <div 
                         key={i} 
-                        className="w-1 bg-blue-500 animate-music" 
+                        className="w-1.5 bg-blue-500 dark:bg-blue-400 rounded-full animate-music" 
                         style={{ 
                             height: '20%', 
                             animationDuration: `${0.3 + Math.random() * 0.5}s`,
@@ -23,8 +22,9 @@ const AudioVisualizer: React.FC<{ isActive: boolean }> = ({ isActive }) => {
                     />
                 ))
             ) : (
-                <div className="text-slate-600 text-xs font-mono uppercase tracking-widest">
-                    Audio Stream Inactive
+                <div className="text-slate-400 text-xs font-mono uppercase tracking-widest flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-slate-300"></div>
+                    Ready to Record
                 </div>
             )}
         </div>
@@ -39,19 +39,19 @@ const TranscriptLog: React.FC<{ transcript: string[] }> = ({ transcript }) => {
     }, [transcript]);
 
     return (
-        <div className="flex flex-col h-full bg-slate-900 border border-slate-800 rounded-sm overflow-hidden font-mono">
-            <div className="px-3 py-2 border-b border-slate-800 bg-slate-950 flex items-center gap-2">
+        <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden font-mono">
+            <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
-                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Live Transcript Feed</span>
+                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Live Transcript</span>
             </div>
-            <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
                 {transcript.length === 0 ? (
-                    <div className="text-slate-600 text-xs italic text-center mt-10">Waiting for speech input...</div>
+                    <div className="text-slate-400 text-xs italic text-center mt-10">Waiting for speech input...</div>
                 ) : (
                     transcript.map((line, i) => (
-                        <div key={i} className="flex gap-2 text-xs">
-                            <span className="text-slate-600 select-none">{(i + 1).toString().padStart(2, '0')}</span>
-                            <span className="text-slate-300 leading-relaxed">{line}</span>
+                        <div key={i} className="flex gap-3 text-xs">
+                            <span className="text-slate-300 dark:text-slate-600 select-none font-bold">{(i + 1).toString().padStart(2, '0')}</span>
+                            <span className="text-slate-600 dark:text-slate-300 leading-relaxed">{line}</span>
                         </div>
                     ))
                 )}
@@ -67,14 +67,14 @@ const NoteSection: React.FC<{
     onChange: (val: string) => void 
 }> = ({ title, content, onChange }) => (
     <div className="flex flex-col gap-2 h-full">
-        <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-1">
-            <h3 className="font-mono text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">{title}</h3>
-            <span className="text-[9px] text-slate-400">{content.length} chars</span>
+        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+            <h3 className="font-sans text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">{title}</h3>
+            <span className="text-[9px] text-slate-300 font-mono">{content.length} chars</span>
         </div>
         <textarea
             value={content}
             onChange={(e) => onChange(e.target.value)}
-            className="flex-1 w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-sm p-3 text-sm font-sans leading-relaxed focus:ring-1 focus:ring-blue-500 focus:outline-none resize-none text-slate-800 dark:text-slate-200 transition-colors"
+            className="flex-1 w-full bg-slate-50 dark:bg-slate-900/30 border border-transparent focus:border-blue-100 dark:focus:border-blue-900 rounded-lg p-3 text-sm font-sans leading-relaxed focus:ring-2 focus:ring-blue-500/10 focus:outline-none resize-none text-slate-800 dark:text-slate-200 transition-all placeholder-slate-300"
             placeholder={`Waiting for ${title.toLowerCase()} data...`}
         />
     </div>
@@ -107,7 +107,6 @@ ${soapNote.assessment || 'N/A'}
 ${soapNote.plan || 'N/A'}
         `.trim();
 
-        // Save as model message in Chat Store
         chatActions.addMessage(activePatientId, { 
             role: 'model', 
             content: noteContent,
@@ -116,22 +115,20 @@ ${soapNote.plan || 'N/A'}
 
         setIsSaved(true);
         setTimeout(() => setIsSaved(false), 2000);
-        
-        // Also stop session if active
         if (isActive) stopSession();
     };
 
     return (
-        <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-100 dark:bg-slate-950 p-3 md:p-6 relative">
+        <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-50 dark:bg-slate-950 p-3 md:p-6 relative">
             
             {/* Header / Controls */}
-            <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-4 flex-shrink-0">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-6 flex-shrink-0">
                 <div>
                     <h1 className="text-xl font-display font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                        AMBIENT SCRIBE <span className="text-blue-500">v1.0</span>
+                        Ambient Scribe <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold tracking-wide">BETA</span>
                     </h1>
-                    <p className="text-xs text-slate-500 font-mono mt-1">
-                        Passive listening mode. AI synthesizes consultation into structured SOAP format.
+                    <p className="text-xs text-slate-500 mt-1">
+                        Passive listening mode. Synthesizes consultation into structured SOAP format.
                     </p>
                 </div>
 
@@ -139,18 +136,18 @@ ${soapNote.plan || 'N/A'}
                     {!isActive ? (
                         <button 
                             onClick={() => startSession()}
-                            className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-sm shadow-lg transition-all active:translate-y-0.5"
+                            className="flex items-center gap-2 px-5 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-full shadow-lg hover:shadow-red-500/20 transition-all active:translate-y-0.5 group"
                         >
-                            <RecordIcon className="w-4 h-4" />
-                            <span className="text-xs font-bold uppercase tracking-wider">Start Recording</span>
+                            <div className="bg-white/20 p-1 rounded-full"><RecordIcon className="w-3 h-3" /></div>
+                            <span className="text-xs font-bold uppercase tracking-wide">Start Recording</span>
                         </button>
                     ) : (
                         <button 
                             onClick={() => stopSession()}
-                            className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white border border-slate-600 rounded-sm shadow-lg transition-all active:translate-y-0.5 animate-pulse"
+                            className="flex items-center gap-2 px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-full shadow-lg transition-all active:translate-y-0.5"
                         >
-                            <StopIcon className="w-4 h-4" />
-                            <span className="text-xs font-bold uppercase tracking-wider">Stop & Finalize</span>
+                            <StopIcon className="w-3 h-3 text-red-400" />
+                            <span className="text-xs font-bold uppercase tracking-wide">Stop & Finalize</span>
                         </button>
                     )}
                 </div>
@@ -158,31 +155,31 @@ ${soapNote.plan || 'N/A'}
 
             {/* Error Banner */}
             {error && (
-                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3 mb-4 rounded-sm text-red-700 dark:text-red-300 text-xs font-mono flex-shrink-0">
-                    ERROR: {error}
+                <div className="bg-red-50 border border-red-200 p-3 mb-4 rounded-lg text-red-600 text-xs font-medium flex-shrink-0">
+                    {error}
                 </div>
             )}
 
             {/* Main Workspace Grid */}
-            <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 min-h-0">
+            <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-0">
                 
                 {/* LEFT: SOAP Note Editor (8 cols) */}
                 <div className="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-4 h-full overflow-hidden">
-                    <div className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-sm shadow-sm">
+                    <div className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-xl shadow-float transition-shadow hover:shadow-lg">
                         <NoteSection 
                             title="Subjective" 
                             content={soapNote.subjective} 
                             onChange={(v) => setSoapNote(prev => ({...prev, subjective: v}))}
                         />
                     </div>
-                    <div className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-sm shadow-sm">
+                    <div className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-xl shadow-float transition-shadow hover:shadow-lg">
                         <NoteSection 
                             title="Objective" 
                             content={soapNote.objective} 
                             onChange={(v) => setSoapNote(prev => ({...prev, objective: v}))}
                         />
                     </div>
-                    <div className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-sm shadow-sm">
+                    <div className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-xl shadow-float transition-shadow hover:shadow-lg">
                         <NoteSection 
                             title="Assessment" 
                             content={soapNote.assessment} 
@@ -190,18 +187,17 @@ ${soapNote.plan || 'N/A'}
                         />
                     </div>
                     <div className="flex-1 flex flex-col gap-4">
-                        <div className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-sm shadow-sm">
+                        <div className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-xl shadow-float transition-shadow hover:shadow-lg">
                             <NoteSection 
                                 title="Plan" 
                                 content={soapNote.plan} 
                                 onChange={(v) => setSoapNote(prev => ({...prev, plan: v}))}
                             />
                         </div>
-                        {/* Commit Action placed here for easy access */}
                         <button 
                             onClick={handleSave}
                             disabled={isActive && !soapNote.subjective} 
-                            className="flex-shrink-0 w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold uppercase tracking-widest text-xs rounded-sm shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="flex-shrink-0 w-full py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold uppercase tracking-widest text-xs rounded-xl shadow-lg hover:shadow-blue-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
                         >
                             {isSaved ? <ClipboardCheckIcon className="w-4 h-4" /> : <DownloadIcon className="w-4 h-4" />}
                             {isSaved ? 'Saved to Patient Record' : 'Commit to Record'}
@@ -211,12 +207,9 @@ ${soapNote.plan || 'N/A'}
 
                 {/* RIGHT: Live Feed & Visuals (4 cols) */}
                 <div className="lg:col-span-4 flex flex-col gap-4 h-full min-h-[300px]">
-                     {/* Audio Viz */}
                     <div className="flex-shrink-0">
                         <AudioVisualizer isActive={isActive} />
                     </div>
-
-                    {/* Transcript Log */}
                     <div className="flex-1 min-h-0">
                         <TranscriptLog transcript={transcript} />
                     </div>

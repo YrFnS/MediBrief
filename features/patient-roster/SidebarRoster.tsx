@@ -159,14 +159,14 @@ const SidebarRoster: React.FC<SidebarRosterProps> = ({ isOpen, toggle }) => {
         <>
             <aside 
                 className={`
-                    flex-shrink-0 bg-slate-50/80 dark:bg-[#080b14]/80 backdrop-blur-xl border-r border-slate-200 dark:border-white/5 transition-all duration-300 ease-in-out relative z-40
-                    ${isOpen ? 'w-72' : 'w-0 opacity-0 md:opacity-100 md:w-12'}
+                    flex-shrink-0 bg-white/95 dark:bg-[#080b14]/95 backdrop-blur-xl border-r border-slate-200 dark:border-white/5 transition-all duration-300 ease-in-out relative z-40
+                    ${isOpen ? 'w-80' : 'w-0 opacity-0 md:opacity-100 md:w-16'}
                 `}
             >
                 <button
                     onClick={toggle}
                     className={`
-                        absolute -right-3 top-20 z-50 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full p-1 shadow-md text-slate-500 hover:text-blue-500 transition-colors
+                        absolute -right-3 top-20 z-50 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full p-1.5 shadow-float text-slate-500 hover:text-blue-500 transition-colors
                         ${isOpen ? 'rotate-0' : 'rotate-180'}
                     `}
                     aria-label="Toggle Roster"
@@ -177,11 +177,16 @@ const SidebarRoster: React.FC<SidebarRosterProps> = ({ isOpen, toggle }) => {
                 <div className={`flex flex-col h-full overflow-hidden ${!isOpen && 'hidden md:flex'}`}>
                     
                     {/* Header */}
-                    <div className="p-4 border-b border-slate-200 dark:border-white/5 flex items-center justify-between h-16">
+                    <div className="p-5 border-b border-slate-100 dark:border-white/5 flex items-center justify-between h-20">
                         {isOpen ? (
-                            <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200">
-                                <UsersIcon className="w-4 h-4" />
-                                <span className="font-mono text-xs font-bold uppercase tracking-widest">Active Roster</span>
+                            <div className="flex items-center gap-2 text-slate-800 dark:text-slate-200">
+                                <div className="p-2 bg-blue-50 dark:bg-slate-800 rounded-lg text-blue-500">
+                                    <UsersIcon className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <span className="font-bold text-sm tracking-tight block">Patient Roster</span>
+                                    <span className="text-[10px] text-slate-400 font-medium">ACTIVE CONTEXTS</span>
+                                </div>
                             </div>
                         ) : (
                             <div className="w-full flex justify-center">
@@ -190,14 +195,14 @@ const SidebarRoster: React.FC<SidebarRosterProps> = ({ isOpen, toggle }) => {
                         )}
                         
                         {isOpen && (
-                            <div className="text-[10px] font-mono text-slate-400 bg-slate-200 dark:bg-white/5 px-1.5 py-0.5 rounded-sm">
+                            <div className="text-[10px] font-bold text-slate-500 bg-slate-100 dark:bg-white/5 px-2 py-1 rounded-full">
                                 {patientsList.length}
                             </div>
                         )}
                     </div>
 
                     {/* Patient List */}
-                    <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                    <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-slate-50/50 dark:bg-transparent">
                         {isOpen ? (
                             patientsList.map(patient => (
                                 <PatientCard
@@ -209,23 +214,23 @@ const SidebarRoster: React.FC<SidebarRosterProps> = ({ isOpen, toggle }) => {
                                 />
                             ))
                         ) : (
-                            <div className="flex flex-col gap-2 items-center mt-2">
+                            <div className="flex flex-col gap-3 items-center mt-2">
                                 {patientsList.map(patient => (
                                     <button
                                         key={patient.id}
                                         onClick={() => handleSwitch(patient.id)}
-                                        className={`w-8 h-8 rounded-sm flex items-center justify-center border transition-all relative group
+                                        className={`w-10 h-10 rounded-xl flex items-center justify-center border transition-all relative group shadow-sm
                                             ${patient.id === activePatientId 
-                                                ? 'bg-blue-600 border-blue-600 text-white' 
+                                                ? 'bg-blue-600 border-blue-600 text-white shadow-blue-500/30' 
                                                 : 'bg-white dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-400 hover:border-blue-400'
                                             }
                                         `}
                                         title={patient.name}
                                     >
-                                        <span className="text-[10px] font-bold font-mono">
+                                        <span className="text-xs font-bold">
                                             {patient.name.substring(0, 2).toUpperCase()}
                                         </span>
-                                        <div className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-white dark:border-slate-900 ${
+                                        <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-white dark:border-slate-900 ${
                                             patient.status === 'Critical' ? 'bg-red-500' : 
                                             patient.status === 'Stable' ? 'bg-emerald-500' : 'bg-slate-400'
                                         }`}></div>
@@ -236,31 +241,31 @@ const SidebarRoster: React.FC<SidebarRosterProps> = ({ isOpen, toggle }) => {
                     </div>
 
                     {/* Footer Actions */}
-                    <div className="p-3 border-t border-slate-200 dark:border-white/5 bg-slate-100/50 dark:bg-black/20 space-y-2">
+                    <div className="p-4 border-t border-slate-100 dark:border-white/5 bg-white dark:bg-black/20 space-y-3">
                         {isOpen ? (
                             <>
                                 <button 
                                     onClick={() => setIsDialogOpen(true)}
-                                    className="w-full flex items-center justify-center gap-2 bg-white dark:bg-white/5 border border-slate-300 dark:border-white/10 hover:border-blue-500 text-slate-600 dark:text-slate-300 px-3 py-2 rounded-sm text-xs font-bold uppercase tracking-wide transition-all shadow-sm"
+                                    className="w-full flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-4 py-3 rounded-lg text-xs font-bold uppercase tracking-wide transition-all shadow-lg shadow-slate-900/10 active:translate-y-0.5"
                                 >
-                                    <PlusIcon className="w-3.5 h-3.5" />
-                                    <span>Add Patient</span>
+                                    <PlusIcon className="w-4 h-4" />
+                                    <span>New Context</span>
                                 </button>
                                 <div className="flex gap-2">
                                     <button 
                                         onClick={handleExportData}
-                                        className="flex-1 flex items-center justify-center gap-1.5 bg-slate-200 dark:bg-white/5 border border-transparent hover:bg-slate-300 dark:hover:bg-white/10 text-slate-600 dark:text-slate-400 px-2 py-1.5 rounded-sm text-[10px] font-mono font-bold uppercase transition-colors"
+                                        className="flex-1 flex items-center justify-center gap-1.5 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/10 text-slate-600 dark:text-slate-400 px-3 py-2 rounded-lg text-[10px] font-bold uppercase transition-colors"
                                         title="Backup Data"
                                     >
-                                        <DownloadIcon className="w-3 h-3" />
+                                        <DownloadIcon className="w-3.5 h-3.5" />
                                         <span>Backup</span>
                                     </button>
                                     <button 
                                         onClick={handleImportClick}
-                                        className="flex-1 flex items-center justify-center gap-1.5 bg-slate-200 dark:bg-white/5 border border-transparent hover:bg-slate-300 dark:hover:bg-white/10 text-slate-600 dark:text-slate-400 px-2 py-1.5 rounded-sm text-[10px] font-mono font-bold uppercase transition-colors"
+                                        className="flex-1 flex items-center justify-center gap-1.5 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/10 text-slate-600 dark:text-slate-400 px-3 py-2 rounded-lg text-[10px] font-bold uppercase transition-colors"
                                         title="Restore Data"
                                     >
-                                        <ClipboardIcon className="w-3 h-3" />
+                                        <ClipboardIcon className="w-3.5 h-3.5" />
                                         <span>Restore</span>
                                     </button>
                                 </div>
@@ -268,10 +273,10 @@ const SidebarRoster: React.FC<SidebarRosterProps> = ({ isOpen, toggle }) => {
                         ) : (
                              <button 
                                 onClick={() => setIsDialogOpen(true)}
-                                className="w-full flex items-center justify-center p-2 text-slate-500 hover:text-blue-500"
+                                className="w-full flex items-center justify-center p-3 text-slate-400 hover:text-blue-500 transition-colors"
                                 title="Add Patient"
                             >
-                                <PlusIcon className="w-5 h-5" />
+                                <PlusIcon className="w-6 h-6" />
                             </button>
                         )}
                         <input type="file" ref={fileInputRef} className="hidden" accept=".json" onChange={handleFileImport} />
@@ -279,10 +284,10 @@ const SidebarRoster: React.FC<SidebarRosterProps> = ({ isOpen, toggle }) => {
                 </div>
             </aside>
 
-            {/* Mobile Overlay */}
+            {/* Mobile Overlay - Lighter/Clean */}
             {isOpen && (
                 <div 
-                    className="md:hidden fixed inset-0 z-30 bg-slate-900/50 backdrop-blur-sm"
+                    className="md:hidden fixed inset-0 z-30 bg-slate-900/20 backdrop-blur-sm transition-opacity"
                     onClick={toggle}
                 ></div>
             )}
