@@ -44,7 +44,8 @@ export const PatientProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 }, {} as Record<string, PatientContext>),
                 activePatientId: state.activePatientId
             };
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
+            // SECURITY UPDATE: sessionStorage
+            sessionStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
         } catch (e) {
             console.error("Failed to save patient store", e);
         }

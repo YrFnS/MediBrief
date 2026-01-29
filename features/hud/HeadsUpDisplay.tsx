@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { usePatientStore } from '../patient-management/usePatientStore';
 import { PatientContext, PatientStatus } from '../patient-management/types';
-import { AlertTriangleIcon, ActivityIcon, ShieldCheckIcon, CheckIcon, ChevronRightIcon } from '../../components/icons';
+import { AlertTriangleIcon, ActivityIcon, HelpIcon, CheckIcon, ChevronRightIcon } from '../../components/icons';
 
 interface HeadsUpDisplayProps {
     patient: PatientContext;
@@ -152,9 +152,16 @@ const HeadsUpDisplay: React.FC<HeadsUpDisplayProps> = ({ patient }) => {
                             </span>
                         </div>
                     ) : (
-                         <div className="hidden md:flex items-center gap-1.5 px-2 py-1 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-sm opacity-50">
-                            <ShieldCheckIcon className="w-3.5 h-3.5 text-slate-400" />
-                            <span className="text-[10px] font-mono font-bold uppercase text-slate-500 tracking-wide">NKDA Scanned</span>
+                        // SAFETY UPDATE: Changed from "Green/NKDA" to "Grey/Verify" to reduce false confidence.
+                        // "Absence of evidence is not evidence of absence."
+                        <div 
+                            className="hidden md:flex items-center gap-1.5 px-2 py-1 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-sm opacity-70 hover:opacity-100 transition-opacity cursor-help group"
+                            title="The AI has not detected allergies in the current files. This does NOT guarantee NKDA. Please verify manually."
+                        >
+                            <HelpIcon className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-500 transition-colors" />
+                            <span className="text-[10px] font-mono font-bold uppercase text-slate-500 group-hover:text-slate-700 dark:group-hover:text-slate-300 tracking-wide transition-colors">
+                                No Allergies Found (Verify)
+                            </span>
                         </div>
                     )}
 

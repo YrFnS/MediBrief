@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { ChatMode as ChatModeEnum } from '../../types';
 import Header from '../../components/Header';
 import MessageList from '../../components/MessageList';
@@ -13,9 +13,12 @@ import BioMetricBackground from './BioMetricBackground';
 import { useLiveSession } from '../../hooks/useLiveSession';
 import { useFileDragAndDrop } from '../../hooks/useFileDragAndDrop';
 import { useChatOrchestrator } from '../../hooks/useChatOrchestrator';
-import { DocumentTextIcon } from '../../components/icons';
+import { DocumentTextIcon, ShieldCheckIcon } from '../../components/icons';
 import { usePatientStore } from '../patient-management/usePatientStore';
 import { useUIStore } from '../ui/UIContext';
+
+// --- IDLE TIMER CONSTANTS ---
+const IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 5 Minutes
 
 const MainLayout: React.FC = () => {
     // --- Stores ---
@@ -30,6 +33,38 @@ const MainLayout: React.FC = () => {
     const [userLocation, setUserLocation] = useState<{latitude: number, longitude: number} | undefined>(undefined);
     const [viewingImage, setViewingImage] = useState<{src: string, alt: string} | null>(null);
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [isLocked, setIsLocked] = useState(false);
+    const lastActivityRef = useRef(Date.now());
+
+    // --- IDLE LOCK LOGIC ---
+    useEffect(() => {
+        const resetTimer = () => {
+            lastActivityRef.current = Date.now();
+        };
+
+        const checkIdle = () => {
+            if (Date.now() - lastActivityRef.current > IDLE_TIMEOUT_MS) {
+                setIsLocked(true);
+            }
+        };
+
+        // Events to track activity
+        window.addEventListener('mousemove', resetTimer);
+        window.addEventListener('keydown', resetTimer);
+        window.addEventListener('touchstart', resetTimer);
+        window.addEventListener('scroll', resetTimer);
+        
+        // Check interval
+        const intervalId = setInterval(checkIdle, 10000); // Check every 10s
+
+        return () => {
+            window.removeEventListener('mousemove', resetTimer);
+            window.removeEventListener('keydown', resetTimer);
+            window.removeEventListener('touchstart', resetTimer);
+            window.removeEventListener('scroll', resetTimer);
+            clearInterval(intervalId);
+        };
+    }, []);
 
     // Responsive Sidebar Check
     useEffect(() => {
@@ -98,6 +133,29 @@ const MainLayout: React.FC = () => {
     }, []);
 
     const toggleLiveSession = useCallback(() => isLive ? stopSession() : startSession(activeMessages), [isLive, stopSession, startSession, activeMessages]);
+
+    // --- LOCK SCREEN UI ---
+    if (isLocked) {
+        return (
+            <div className="flex flex-col items-center justify-center h-screen bg-slate-950 text-white relative overflow-hidden">
+                <div className="absolute inset-0 bg-grid-pattern opacity-10"></div>
+                <div className="z-10 bg-slate-900 border border-slate-700 p-8 rounded-md shadow-2xl max-w-sm w-full text-center technical-border">
+                    <ShieldCheckIcon className="w-12 h-12 text-blue-500 mx-auto mb-4 animate-pulse" />
+                    <h2 className="text-xl font-display font-bold uppercase tracking-widest mb-2">Session Locked</h2>
+                    <p className="text-sm text-slate-400 font-mono mb-6">Security Timeout Triggered (5m)</p>
+                    <button 
+                        onClick={() => {
+                            lastActivityRef.current = Date.now();
+                            setIsLocked(false);
+                        }}
+                        className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold uppercase tracking-widest rounded-sm transition-colors"
+                    >
+                        Resume Session
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     if (!process.env.API_KEY) {
          return (

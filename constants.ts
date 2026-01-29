@@ -86,15 +86,20 @@ export const MODEL_CONFIGS = {
     config: {
         tools: [{ googleSearch: {}, googleMaps: {} }], 
     },
-    description: "Standard clinical synthesis with Search & Maps verification."
+    description: "Standard clinical synthesis with Search & Maps verification.",
+    contextLimit: 30 // Keep last 30 text turns (High Context)
   },
   [ChatMode.Deep]: {
     model: 'gemini-3-pro-preview',
     config: {
+      // CRITICAL: maxOutputTokens MUST be set when using thinkingBudget
+      // We set it to 64k to allow room for the 8k thinking budget + long responses
+      maxOutputTokens: 65536, 
       thinkingConfig: { thinkingBudget: 8192 },
       tools: [{ googleSearch: {} }],
     },
-    description: "Deep reasoning with literature verification (High Compute)."
+    description: "Deep reasoning with literature verification (High Compute).",
+    contextLimit: 10 // Keep last 10 text turns (Focused Context to save cost/latency)
   },
   [ChatMode.Live]: {
     model: 'gemini-2.5-flash-native-audio-preview-12-2025',
@@ -107,7 +112,8 @@ export const MODEL_CONFIGS = {
       },
       tools: [{ functionDeclarations: [scheduleAppointmentFunctionDeclaration] }],
     },
-    description: "Real-time voice conversation with the AI assistant."
+    description: "Real-time voice conversation with the AI assistant.",
+    contextLimit: 6 // Keep last 6 turns (Low Latency)
   },
   [ChatMode.Scribe]: {
     model: 'gemini-2.5-flash-native-audio-preview-12-2025',
@@ -118,7 +124,8 @@ export const MODEL_CONFIGS = {
         },
         tools: [{ functionDeclarations: [updateSoapNoteFunctionDeclaration] }],
     },
-    description: "Passive ambient listening. Generates SOAP notes automatically."
+    description: "Passive ambient listening. Generates SOAP notes automatically.",
+    contextLimit: 0 // Stateless stream
   }
 };
 
@@ -168,19 +175,21 @@ export const CDSS_CHECK_PROMPT = `
 You are a Clinical Safety Sentinel.
 Input: A list of patient clinical observations (Vitals, Labs).
 
-**PROTOCOL:**
-1.  **SEARCH**: You **MUST** use the \`googleSearch\` tool to verify the LATEST standard-of-care thresholds for these values (e.g. Sepsis-3, KDIGO, JNC 8, AHA Guidelines).
-2.  **EVALUATE**: Compare the patient's data against these verified thresholds.
-3.  **ALERT**: Generate a Critical or Warning alert ONLY if a specific medical protocol is violated.
+**PROTOCOL: ZERO-TRUST VERIFICATION**
+1.  **SEARCH (MANDATORY)**: You **MUST** use the \`googleSearch\` tool to find the LATEST standard-of-care guidelines for the observed values. 
+    *   *Query Examples:* "Sepsis-3 criteria 2024", "KDIGO AKI stage criteria", "Hyperkalemia emergency thresholds".
+    *   **DO NOT** rely on your internal training data for thresholds. Guidelines change. Verify them now.
+2.  **EVALUATE**: Compare the patient's specific values against the *verified, searched* thresholds.
+3.  **ALERT**: Generate a Critical or Warning alert ONLY if a specific medical protocol is violated based on the search results.
 
 **OUTPUT SCHEMA (JSON ONLY):**
 {
   "alerts": [
     {
-      "title": "PROTOCOL TITLE (e.g. Sepsis Protocol)",
+      "title": "PROTOCOL TITLE (e.g. Sepsis-3 Protocol)",
       "level": "Critical" | "Warning",
-      "description": "Brief clinical explanation citing the guideline.",
-      "triggers": ["HR: 110", "Temp: 39.0"],
+      "description": "Brief clinical explanation citing the specific guideline found (e.g. 'According to 2021 Surviving Sepsis Guidelines...')",
+      "triggers": ["HR: 110 (Threshold: >90)", "Temp: 39.0"],
       "actions": [
          { "label": "Order X", "type": "order", "payload": "Order details..." },
          { "label": "Dismiss", "type": "dismiss" }

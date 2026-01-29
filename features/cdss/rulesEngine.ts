@@ -27,9 +27,9 @@ export const evaluateClinicalSafety = async (observations: FHIRObservation[]): P
             }
         ];
 
-        // Use standard model with Search capability
+        // UPGRADE: Use Gemini 3.0 Flash for better reasoning + search tool use
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-3-flash-preview',
             contents: contents,
             config: {
                 responseMimeType: 'application/json',

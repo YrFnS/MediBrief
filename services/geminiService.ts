@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, GenerateContentResponse, Content, Part, GenerateContentParameters } from "@google/genai";
 import type { ChatMessage, ChatMode, UploadedFile } from '../types';
 import { MODEL_CONFIGS, SYSTEM_INSTRUCTION } from '../constants';
@@ -8,11 +9,10 @@ const messageToContent = (message: ChatMessage, isHistory: boolean = false): Con
 
     // If the message has a persistent file attached
     if (message.filePreview) {
-        // COST OPTIMIZATION:
+        // COST OPTIMIZATION & ZOMBIE FILE LOGIC:
         // We strictly control when to send base64 image data.
         // Sending high-res images in the chat history (every turn) is extremely expensive and redundant
         // because the model (Assistant) has already processed and described the image in the previous turn.
-        // We only send the binary data if it's the CURRENT payload, not history.
         
         const hasData = message.filePreview.base64 && message.filePreview.type;
         const shouldSendImage = !isHistory && hasData;
@@ -33,7 +33,8 @@ const messageToContent = (message: ChatMessage, isHistory: boolean = false): Con
             const isImage = message.filePreview.type.startsWith('image/');
             
             // We only inject a text placeholder if this was an image.
-            // Text files are already embedded in `message.content` by App.tsx logic, so they don't need this.
+            // Text files are already embedded in `message.content` by App.tsx logic, so they don't need this
+            // UNLESS the text content was also huge and stripped (future optimization).
             if (isImage) {
                  parts.push({ 
                     text: `[System Note: The user attached an image named "${message.filePreview.name}" in a previous turn. To conserve tokens, the image data is not re-sent. Please rely on your previous analysis of this image.]` 
@@ -94,26 +95,28 @@ export const generateResponseStream = async function* (
      return (msg.content && msg.content.trim() !== '') || (msg.filePreview !== undefined);
   });
 
-  // 2. INTELLIGENT CONTEXT PRUNING ("Sticky Files")
-  // In a medical context, files (X-Rays, PDFs) are the source of truth.
-  // We MUST preserve them, even if the conversation gets long.
-  // A simple `slice(-15)` would delete the Patient Chart if the doctor asks 16 questions.
+  // 2. INTELLIGENT CONTEXT PRUNING ("Adaptive Budget")
+  // Different models have different cost/latency profiles.
+  // We dynamically adjust the window size based on the active mode.
   
-  const MAX_TEXT_TURNS = 15; // Keep last 15 exchanges of text
+  // Default to 15 if not specified (legacy safety), but prefer config value.
+  const MAX_TEXT_TURNS = (modelConfig as any).contextLimit || 15;
   
   // Identify "Medical Records" (Messages with file attachments)
+  // We generally assume these are CRITICAL and "Sticky" (should not be pruned easily).
   const medicalRecords = rawHistory.filter(msg => msg.filePreview !== undefined);
   
   // Identify "Conversation" (Text-only messages)
   const conversation = rawHistory.filter(msg => msg.filePreview === undefined);
   
-  // Prune only the conversation, keep ALL medical records
+  // Prune the conversation based on the model's budget
   const recentConversation = conversation.slice(-MAX_TEXT_TURNS);
   
-  // Re-assemble and sort by original order to maintain logical flow
-  const historyToProcess = [...medicalRecords, ...recentConversation].sort((a, b) => {
-      return rawHistory.indexOf(a) - rawHistory.indexOf(b);
-  });
+  // Re-assemble and sort by original order to maintain logical flow.
+  // Using a Set for O(1) lookups to reconstruct order efficiently.
+  const keptMessagesSet = new Set([...medicalRecords, ...recentConversation]);
+  
+  const historyToProcess = rawHistory.filter(msg => keptMessagesSet.has(msg));
 
   // Map history to API Content objects.
   // Pass 'true' to isHistory to strip expensive image binaries, but KEEP text.

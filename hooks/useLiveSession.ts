@@ -10,6 +10,34 @@ declare global {
   }
 }
 
+// --- Audio Worklet Code ---
+// This runs in a separate thread to prevent UI blocking
+const PCM_PROCESSOR_CODE = `
+class PCMProcessor extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.bufferSize = 4096;
+    this.buffer = new Float32Array(this.bufferSize);
+    this.index = 0;
+  }
+  process(inputs, outputs, parameters) {
+    const input = inputs[0];
+    if (input && input.length > 0) {
+      const channelData = input[0];
+      for (let i = 0; i < channelData.length; i++) {
+        this.buffer[this.index++] = channelData[i];
+        if (this.index >= this.bufferSize) {
+          this.port.postMessage(this.buffer);
+          this.index = 0;
+        }
+      }
+    }
+    return true;
+  }
+}
+registerProcessor('pcm-processor', PCMProcessor);
+`;
+
 const encode = (bytes: Uint8Array) => {
   let binary = '';
   const len = bytes.byteLength;
@@ -82,8 +110,8 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
     const outputAudioContextRef = useRef<AudioContext | null>(null);
     const audioSourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
     const nextStartTimeRef = useRef<number>(0);
-    const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
     const mediaStreamSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+    const workletNodeRef = useRef<AudioWorkletNode | null>(null);
     const isStoppingRef = useRef(false);
 
     const stopSession = useCallback(async () => {
@@ -98,9 +126,9 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
             }
 
             // 2. Disconnect audio nodes
-            scriptProcessorRef.current?.disconnect();
+            workletNodeRef.current?.disconnect();
             mediaStreamSourceRef.current?.disconnect();
-            scriptProcessorRef.current = null;
+            workletNodeRef.current = null;
             mediaStreamSourceRef.current = null;
 
             // 3. Stop all playing audio
@@ -159,7 +187,18 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
             if (inputAudioContextRef.current.state === 'suspended') await inputAudioContextRef.current.resume();
             if (outputAudioContextRef.current.state === 'suspended') await outputAudioContextRef.current.resume();
 
-            // 2. Get User Media (Critical Failure Point for No Mic)
+            // 2. Load AudioWorklet Module
+            try {
+                const blob = new Blob([PCM_PROCESSOR_CODE], { type: 'application/javascript' });
+                const url = URL.createObjectURL(blob);
+                await inputAudioContextRef.current.audioWorklet.addModule(url);
+                URL.revokeObjectURL(url);
+            } catch (e) {
+                // Module might already be loaded in this context, safe to ignore
+                console.debug("Worklet module load check:", e);
+            }
+
+            // 3. Get User Media
             let stream: MediaStream;
             try {
                 stream = await navigator.mediaDevices.getUserMedia({ 
@@ -170,21 +209,20 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
                     } 
                 });
             } catch (mediaError: any) {
-                // Handle specific hardware errors here
                 if (mediaError.name === 'NotFoundError' || mediaError.name === 'DevicesNotFoundError') {
                     throw new Error("No microphone found on this device.");
                 }
                 if (mediaError.name === 'NotAllowedError' || mediaError.name === 'PermissionDeniedError') {
                     throw new Error("Microphone permission denied by user.");
                 }
-                throw mediaError; // Rethrow other errors to be caught by outer catch
+                throw mediaError;
             }
             
             setIsLive(true);
             
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-            // 3. Build Context String
+            // 4. Build Context String
             let contextString = "";
             if (history.length > 0) {
                 const recentHistory = history.slice(-6).filter(m => m.content).map(m => {
@@ -194,7 +232,7 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
                 contextString = `\n\n[CONTEXT: ${recentHistory}]`;
             }
 
-            // 4. Connect to Live API
+            // 5. Connect to Live API
             const sessionPromise = ai.live.connect({
                 model: MODEL_CONFIGS[ChatMode.Live].model,
                 config: {
@@ -204,20 +242,20 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
                 callbacks: {
                     onopen: async () => {
                         if (!inputAudioContextRef.current) return;
-                        // Setup Input Stream
+                        // Setup Input Stream via Worklet
                         mediaStreamSourceRef.current = inputAudioContextRef.current.createMediaStreamSource(stream);
-                        scriptProcessorRef.current = inputAudioContextRef.current.createScriptProcessor(4096, 1, 1);
+                        workletNodeRef.current = new AudioWorkletNode(inputAudioContextRef.current, 'pcm-processor');
                         
-                        scriptProcessorRef.current.onaudioprocess = (audioProcessingEvent) => {
-                            if (!inputAudioContextRef.current || inputAudioContextRef.current.state !== 'running') return;
-                            const inputData = audioProcessingEvent.inputBuffer.getChannelData(0);
-                            const pcmBlob = createBlob(inputData);
-                            sessionPromise.then((session) => {
+                        workletNodeRef.current.port.onmessage = (event) => {
+                             const inputData = event.data;
+                             const pcmBlob = createBlob(inputData);
+                             sessionPromise.then((session) => {
                                 session.sendRealtimeInput({ media: pcmBlob });
-                            });
+                             });
                         };
-                        mediaStreamSourceRef.current.connect(scriptProcessorRef.current);
-                        scriptProcessorRef.current.connect(inputAudioContextRef.current.destination);
+                        
+                        mediaStreamSourceRef.current.connect(workletNodeRef.current);
+                        workletNodeRef.current.connect(inputAudioContextRef.current.destination);
                     },
                     onmessage: async (message: LiveServerMessage) => {
                         if (message.serverContent?.inputTranscription) {
@@ -295,7 +333,6 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
             let errMsg = "Microphone or connection failed.";
             const msg = e.message || e.toString();
             
-            // Map error to friendly message
             if (msg.includes('No microphone found')) {
                 errMsg = "No microphone detected. Please connect a microphone.";
             } else if (msg.includes('permission denied')) {

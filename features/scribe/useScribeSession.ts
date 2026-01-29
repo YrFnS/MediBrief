@@ -5,8 +5,33 @@ import { MODEL_CONFIGS, SCRIBE_SYSTEM_INSTRUCTION } from '../../constants';
 import { ChatMode } from '../../types';
 import { SoapNote } from './types';
 
-// Duplicated audio utils to keep this feature self-contained and stable
-// Ideally, these move to a shared audioService in a larger refactor
+// --- Audio Worklet Code ---
+const PCM_PROCESSOR_CODE = `
+class PCMProcessor extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.bufferSize = 4096;
+    this.buffer = new Float32Array(this.bufferSize);
+    this.index = 0;
+  }
+  process(inputs, outputs, parameters) {
+    const input = inputs[0];
+    if (input && input.length > 0) {
+      const channelData = input[0];
+      for (let i = 0; i < channelData.length; i++) {
+        this.buffer[this.index++] = channelData[i];
+        if (this.index >= this.bufferSize) {
+          this.port.postMessage(this.buffer);
+          this.index = 0;
+        }
+      }
+    }
+    return true;
+  }
+}
+registerProcessor('pcm-processor', PCMProcessor);
+`;
+
 const encode = (bytes: Uint8Array) => {
   let binary = '';
   const len = bytes.byteLength;
@@ -42,7 +67,7 @@ export const useScribeSession = () => {
     const liveSessionRef = useRef<any>(null);
     const audioContextRef = useRef<AudioContext | null>(null);
     const mediaStreamSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
-    const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
+    const workletNodeRef = useRef<AudioWorkletNode | null>(null);
 
     const stopSession = useCallback(async () => {
         try {
@@ -50,7 +75,7 @@ export const useScribeSession = () => {
                 liveSessionRef.current.close();
                 liveSessionRef.current = null;
             }
-            scriptProcessorRef.current?.disconnect();
+            workletNodeRef.current?.disconnect();
             mediaStreamSourceRef.current?.disconnect();
             if (audioContextRef.current && audioContextRef.current.state === 'running') {
                 await audioContextRef.current.suspend();
@@ -73,6 +98,16 @@ export const useScribeSession = () => {
             }
             if (audioContextRef.current.state === 'suspended') await audioContextRef.current.resume();
 
+            // Load Worklet
+            try {
+                const blob = new Blob([PCM_PROCESSOR_CODE], { type: 'application/javascript' });
+                const url = URL.createObjectURL(blob);
+                await audioContextRef.current.audioWorklet.addModule(url);
+                URL.revokeObjectURL(url);
+            } catch (e) {
+                 console.debug("Worklet module load check:", e);
+            }
+
             const stream = await navigator.mediaDevices.getUserMedia({ 
                 audio: { echoCancellation: true, noiseSuppression: true } 
             });
@@ -91,17 +126,16 @@ export const useScribeSession = () => {
                     onopen: async () => {
                          if (!audioContextRef.current) return;
                          mediaStreamSourceRef.current = audioContextRef.current.createMediaStreamSource(stream);
-                         scriptProcessorRef.current = audioContextRef.current.createScriptProcessor(4096, 1, 1);
+                         workletNodeRef.current = new AudioWorkletNode(audioContextRef.current, 'pcm-processor');
                          
-                         scriptProcessorRef.current.onaudioprocess = (e) => {
-                             if (!audioContextRef.current || audioContextRef.current.state !== 'running') return;
-                             const inputData = e.inputBuffer.getChannelData(0);
+                         workletNodeRef.current.port.onmessage = (e) => {
+                             const inputData = e.data;
                              const pcmBlob = createBlob(inputData);
                              sessionPromise.then(session => session.sendRealtimeInput({ media: pcmBlob }));
                          };
                          
-                         mediaStreamSourceRef.current.connect(scriptProcessorRef.current);
-                         scriptProcessorRef.current.connect(audioContextRef.current.destination);
+                         mediaStreamSourceRef.current.connect(workletNodeRef.current);
+                         workletNodeRef.current.connect(audioContextRef.current.destination);
                     },
                     onmessage: async (message: LiveServerMessage) => {
                         // We ONLY care about Tool Calls for Scribe mode.

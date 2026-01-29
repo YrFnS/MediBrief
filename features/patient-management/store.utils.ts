@@ -20,7 +20,9 @@ export const createDefaultPatient = (): PatientContext => ({
 
 export const getInitialState = (): PatientStoreState => {
     try {
-        const savedState = localStorage.getItem(STORAGE_KEY);
+        // SECURITY UPDATE: Use sessionStorage instead of localStorage.
+        // Data persists only for the duration of the session (tab).
+        const savedState = sessionStorage.getItem(STORAGE_KEY);
         if (savedState) {
             const parsed = JSON.parse(savedState);
             if (parsed.patients && parsed.activePatientId) {
