@@ -1,9 +1,27 @@
 
-// A simplified subset of FHIR R4 resources for internal use
+// FHIR R4 STRICT IMPLEMENTATION (Subset for Observation)
+// https://www.hl7.org/fhir/observation.html
+
+export type FHIRResourceType = 'Observation' | 'Patient' | 'Bundle';
+export type ObservationStatus = 'registered' | 'preliminary' | 'final' | 'amended' | 'corrected' | 'cancelled' | 'entered-in-error' | 'unknown';
+
+export interface FHIRCoding {
+    system?: string; // e.g., "http://loinc.org" or "http://unitsofmeasure.org"
+    version?: string;
+    code?: string;
+    display?: string;
+    userSelected?: boolean;
+}
+
+export interface FHIRCodeableConcept {
+    coding?: FHIRCoding[];
+    text?: string; // Plain text representation
+}
 
 export interface FHIRQuantity {
-    value: number;
-    unit: string;
+    value?: number;
+    comparator?: '<' | '<=' | '>=' | '>';
+    unit?: string;
     system?: string;
     code?: string;
 }
@@ -11,32 +29,42 @@ export interface FHIRQuantity {
 export interface FHIRReferenceRange {
     low?: FHIRQuantity;
     high?: FHIRQuantity;
+    type?: FHIRCodeableConcept;
+    appliesTo?: FHIRCodeableConcept[];
     text?: string;
 }
 
-export interface FHIRCodeableConcept {
-    text: string;
-    coding?: {
-        system: string;
-        code: string;
-        display: string;
-    }[];
+export interface FHIRReference {
+    reference: string; // e.g. "Patient/123"
+    type?: string;
+    display?: string;
 }
 
+// Official FHIR R4 Observation Resource Structure
 export interface FHIRObservation {
     resourceType: 'Observation';
     id: string;
-    status: 'final' | 'preliminary';
-    code: FHIRCodeableConcept;
+    status: ObservationStatus;
+    category?: FHIRCodeableConcept[];
+    code: FHIRCodeableConcept; // Concept - reference to a terminology or just text
+    subject?: FHIRReference; // The patient this observation is about
+    effectiveDateTime?: string; // ISO8601
+    issued?: string; // Instant
+    performer?: FHIRReference[];
+    
+    // Actual result (FHIR uses value[x] choice, we model common ones)
     valueQuantity?: FHIRQuantity;
     valueString?: string;
+    valueBoolean?: boolean;
+    valueInteger?: number;
+    valueCodeableConcept?: FHIRCodeableConcept;
+    
+    interpretation?: FHIRCodeableConcept[]; // High, Low, Normal, etc.
     referenceRange?: FHIRReferenceRange[];
-    effectiveDateTime: string; // ISO 8601
-    interpretation?: FHIRCodeableConcept[];
+    note?: { text: string }[];
 }
 
-// Container for clinical data in our Patient Store
 export interface ClinicalDataStore {
     observations: FHIRObservation[];
-    // Future expansion: medications, conditions, etc.
+    // Expandable to include conditions, medications, etc.
 }

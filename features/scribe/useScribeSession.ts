@@ -63,6 +63,7 @@ export const useScribeSession = () => {
         assessment: '',
         plan: ''
     });
+    const [transcript, setTranscript] = useState<string[]>([]);
     const [error, setError] = useState<string | null>(null);
 
     const liveSessionRef = useRef<any>(null);
@@ -71,6 +72,9 @@ export const useScribeSession = () => {
     const workletNodeRef = useRef<AudioWorkletNode | null>(null);
     const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
     const workletSupportedRef = useRef<boolean>(false);
+    
+    // Accumulator for the current turn to debounce updates
+    const currentTurnRef = useRef<string>('');
 
     const stopSession = useCallback(async () => {
         try {
@@ -98,6 +102,8 @@ export const useScribeSession = () => {
     const startSession = useCallback(async () => {
         if (isActive) return;
         setError(null);
+        setTranscript([]); // Clear previous transcript
+        currentTurnRef.current = '';
 
         try {
              // 1. Audio Setup
@@ -168,7 +174,19 @@ export const useScribeSession = () => {
                          }
                     },
                     onmessage: async (message: LiveServerMessage) => {
-                        // We ONLY care about Tool Calls for Scribe mode.
+                        // Handle Input Transcription (User Speech)
+                        if (message.serverContent?.inputTranscription) {
+                            const text = message.serverContent.inputTranscription.text;
+                            currentTurnRef.current += text;
+                        }
+
+                        // Commit turn to transcript array when turn is complete
+                        if (message.serverContent?.turnComplete && currentTurnRef.current.trim()) {
+                            setTranscript(prev => [...prev, currentTurnRef.current.trim()]);
+                            currentTurnRef.current = '';
+                        }
+
+                        // Handle Tool Calls (SOAP Note Updates)
                         if (message.toolCall) {
                             for (const fc of message.toolCall.functionCalls) {
                                 if (fc.name === 'updateSoapNote') {
@@ -212,7 +230,8 @@ export const useScribeSession = () => {
 
     return { 
         isActive, 
-        soapNote, 
+        soapNote,
+        transcript, 
         setSoapNote, // allow manual edits
         startSession, 
         stopSession, 

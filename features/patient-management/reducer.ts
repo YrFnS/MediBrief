@@ -89,6 +89,8 @@ export const patientReducer = (state: PatientStoreState, action: PatientAction):
             if (!targetPatient) return state;
 
             const existingObs = targetPatient.clinicalData?.observations || [];
+            
+            // Robust deduplication using optional chaining for strict FHIR types
             const newObs = action.payload.observations.filter(obs => 
                 !existingObs.some(ex => 
                     ex.code.text === obs.code.text && 

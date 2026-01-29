@@ -1,10 +1,10 @@
 
 import { useCallback } from 'react';
-import { usePatientStore } from '../features/patient-management/usePatientStore';
-import { PatientContext } from '../features/patient-management/types';
+import { useClinicalStore } from '../features/clinical-analysis/stores/useClinicalStore';
+import { FullPatientContext } from '../features/patient-management/types';
 
-export const useCDSS = (patient?: PatientContext) => {
-    const actions = usePatientStore(state => state.actions);
+export const useCDSS = (patient?: FullPatientContext) => {
+    const actions = useClinicalStore(state => state.actions);
     
     const activeAlerts = patient?.activeAlerts || [];
 

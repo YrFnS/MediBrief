@@ -1,16 +1,18 @@
 
 import React from 'react';
-import { useCDSS } from '../../hooks/useCDSS';
-import InterventionCard from './InterventionCard';
 import { usePatientStore } from '../patient-management/usePatientStore';
+import { useClinicalStore } from '../clinical-analysis/stores/useClinicalStore';
+import { useChatStore } from '../chat/stores/useChatStore';
+import InterventionCard from './InterventionCard';
 import { CDSSAlert } from './types';
 
 const CDSSContainer: React.FC = () => {
-    const { activePatient, actions } = usePatientStore(state => ({
-        activePatient: state.patients[state.activePatientId],
-        actions: state.actions
-    }));
-    const { activeAlerts, dismissAlert } = useCDSS(activePatient);
+    const activePatientId = usePatientStore(state => state.activePatientId);
+    
+    // Select Alerts from Clinical Store
+    const activeAlerts = useClinicalStore(state => state.alerts[activePatientId] || []);
+    const clinicalActions = useClinicalStore(state => state.actions);
+    const chatActions = useChatStore(state => state.actions);
 
     if (activeAlerts.length === 0) return null;
 
@@ -18,16 +20,16 @@ const CDSSContainer: React.FC = () => {
         const action = alert.actions[actionIndex];
 
         if (action.type === 'dismiss') {
-            dismissAlert(alert.ruleId);
+            clinicalActions.dismissAlert(activePatientId, alert.ruleId);
         } else if (action.type === 'order' || action.type === 'acknowledge') {
             // Inject the action into the chat as a system note or user action
             if (action.payload) {
-                actions.addFullResponse({ 
+                chatActions.addMessage(activePatientId, { 
                     role: 'model', 
                     content: `✅ **ACTION EXECUTED**: ${action.payload}\n\n*Protocol: ${alert.title}*` 
                 });
             }
-            dismissAlert(alert.ruleId);
+            clinicalActions.dismissAlert(activePatientId, alert.ruleId);
         }
     };
 

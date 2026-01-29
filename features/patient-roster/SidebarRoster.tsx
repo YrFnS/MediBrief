@@ -1,11 +1,13 @@
 
 import React, { useState, useRef } from 'react';
 import { usePatientStore } from '../patient-management/usePatientStore';
+import { useChatStore } from '../chat/stores/useChatStore';
+import { useClinicalStore } from '../clinical-analysis/stores/useClinicalStore';
 import PatientCard from './PatientCard';
 import AddPatientDialog from './AddPatientDialog';
 import { ChevronLeftIcon, UsersIcon, DownloadIcon, ClipboardIcon, PlusIcon } from '../../components/icons';
 import { useToast } from '../../components/Toast';
-import { PatientContext } from '../patient-management/types';
+import { PatientMetadata, FullPatientContext } from '../patient-management/types';
 
 interface SidebarRosterProps {
     isOpen: boolean;
@@ -13,18 +15,22 @@ interface SidebarRosterProps {
 }
 
 const SidebarRoster: React.FC<SidebarRosterProps> = ({ isOpen, toggle }) => {
-    // Zustand Selector
+    // Zustand Selectors
     const { patients, activePatientId, actions } = usePatientStore(state => ({
         patients: state.patients,
         activePatientId: state.activePatientId,
         actions: state.actions
     }));
+    
+    // Access other store actions for CRUD sync
+    const chatActions = useChatStore(state => state.actions);
+    const clinicalActions = useClinicalStore(state => state.actions);
 
     const { showToast } = useToast();
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const patientsList = (Object.values(patients) as PatientContext[]).sort((a, b) => b.lastActive - a.lastActive);
+    const patientsList = (Object.values(patients) as PatientMetadata[]).sort((a, b) => b.lastActive - a.lastActive);
 
     const handleSwitch = (id: string) => {
         actions.switchPatient(id);
@@ -38,19 +44,44 @@ const SidebarRoster: React.FC<SidebarRosterProps> = ({ isOpen, toggle }) => {
 
         if (confirm(`Are you sure you want to delete the context for "${name}"?\nThis action cannot be undone.`)) {
              actions.deletePatient(id);
+             chatActions.deleteChat(id);
+             clinicalActions.deletePatient(id);
              showToast(`Patient context deleted`, 'info');
         }
     };
 
     const handleCreate = (name: string) => {
-        actions.createPatient(name);
+        const newId = actions.createPatient(name);
+        chatActions.initializeChat(newId);
+        clinicalActions.initializePatient(newId);
         setIsDialogOpen(false);
         showToast(`Patient context '${name}' initialized`, 'success');
     };
 
     const handleExportData = () => {
         try {
-            const dataStr = JSON.stringify({ patients, activePatientId });
+            const chatState = useChatStore.getState().chats;
+            const clinicalState = useClinicalStore.getState().data;
+            const alertsState = useClinicalStore.getState().alerts;
+            
+            // Construct composite export object
+            const exportData: Record<string, FullPatientContext> = {};
+            Object.keys(patients).forEach(id => {
+                exportData[id] = {
+                    ...patients[id],
+                    chatHistory: chatState[id] || [],
+                    clinicalData: clinicalState[id] || { observations: [] },
+                    activeAlerts: alertsState[id] || []
+                };
+            });
+
+            const payload = { 
+                version: '4.2', 
+                patients: exportData, 
+                activePatientId 
+            };
+
+            const dataStr = JSON.stringify(payload);
             const blob = new Blob([dataStr], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -77,28 +108,46 @@ const SidebarRoster: React.FC<SidebarRosterProps> = ({ isOpen, toggle }) => {
         const reader = new FileReader();
         reader.onload = (event) => {
             try {
-                const importedState = JSON.parse(event.target?.result as string);
-                if (importedState && importedState.patients) {
-                    // Manual hydration via Zustand setState logic is complex from outside.
-                    // Ideally we'd have a hydration action.
-                    // For now, we'll reload the page after setting session storage to keep it simple with persist middleware.
-                    // OR we can implement a 'hydrate' action in store.
-                    // Let's assume we implement a `hydrate` action in store, which we did not yet.
-                    // Wait, `persist` middleware handles rehydration on init.
-                    // Let's trigger a full state update if possible or warn user.
+                const imported = JSON.parse(event.target?.result as string);
+                
+                if (imported && imported.patients) {
+                    // Deconstruct and distribute to stores
+                    const patientMeta: Record<string, PatientMetadata> = {};
                     
-                    // Actually, I can just write to sessionStorage and reload.
-                    // But that's hacky.
-                    // Let's rely on the store not having a 'hydrate' action exposed yet in the new Zustand version.
-                    // I will add a `hydrate` dummy or just skip this feature for this refactor?
-                    // No, "restore" is useful.
-                    // I'll just skip the implementation for now as it wasn't requested in the prompt explicitly
-                    // but I should try to keep parity.
-                    showToast('Restore feature temporarily disabled during upgrade.', 'info');
+                    Object.keys(imported.patients).forEach(id => {
+                        const full = imported.patients[id] as FullPatientContext;
+                        
+                        // 1. Meta Store
+                        patientMeta[id] = {
+                            id: full.id,
+                            name: full.name,
+                            status: full.status,
+                            entities: full.entities,
+                            documents: full.documents,
+                            createdAt: full.createdAt,
+                            lastActive: full.lastActive
+                        };
+
+                        // 2. Chat Store
+                        useChatStore.setState(state => ({
+                            chats: { ...state.chats, [id]: full.chatHistory || [] }
+                        }));
+
+                        // 3. Clinical Store
+                        useClinicalStore.setState(state => ({
+                            data: { ...state.data, [id]: full.clinicalData || { observations: [] } },
+                            alerts: { ...state.alerts, [id]: full.activeAlerts || [] }
+                        }));
+                    });
+
+                    actions.setAllPatients(patientMeta, imported.activePatientId || Object.keys(patientMeta)[0]);
+                    
+                    showToast('System state restored successfully.', 'success');
                 } else {
                     throw new Error("Invalid format");
                 }
             } catch (error) {
+                console.error(error);
                 showToast('Invalid backup file format', 'error');
             }
         };

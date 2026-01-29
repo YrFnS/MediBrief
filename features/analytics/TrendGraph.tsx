@@ -25,15 +25,15 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 const TrendGraph: React.FC<TrendGraphProps> = ({ testName, observations }) => {
     // Filter and Sort Data
     const data = observations
-        .filter(o => o.code.text === testName && o.valueQuantity)
+        .filter(o => o.code.text === testName && o.valueQuantity && o.valueQuantity.value !== undefined)
         .map(o => ({
-            date: new Date(o.effectiveDateTime).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
-            fullDate: new Date(o.effectiveDateTime).toLocaleString(),
+            date: o.effectiveDateTime ? new Date(o.effectiveDateTime).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'Unknown',
+            fullDate: o.effectiveDateTime ? new Date(o.effectiveDateTime).toLocaleString() : 'Unknown',
             value: o.valueQuantity!.value,
-            unit: o.valueQuantity!.unit,
+            unit: o.valueQuantity!.unit || '',
             low: o.referenceRange?.[0]?.low?.value,
             high: o.referenceRange?.[0]?.high?.value,
-            timestamp: new Date(o.effectiveDateTime).getTime()
+            timestamp: o.effectiveDateTime ? new Date(o.effectiveDateTime).getTime() : 0
         }))
         .sort((a, b) => a.timestamp - b.timestamp);
 

@@ -13,8 +13,9 @@ export const evaluateClinicalSafety = async (observations: FHIRObservation[]): P
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         
         // Format observations for the model
+        // Safe access for optional FHIR fields
         const obsString = observations.map(o => 
-            `${o.code.text}: ${o.valueQuantity?.value} ${o.valueQuantity?.unit} (${o.effectiveDateTime})`
+            `${o.code.text || 'Unknown Test'}: ${o.valueQuantity?.value ?? 'N/A'} ${o.valueQuantity?.unit || ''} (${o.effectiveDateTime || 'No Date'})`
         ).join('\n');
 
         const contents = [

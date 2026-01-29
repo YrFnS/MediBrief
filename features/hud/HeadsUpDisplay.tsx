@@ -1,11 +1,11 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { usePatientStore } from '../patient-management/usePatientStore';
-import { PatientContext, PatientStatus } from '../patient-management/types';
+import { PatientMetadata, PatientStatus } from '../patient-management/types';
 import { AlertTriangleIcon, ActivityIcon, HelpIcon, CheckIcon, ChevronRightIcon } from '../../components/icons';
 
 interface HeadsUpDisplayProps {
-    patient: PatientContext;
+    patient: PatientMetadata;
 }
 
 const STATUS_OPTIONS: { value: PatientStatus; color: string; label: string }[] = [

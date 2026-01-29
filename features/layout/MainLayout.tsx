@@ -15,18 +15,21 @@ import { useFileDragAndDrop } from '../../hooks/useFileDragAndDrop';
 import { useChatOrchestrator } from '../chat/hooks/useChatOrchestrator';
 import { DocumentTextIcon, ShieldCheckIcon } from '../../components/icons';
 import { usePatientStore } from '../patient-management/usePatientStore';
+import { useChatStore } from '../chat/stores/useChatStore';
 import { useUIStore } from '../ui/UIContext';
 
 // --- IDLE TIMER CONSTANTS ---
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 5 Minutes
 
 const MainLayout: React.FC = () => {
-    // --- Stores (Zustand Migration) ---
-    const { activePatient, activeMessages, actions } = usePatientStore(state => ({
-        activePatient: state.patients[state.activePatientId],
-        activeMessages: state.patients[state.activePatientId]?.chatHistory || [],
-        actions: state.actions
-    }));
+    // --- STORES ---
+    const activePatientId = usePatientStore(state => state.activePatientId);
+    const activePatient = usePatientStore(state => state.patients[activePatientId]);
+    const chatActions = useChatStore(state => state.actions);
+    
+    // Select messages from the specialized Chat Store
+    // This is the key optimization: changing clinical data won't re-render MessageList parent
+    const activeMessages = useChatStore(state => state.chats[activePatientId] || []);
 
     const { uiState, uiDispatch } = useUIStore();
     
@@ -94,18 +97,18 @@ const MainLayout: React.FC = () => {
 
     // --- Live Session Integration ---
     const handleLiveTurnComplete = useCallback((userInput: string, modelOutput: string) => {
-        if (userInput) actions.addFullResponse({ role: 'user', content: userInput });
-        if (modelOutput) actions.addFullResponse({ role: 'model', content: modelOutput });
-    }, [actions]);
+        if (userInput) chatActions.addMessage(activePatientId, { role: 'user', content: userInput });
+        if (modelOutput) chatActions.addMessage(activePatientId, { role: 'model', content: modelOutput });
+    }, [chatActions, activePatientId]);
 
     const { isLive, transcript, startSession, stopSession, error: liveError } = useLiveSession(handleLiveTurnComplete);
 
     useEffect(() => {
         if (liveError) {
-            actions.requestFailed(liveError);
+            chatActions.addMessage(activePatientId, { role: 'model', content: `Error: ${liveError}` });
             uiDispatch({ type: 'SET_ERROR', payload: liveError });
         }
-    }, [liveError, actions, uiDispatch]);
+    }, [liveError, chatActions, activePatientId, uiDispatch]);
 
     useEffect(() => {
         if (chatMode !== ChatModeEnum.Live && isLive) stopSession();
@@ -118,7 +121,7 @@ const MainLayout: React.FC = () => {
     // --- Chat Orchestrator ---
     const { handleSend, handleStop, handleClearChat, handleExportChat } = useChatOrchestrator({
         messages: activeMessages, 
-        activePatientId: activePatient?.id,
+        activePatientId: activePatientId,
         activePatient: activePatient, 
         chatMode: chatMode,
         uiDispatch: uiDispatch, 

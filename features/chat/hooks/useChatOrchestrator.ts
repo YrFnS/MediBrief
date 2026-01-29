@@ -7,16 +7,18 @@ import { exportBriefingToPdf } from '../../../services/exportService';
 import { cleanJsonOutput, isJsonBriefing, getFriendlyErrorMessage, isLabReport, parseJsonSafe } from '../../../utils';
 import { FILE_ANALYSIS_PROMPT, BRIEFING_TRIGGERS, SHIFT_BRIEFING_PROMPT, HELP_COMMAND_RESPONSE, DRUG_ANALYSIS_PROMPT } from '../../../constants';
 import { usePatientStore } from '../../patient-management/usePatientStore';
+import { useChatStore } from '../stores/useChatStore';
+import { useClinicalStore } from '../../clinical-analysis/stores/useClinicalStore';
 import { useEntityExtractor } from '../../../hooks/useEntityExtractor';
 import { FHIRObservation } from '../../fhir/types';
 import { evaluateClinicalSafety } from '../../cdss/rulesEngine';
-import { PatientContext } from '../../patient-management/types';
+import { PatientMetadata } from '../../patient-management/types';
 import { UIAction } from '../../ui/UIContext';
 
 interface UseChatOrchestratorProps {
     messages: ChatMessage[];
-    activePatientId?: string;
-    activePatient?: PatientContext;
+    activePatientId: string;
+    activePatient: PatientMetadata;
     chatMode: ChatModeEnum;
     uiDispatch: React.Dispatch<UIAction>;
     uploadedFile: UploadedFile | null;
@@ -40,20 +42,23 @@ export const useChatOrchestrator = ({
     userLocation,
     clearFile
 }: UseChatOrchestratorProps) => {
-    const actions = usePatientStore(state => state.actions);
+    // Access actions from all 3 stores
+    const patientActions = usePatientStore(state => state.actions);
+    const chatActions = useChatStore(state => state.actions);
+    const clinicalActions = useClinicalStore(state => state.actions);
+    
     const abortControllerRef = useRef<AbortController | null>(null);
     const { triggerExtraction } = useEntityExtractor();
 
     const handleStop = useCallback(() => {
         if (abortControllerRef.current) abortControllerRef.current.abort();
-        actions.requestFinish();
         uiDispatch({ type: 'SET_LOADING', payload: false });
-    }, [actions, uiDispatch]);
+    }, [uiDispatch]);
 
     const handleClearChat = useCallback(() => {
-        actions.resetActiveChat();
+        chatActions.resetChat(activePatientId);
         clearFile();
-    }, [actions, clearFile]);
+    }, [chatActions, activePatientId, clearFile]);
 
     const handleSend = useCallback(async (userPrompt: string) => {
         const trimmedPrompt = userPrompt.trim();
@@ -64,15 +69,18 @@ export const useChatOrchestrator = ({
             uiDispatch({ type: 'SET_CHAT_MODE', payload: ChatModeEnum.Standard });
         }
         
+        // Update last active
+        patientActions.touchPatient(activePatientId);
+
         // --- Export Command ---
         if (trimmedPrompt.toLowerCase() === '/export') {
             const history = messages.filter(m => !isJsonBriefing(m.content));
             if (history.length === 0) {
-                 actions.addInterimMessage({ role: 'model', content: '⚠️ **Cannot Export:** No history available.' });
+                 chatActions.addMessage(activePatientId, { role: 'model', content: '⚠️ **Cannot Export:** No history available.' });
                  return;
             }
 
-            actions.addInterimMessage({ role: 'model', content: '📥 Generating briefing for PDF export...' });
+            chatActions.addMessage(activePatientId, { role: 'model', content: '📥 Generating briefing for PDF export...' });
             uiDispatch({ type: 'SET_LOADING', payload: true });
             
             abortControllerRef.current = new AbortController();
@@ -94,13 +102,13 @@ export const useChatOrchestrator = ({
                 if (parsedBriefing.briefingTitle && parsedBriefing.briefingTitle.includes("NO DATA")) throw new Error("Insufficient clinical data.");
 
                 await exportBriefingToPdf(parsedBriefing);
-                actions.updateLastMessageContent('✅ Shift briefing PDF downloaded.');
+                chatActions.updateLastMessageContent(activePatientId, '✅ Shift briefing PDF downloaded.');
             } catch (e) {
                 if (e.message === "Aborted") {
-                     actions.updateLastMessageContent('🛑 Export cancelled.');
+                     chatActions.updateLastMessageContent(activePatientId, '🛑 Export cancelled.');
                 } else {
                     const friendlyError = getFriendlyErrorMessage(e);
-                    actions.updateLastMessageContent(`Sorry, PDF generation failed.\n\n**Reason:** ${friendlyError}`);
+                    chatActions.updateLastMessageContent(activePatientId, `Sorry, PDF generation failed.\n\n**Reason:** ${friendlyError}`);
                 }
             } finally {
                 uiDispatch({ type: 'SET_LOADING', payload: false });
@@ -111,8 +119,8 @@ export const useChatOrchestrator = ({
 
         // --- Help Command ---
         if (trimmedPrompt.toLowerCase() === '/help') {
-             actions.addFullResponse({ role: 'user', content: '/help' });
-             actions.addFullResponse({ role: 'model', content: HELP_COMMAND_RESPONSE });
+             chatActions.addMessage(activePatientId, { role: 'user', content: '/help' });
+             chatActions.addMessage(activePatientId, { role: 'model', content: HELP_COMMAND_RESPONSE });
              return;
         }
 
@@ -164,7 +172,7 @@ export const useChatOrchestrator = ({
                     if (!displayOverride) historyContent = trimmedPrompt || "/brief (with file)";
                 }
              } catch (error) {
-                 actions.requestFailed(getFriendlyErrorMessage(error));
+                 chatActions.addMessage(activePatientId, { role: 'model', content: `Error: ${getFriendlyErrorMessage(error)}` });
                  uiDispatch({ type: 'SET_ERROR', payload: getFriendlyErrorMessage(error) });
                  return;
              }
@@ -189,8 +197,8 @@ export const useChatOrchestrator = ({
             userMessage.filePreview = { name: uploadedFile.file.name, type: uploadedFile.type, url: persistenceUrl, base64: fileForApi ? uploadedFile.base64 : undefined };
         }
         
-        actions.startRequest(userMessage);
-        actions.addResponsePlaceholder();
+        chatActions.addMessage(activePatientId, userMessage);
+        chatActions.addResponsePlaceholder(activePatientId);
         uiDispatch({ type: 'SET_LOADING', payload: true });
         uiDispatch({ type: 'SET_ERROR', payload: null });
         setUploadedFile(null);
@@ -220,19 +228,19 @@ export const useChatOrchestrator = ({
                     }).filter(Boolean) as GroundingSource[];
                 }
 
-                actions.appendToLastMessage(textChunk, sources);
+                chatActions.appendToLastMessage(activePatientId, textChunk, sources);
             }
         } catch (e) {
              if (e.message === "Aborted") {
-                 actions.appendToLastMessage(" [Stopped]", undefined);
+                 chatActions.appendToLastMessage(activePatientId, " [Stopped]", undefined);
             } else {
-                actions.requestFailed(getFriendlyErrorMessage(e));
+                const errorMsg = `Sorry, I encountered an error.\n\n**Details:** ${getFriendlyErrorMessage(e)}`;
+                chatActions.updateLastMessageContent(activePatientId, errorMsg);
             }
         } finally {
-            actions.requestFinish();
             uiDispatch({ type: 'SET_LOADING', payload: false });
             
-            // --- AUTO-INGESTION PROTOCOL ---
+            // --- FHIR AUTO-INGESTION PROTOCOL ---
             if (activePatientId && isLabReport(fullResponseBuffer)) {
                 const report = parseJsonSafe<any>(fullResponseBuffer);
                 if (report && report.labs) {
@@ -246,30 +254,46 @@ export const useChatOrchestrator = ({
                              resourceType: 'Observation',
                              id: uuidv4(),
                              status: 'final',
-                             code: { text: lab.testName },
-                             valueQuantity: { value: val, unit: lab.units },
+                             code: { 
+                                 text: lab.testName 
+                             },
+                             subject: { reference: `Patient/${activePatientId}` },
+                             valueQuantity: { 
+                                 value: val, 
+                                 unit: lab.units,
+                                 system: 'http://unitsofmeasure.org'
+                             },
                              effectiveDateTime: report.date && report.date !== 'Not Visible' ? new Date(report.date).toISOString() : new Date().toISOString(),
+                             issued: new Date().toISOString()
                          };
 
                          if (rangeMatch) {
                              obs.referenceRange = [{
-                                 low: { value: parseFloat(rangeMatch[1]), unit: lab.units },
-                                 high: { value: parseFloat(rangeMatch[2]), unit: lab.units }
+                                 low: { value: parseFloat(rangeMatch[1]), unit: lab.units, system: 'http://unitsofmeasure.org' },
+                                 high: { value: parseFloat(rangeMatch[2]), unit: lab.units, system: 'http://unitsofmeasure.org' },
+                                 text: lab.refRange
                              }];
                          }
+                         
+                         // Map Flag to Interpretation
+                         if (lab.flag && lab.flag !== 'Normal') {
+                             obs.interpretation = [{ text: lab.flag }];
+                         }
+
                          return obs;
                     }).filter(Boolean);
 
                     if (newObs.length > 0) {
-                        actions.ingestClinicalData(activePatientId, newObs);
+                        clinicalActions.ingestObservations(activePatientId, newObs);
 
                         // TRIGGER AI SAFETY CHECK
-                        const existingObs = activePatient?.clinicalData.observations || [];
+                        // Need to fetch current observations to check safety
+                        const existingObs = useClinicalStore.getState().data[activePatientId]?.observations || [];
                         const combinedObs = [...existingObs, ...newObs];
                         
                         evaluateClinicalSafety(combinedObs).then(alerts => {
                             if (alerts.length > 0) {
-                                actions.updateAlerts(activePatientId, alerts);
+                                clinicalActions.updateAlerts(activePatientId, alerts);
                             }
                         });
                     }
@@ -278,7 +302,7 @@ export const useChatOrchestrator = ({
 
             abortControllerRef.current = null;
         }
-    }, [messages, activePatientId, activePatient, chatMode, uploadedFile, isLive, stopSession, userLocation, actions, uiDispatch, setUploadedFile, triggerExtraction]);
+    }, [messages, activePatientId, chatMode, uploadedFile, isLive, stopSession, userLocation, patientActions, chatActions, clinicalActions, uiDispatch, setUploadedFile, triggerExtraction]);
 
     return {
         handleSend,

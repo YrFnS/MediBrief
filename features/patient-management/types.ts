@@ -11,16 +11,30 @@ export interface PatientEntityData {
     diagnosis: string[];
 }
 
-export interface PatientContext {
+// 1. Metadata Store Interface
+export interface PatientMetadata {
   id: string;
   name: string; // e.g. "Bed 4 - Unknown Male"
   mrn?: string;
   status: PatientStatus;
-  documents: UploadedFile[];
-  chatHistory: ChatMessage[]; 
   entities: PatientEntityData;
-  clinicalData: ClinicalDataStore; // FHIR Store
-  activeAlerts: CDSSAlert[]; 
+  documents: UploadedFile[]; // Kept here as context
   createdAt: number;
   lastActive: number;
 }
+
+// 2. Chat Store Interface
+export interface PatientChatData {
+    chatHistory: ChatMessage[];
+}
+
+// 3. Clinical Store Interface
+export interface PatientClinicalData {
+    clinicalData: ClinicalDataStore;
+    activeAlerts: CDSSAlert[];
+}
+
+// Composite type for Export/Import only
+export interface FullPatientContext extends PatientMetadata, PatientChatData, PatientClinicalData {}
+
+export type PatientContext = FullPatientContext;

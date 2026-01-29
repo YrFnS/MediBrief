@@ -2,23 +2,17 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { v4 as uuidv4 } from 'uuid';
-import { PatientContext, PatientEntityData } from './types';
-import { FHIRObservation } from '../fhir/types';
-import { ChatMessage, GroundingSource } from '../../types';
-import { CDSSAlert } from '../cdss/types';
+import { PatientMetadata, PatientEntityData } from './types';
 
 // --- Default Data Factory ---
 export const DEFAULT_PATIENT_ID = 'general-context';
 
-export const createDefaultPatient = (): PatientContext => ({
+export const createDefaultPatient = (): PatientMetadata => ({
     id: DEFAULT_PATIENT_ID,
     name: 'General Context',
     status: 'New Admission',
     documents: [],
-    chatHistory: [],
     entities: { allergies: [], codeStatus: 'Full Code', diagnosis: [] },
-    clinicalData: { observations: [] },
-    activeAlerts: [],
     createdAt: Date.now(),
     lastActive: Date.now()
 });
@@ -26,56 +20,44 @@ export const createDefaultPatient = (): PatientContext => ({
 // --- State Definitions ---
 
 export interface PatientState {
-    patients: Record<string, PatientContext>;
+    patients: Record<string, PatientMetadata>;
     activePatientId: string;
 }
 
 export interface PatientActions {
     actions: {
-        createPatient: (name?: string) => void;
+        createPatient: (name?: string) => string; // Returns new ID
         deletePatient: (id: string) => void;
         switchPatient: (id: string) => void;
-        updatePatientDetails: (id: string, updates: Partial<PatientContext>) => void;
+        updatePatientDetails: (id: string, updates: Partial<PatientMetadata>) => void;
         updatePatientEntities: (id: string, entities: Partial<PatientEntityData>) => void;
-        ingestClinicalData: (id: string, observations: FHIRObservation[]) => void;
-        updateAlerts: (id: string, alerts: CDSSAlert[]) => void;
-        dismissAlert: (id: string, alertId: string) => void;
-        
-        // Chat Actions
-        startRequest: (userMessage: ChatMessage) => void;
-        addResponsePlaceholder: () => void;
-        appendToLastMessage: (chunk: string, sources?: GroundingSource[]) => void;
-        requestFinish: () => void;
-        addFullResponse: (message: ChatMessage) => void;
-        updateLastMessageContent: (content: string) => void;
-        requestFailed: (error: string) => void;
-        addInterimMessage: (message: ChatMessage) => void;
-        resetActiveChat: () => void;
+        touchPatient: (id: string) => void;
+        // Batch set for Import/Restore
+        setAllPatients: (patients: Record<string, PatientMetadata>, activeId: string) => void;
     }
 }
 
-// --- ZUSTAND STORE IMPLEMENTATION ---
-
 export const usePatientStore = create<PatientState & PatientActions>()(
     persist(
-        (set, get) => ({
+        (set) => ({
             patients: { [DEFAULT_PATIENT_ID]: createDefaultPatient() },
             activePatientId: DEFAULT_PATIENT_ID,
 
             actions: {
-                createPatient: (name) => set((state) => {
+                createPatient: (name) => {
                     const newId = uuidv4();
-                    const newPatient: PatientContext = {
+                    const newPatient: PatientMetadata = {
                         ...createDefaultPatient(),
                         id: newId,
-                        name: name || `Patient ${Object.keys(state.patients).length + 1}`,
+                        name: name || `Patient ${newId.substring(0,4)}`,
                         status: 'New Admission',
                     };
-                    return {
+                    set((state) => ({
                         patients: { ...state.patients, [newId]: newPatient },
                         activePatientId: newId
-                    };
-                }),
+                    }));
+                    return newId;
+                },
 
                 deletePatient: (id) => set((state) => {
                     if (Object.keys(state.patients).length <= 1) return state;
@@ -122,210 +104,25 @@ export const usePatientStore = create<PatientState & PatientActions>()(
                     };
                 }),
 
-                ingestClinicalData: (id, observations) => set((state) => {
-                    const target = state.patients[id];
-                    if (!target) return state;
-
-                    const existingObs = target.clinicalData?.observations || [];
-                    const newObs = observations.filter(obs => 
-                        !existingObs.some(ex => 
-                            ex.code.text === obs.code.text && 
-                            ex.valueQuantity?.value === obs.valueQuantity?.value &&
-                            ex.effectiveDateTime === obs.effectiveDateTime
-                        )
-                    );
-
+                touchPatient: (id) => set((state) => {
+                    if (!state.patients[id]) return state;
                     return {
                         patients: {
                             ...state.patients,
-                            [id]: {
-                                ...target,
-                                clinicalData: {
-                                    ...target.clinicalData,
-                                    observations: [...existingObs, ...newObs]
-                                }
-                            }
+                            [id]: { ...state.patients[id], lastActive: Date.now() }
                         }
                     };
                 }),
 
-                updateAlerts: (id, alerts) => set((state) => {
-                    const target = state.patients[id];
-                    if (!target) return state;
-
-                    const currentAlerts = target.activeAlerts || [];
-                    const newAlerts = alerts.filter(na => 
-                        !currentAlerts.some(ca => ca.title === na.title && ca.timestamp > Date.now() - 3600000)
-                    );
-
-                    return {
-                        patients: {
-                            ...state.patients,
-                            [id]: { ...target, activeAlerts: [...currentAlerts, ...newAlerts] }
-                        }
-                    };
-                }),
-
-                dismissAlert: (id, alertId) => set((state) => {
-                    const target = state.patients[id];
-                    if (!target) return state;
-
-                    return {
-                        patients: {
-                            ...state.patients,
-                            [id]: {
-                                ...target,
-                                activeAlerts: target.activeAlerts.filter(a => a.id !== alertId && a.ruleId !== alertId)
-                            }
-                        }
-                    };
-                }),
-
-                // --- CHAT ACTIONS ---
-
-                startRequest: (userMessage) => set((state) => {
-                    const activeId = state.activePatientId;
-                    const activePatient = state.patients[activeId];
-                    return {
-                        patients: {
-                            ...state.patients,
-                            [activeId]: {
-                                ...activePatient,
-                                chatHistory: [...activePatient.chatHistory, userMessage],
-                                lastActive: Date.now()
-                            }
-                        }
-                    };
-                }),
-
-                addResponsePlaceholder: () => set((state) => {
-                    const activeId = state.activePatientId;
-                    const activePatient = state.patients[activeId];
-                    return {
-                        patients: {
-                            ...state.patients,
-                            [activeId]: {
-                                ...activePatient,
-                                chatHistory: [...activePatient.chatHistory, { role: 'model', content: '' }]
-                            }
-                        }
-                    };
-                }),
-
-                appendToLastMessage: (chunk, sources) => set((state) => {
-                    const activeId = state.activePatientId;
-                    const activePatient = state.patients[activeId];
-                    const history = [...activePatient.chatHistory];
-                    const lastMsg = history[history.length - 1];
-
-                    if (lastMsg && lastMsg.role === 'model') {
-                        lastMsg.content += chunk;
-                        if (sources) {
-                            const existing = lastMsg.sources || [];
-                            const newSources = sources.filter(ns => 
-                                !existing.some(es => 
-                                    (es.web?.uri && es.web.uri === ns.web?.uri) || 
-                                    (es.maps?.uri && es.maps.uri === ns.maps?.uri)
-                                )
-                            );
-                            lastMsg.sources = [...existing, ...newSources];
-                        }
-                    }
-
-                    return {
-                        patients: {
-                            ...state.patients,
-                            [activeId]: { ...activePatient, chatHistory: history }
-                        }
-                    };
-                }),
-
-                requestFinish: () => {}, // No-op in Zustand, just for hook compatibility
-
-                addFullResponse: (message) => set((state) => {
-                    const activeId = state.activePatientId;
-                    const activePatient = state.patients[activeId];
-                    return {
-                        patients: {
-                            ...state.patients,
-                            [activeId]: {
-                                ...activePatient,
-                                chatHistory: [...activePatient.chatHistory, message],
-                                lastActive: Date.now()
-                            }
-                        }
-                    };
-                }),
-
-                updateLastMessageContent: (content) => set((state) => {
-                    const activeId = state.activePatientId;
-                    const activePatient = state.patients[activeId];
-                    const history = [...activePatient.chatHistory];
-                    const lastMsg = history[history.length - 1];
-                    if (lastMsg) lastMsg.content = content;
-
-                    return {
-                        patients: {
-                            ...state.patients,
-                            [activeId]: { ...activePatient, chatHistory: history }
-                        }
-                    };
-                }),
-
-                requestFailed: (error) => set((state) => {
-                    const activeId = state.activePatientId;
-                    const activePatient = state.patients[activeId];
-                    const history = [...activePatient.chatHistory];
-                    const lastMsg = history[history.length - 1];
-                    const errorMsg = `Sorry, I encountered an error.\n\n**Details:** ${error}`;
-                    
-                    if (lastMsg && lastMsg.role === 'model' && !lastMsg.content) {
-                        lastMsg.content = errorMsg;
-                    } else {
-                        history.push({ role: 'model', content: errorMsg });
-                    }
-
-                    return {
-                        patients: {
-                            ...state.patients,
-                            [activeId]: { ...activePatient, chatHistory: history }
-                        }
-                    };
-                }),
-
-                addInterimMessage: (message) => set((state) => {
-                    const activeId = state.activePatientId;
-                    const activePatient = state.patients[activeId];
-                    return {
-                        patients: {
-                            ...state.patients,
-                            [activeId]: {
-                                ...activePatient,
-                                chatHistory: [...activePatient.chatHistory, message]
-                            }
-                        }
-                    };
-                }),
-
-                resetActiveChat: () => set((state) => {
-                    const activeId = state.activePatientId;
-                    const activePatient = state.patients[activeId];
-                    return {
-                        patients: {
-                            ...state.patients,
-                            [activeId]: { ...activePatient, chatHistory: [] }
-                        }
-                    };
+                setAllPatients: (patients, activeId) => set({
+                    patients,
+                    activePatientId: activeId
                 })
             }
         }),
         {
-            name: 'medibrief-storage',
+            name: 'medibrief-metadata-storage',
             storage: createJSONStorage(() => sessionStorage),
-            partialize: (state) => ({ 
-                patients: state.patients, 
-                activePatientId: state.activePatientId 
-            }),
         }
     )
 );

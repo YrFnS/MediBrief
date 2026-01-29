@@ -1,10 +1,10 @@
 
 import React, { useMemo, useEffect, useState } from 'react';
-import { PatientContext, PatientStatus } from '../patient-management/types';
+import { PatientMetadata, PatientStatus } from '../patient-management/types';
 import { UserIcon, AlertTriangleIcon, CheckIcon, ActivityIcon, XCircleIcon, ClockIcon } from '../../components/icons';
 
 interface PatientCardProps {
-    patient: PatientContext;
+    patient: PatientMetadata;
     isActive: boolean;
     onClick: () => void;
     onDelete: (e: React.MouseEvent) => void;

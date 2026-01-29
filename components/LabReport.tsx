@@ -3,6 +3,7 @@ import React, { useMemo } from 'react';
 import { BeakerIcon } from './icons';
 import { parseJsonSafe } from '../utils';
 import { usePatientStore } from '../features/patient-management/usePatientStore';
+import { useClinicalStore } from '../features/clinical-analysis/stores/useClinicalStore';
 import TrendGraph from '../features/analytics/TrendGraph';
 
 interface LabResult {
@@ -80,14 +81,15 @@ const RangeVisualizer: React.FC<{ value: string; range: string }> = ({ value, ra
 
 const LabReport: React.FC<LabReportProps> = ({ content }) => {
     const report = useMemo(() => parseJsonSafe<ParsedLabReport>(content), [content]);
-    // Zustand Selector
-    const activePatient = usePatientStore(state => state.patients[state.activePatientId]);
+    
+    // Zustand Selector: Specific to Clinical Data
+    const activePatientId = usePatientStore(state => state.activePatientId);
+    const clinicalStore = useClinicalStore(state => state.data[activePatientId]);
+    const observations = clinicalStore?.observations || [];
 
     if (!report || !report.labs) {
         return <div className="text-red-500 text-sm">Error parsing lab data.</div>;
     }
-
-    const observations = activePatient?.clinicalData?.observations || [];
 
     // Find a test that has at least 2 data points in history to graph
     const trendCandidate = report.labs.find(lab => {

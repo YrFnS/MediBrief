@@ -1,9 +1,11 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { ChatMessage } from '../../../types';
 import { LinkIcon, DocumentTextIcon, ClipboardIcon, CheckIcon, AlertTriangleIcon, ShieldCheckIcon, BoltIcon } from '../../../components/icons';
 import MessageContent from './MessageContent';
-import { verifyDosages } from '../../safety/dosageVerifier';
+import { extractMedicationsFromText } from '../../safety/safetyExtractionService';
+import { verifyMedicationSafety } from '../../safety/dosageVerifier';
+import { SafetyCheckResult } from '../../safety/types';
 
 const isHighCredibilitySource = (uri: string) => {
     try {
@@ -39,18 +41,54 @@ interface MessageProps {
 const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLoad, onViewImage }) => {
     const isModel = message.role === 'model';
     const [isCopied, setIsCopied] = useState(false);
+    
+    // Safety State
+    const [safetyResult, setSafetyResult] = useState<SafetyCheckResult>({ isSafe: true, warnings: [], verifiedItems: [] });
+    const [isVerifying, setIsVerifying] = useState(false);
 
-    // Run Deterministic Safety Check on every model message
-    const safetyCheck = useMemo(() => {
-        if (!isModel || !message.content) return { isSafe: true, warnings: [], verifiedItems: [] };
-        return verifyDosages(message.content);
-    }, [isModel, message.content]);
+    // Effect: Run Safety Check when message is complete (not loading) and has content
+    useEffect(() => {
+        let isMounted = true;
 
-    // AI-generated alerts (from prompt engineering)
+        const runSafetyCheck = async () => {
+            if (!isModel || !message.content || isLoading) return;
+
+            // Only verify if likely to contain meds (simple heuristic to save tokens)
+            const medKeywords = ['mg', 'mcg', 'g', 'tablet', 'dose', 'prescribe'];
+            const mightHaveMeds = medKeywords.some(k => message.content.toLowerCase().includes(k));
+
+            if (!mightHaveMeds) return;
+
+            setIsVerifying(true);
+            try {
+                // 1. AI Extraction
+                const meds = await extractMedicationsFromText(message.content);
+                // 2. Deterministic Verification
+                const result = verifyMedicationSafety(meds);
+                
+                if (isMounted) {
+                    setSafetyResult(result);
+                }
+            } catch (e) {
+                console.warn("Safety check failed", e);
+            } finally {
+                if (isMounted) setIsVerifying(false);
+            }
+        };
+
+        // Debounce slightly to avoid running on rapid streaming updates if logic changes
+        const timer = setTimeout(runSafetyCheck, 500);
+        return () => {
+            isMounted = false;
+            clearTimeout(timer);
+        };
+    }, [isModel, message.content, isLoading]);
+
+    // AI-generated alerts (embedded in text)
     const isCriticalPromptAlert = isModel && message.content.includes("🛑 CRITICAL SAFETY WARNING");
     
     // Combined Alert Logic (Deterministic overrides AI)
-    const hasSafetyWarning = isCriticalPromptAlert || !safetyCheck.isSafe;
+    const hasSafetyWarning = isCriticalPromptAlert || !safetyResult.isSafe;
 
     const contentToRender = (message.role === 'user' && message.displayContent) 
         ? message.displayContent 
@@ -94,15 +132,23 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLo
                     </div>
                 )}
 
+                {/* VERIFICATION LOADING STATE */}
+                {isVerifying && !hasSafetyWarning && (
+                     <div className="mb-4 bg-blue-500/5 border border-blue-500/20 rounded-sm p-2 flex items-center gap-2 animate-pulse">
+                         <div className="w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                         <span className="text-[10px] text-blue-400 font-mono tracking-wide">VERIFYING DOSAGE SAFETY...</span>
+                     </div>
+                )}
+
                 {/* DETERMINISTIC GUARDRAIL ALERTS */}
-                {!safetyCheck.isSafe && (
+                {!safetyResult.isSafe && (
                     <div className="mb-4 bg-red-500/10 border border-red-500/30 rounded-sm p-3">
                          <div className="flex items-center gap-2 text-red-500 mb-2 border-b border-red-500/20 pb-1">
                             <BoltIcon className="w-4 h-4" />
                             <span className="text-[10px] font-mono font-bold uppercase tracking-widest">Automatic Safety Intercept</span>
                         </div>
                         <ul className="space-y-1">
-                            {safetyCheck.warnings.map((warn, i) => (
+                            {safetyResult.warnings.map((warn, i) => (
                                 <li key={i} className="text-xs text-red-300 font-mono flex items-start gap-2">
                                     <span className="text-red-500">>></span> {warn.replace('🛑 **SAFETY VIOLATION**:', '')}
                                 </li>
@@ -112,9 +158,9 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLo
                 )}
                 
                 {/* VERIFICATION BADGES (Positive Reinforcement) */}
-                {safetyCheck.isSafe && safetyCheck.verifiedItems.length > 0 && (
+                {safetyResult.isSafe && safetyResult.verifiedItems.length > 0 && !isVerifying && (
                      <div className="mb-4 bg-green-500/5 border border-green-500/20 rounded-sm p-2 flex flex-col gap-1">
-                        {safetyCheck.verifiedItems.map((item, i) => (
+                        {safetyResult.verifiedItems.map((item, i) => (
                              <div key={i} className="flex items-center gap-2">
                                 <ShieldCheckIcon className="w-3 h-3 text-green-500" />
                                 <span className="text-[10px] text-green-400 font-mono tracking-wide">{item.replace('✅ Verified:', '')}</span>
