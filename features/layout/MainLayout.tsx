@@ -1,6 +1,6 @@
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { ChatMode as ChatModeEnum } from '../../types';
+import { ChatMode as ChatModeEnum, ChatMessage } from '../../types';
 import Header from '../../components/Header';
 import MessageList from '../chat/components/MessageList';
 import InputBar from '../chat/components/InputBar';
@@ -22,14 +22,17 @@ import { useUIStore } from '../ui/UIContext';
 const PRIVACY_BLUR_MS = 2 * 60 * 1000; // 2 Minutes -> Blur
 const AUTO_LOCK_MS = 15 * 60 * 1000;   // 15 Minutes -> Full Lock
 
+// CONSTANT FOR STABLE REFERENCE
+const EMPTY_MESSAGES: ChatMessage[] = [];
+
 const MainLayout: React.FC = () => {
     // --- STORES ---
     const activePatientId = usePatientStore(state => state.activePatientId);
     const activePatient = usePatientStore(state => state.patients[activePatientId]);
     const chatActions = useChatStore(state => state.actions);
     
-    // Select messages from the specialized Chat Store
-    const activeMessages = useChatStore(state => state.chats[activePatientId] || []);
+    // Select messages with STABLE reference fallback
+    const activeMessages = useChatStore(state => state.chats[activePatientId] || EMPTY_MESSAGES);
 
     const { uiState, uiDispatch } = useUIStore();
     
@@ -130,7 +133,8 @@ const MainLayout: React.FC = () => {
     const { handleSend, handleStop, handleClearChat, handleExportChat } = useChatOrchestrator({
         messages: activeMessages, 
         activePatientId: activePatientId,
-        activePatient: activePatient, 
+        // Fallback for robust safety if store is hydrating
+        activePatient: activePatient || { id: activePatientId, name: 'Loading...', status: 'New Admission', entities: { allergies: [], codeStatus: 'Full Code', diagnosis: [] }, documents: [], createdAt: 0, lastActive: 0 }, 
         chatMode: chatMode,
         uiDispatch: uiDispatch, 
         uploadedFile,
