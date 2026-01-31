@@ -1,6 +1,6 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { GoogleGenAI, LiveServerMessage, Modality, Blob } from "@google/genai";
+import { GoogleGenAI, LiveServerMessage, Modality } from "@google/genai";
 import { MODEL_CONFIGS, SYSTEM_INSTRUCTION } from '../constants';
 import { ChatMode, ChatMessage } from '../types';
 
@@ -9,6 +9,12 @@ declare global {
     webkitAudioContext: typeof AudioContext;
   }
 }
+
+// Type definition for the object expected by session.sendRealtimeInput
+type LiveInputMedia = {
+    data: string;
+    mimeType: string;
+};
 
 // --- Audio Worklet Code ---
 // This runs in a separate thread to prevent UI blocking
@@ -76,7 +82,7 @@ async function decodeAudioData(
   return buffer;
 }
 
-const createBlob = (data: Float32Array): Blob => {
+const createBlob = (data: Float32Array): LiveInputMedia => {
   const l = data.length;
   const int16 = new Int16Array(l);
   for (let i = 0; i < l; i++) {

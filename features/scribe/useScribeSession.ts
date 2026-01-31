@@ -1,9 +1,15 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { GoogleGenAI, LiveServerMessage, Modality, Blob } from "@google/genai";
+import { GoogleGenAI, LiveServerMessage, Modality } from "@google/genai";
 import { MODEL_CONFIGS, SCRIBE_SYSTEM_INSTRUCTION } from '../../constants';
 import { ChatMode } from '../../types';
 import { SoapNote } from './types';
+
+// Type definition for the object expected by session.sendRealtimeInput
+type LiveInputMedia = {
+    data: string;
+    mimeType: string;
+};
 
 // --- Audio Worklet Code ---
 // Renamed class and processor ID to avoid collision with useLiveSession
@@ -42,7 +48,7 @@ const encode = (bytes: Uint8Array) => {
   return btoa(binary);
 }
 
-const createBlob = (data: Float32Array): Blob => {
+const createBlob = (data: Float32Array): LiveInputMedia => {
   const l = data.length;
   const int16 = new Int16Array(l);
   for (let i = 0; i < l; i++) {
