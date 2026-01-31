@@ -1,5 +1,5 @@
 
-import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality } from "@google/genai";
 import { MODEL_CONFIGS, SYSTEM_INSTRUCTION } from '../constants';
 import { ChatMode, ChatMessage } from '../types';
@@ -358,7 +358,5 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
         return () => { if (isLive) stopSession(); };
     }, [stopSession]);
 
-    return useMemo(() => ({ 
-        isLive, transcript, startSession, stopSession, error 
-    }), [isLive, transcript, startSession, stopSession, error]);
+    return { isLive, transcript, startSession, stopSession, error };
 };

@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import type { UploadedFile } from '../types';
 import { blobStorage } from '../services/blobStorageService';
@@ -70,18 +70,16 @@ export const useFileDragAndDrop = () => {
         setUploadedFile(null);
     }, []);
 
-    const dragHandlers = useMemo(() => ({
-        onDragOver: handleDragOver,
-        onDragLeave: handleDragLeave,
-        onDrop: handleDrop
-    }), [handleDragOver, handleDragLeave, handleDrop]);
-
     return {
         uploadedFile,
         setUploadedFile, // Updated to potentially handle manual sets if needed
         processFile, // Exposed for input[type=file]
         isDragging,
         clearFile,
-        dragHandlers
+        dragHandlers: {
+            onDragOver: handleDragOver,
+            onDragLeave: handleDragLeave,
+            onDrop: handleDrop
+        }
     };
 };

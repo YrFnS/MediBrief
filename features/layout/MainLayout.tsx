@@ -1,6 +1,6 @@
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { ChatMode as ChatModeEnum, ChatMessage } from '../../types';
+import { ChatMode as ChatModeEnum } from '../../types';
 import Header from '../../components/Header';
 import MessageList from '../chat/components/MessageList';
 import InputBar from '../chat/components/InputBar';
@@ -22,17 +22,15 @@ import { useUIStore } from '../ui/UIContext';
 const PRIVACY_BLUR_MS = 2 * 60 * 1000; // 2 Minutes -> Blur
 const AUTO_LOCK_MS = 15 * 60 * 1000;   // 15 Minutes -> Full Lock
 
-// CONSTANT FOR STABLE REFERENCE
-const EMPTY_MESSAGES: ChatMessage[] = [];
-
 const MainLayout: React.FC = () => {
     // --- STORES ---
     const activePatientId = usePatientStore(state => state.activePatientId);
     const activePatient = usePatientStore(state => state.patients[activePatientId]);
     const chatActions = useChatStore(state => state.actions);
     
-    // Select messages with STABLE reference fallback
-    const activeMessages = useChatStore(state => state.chats[activePatientId] || EMPTY_MESSAGES);
+    // Select messages from the specialized Chat Store
+    // This is the key optimization: changing clinical data won't re-render MessageList parent
+    const activeMessages = useChatStore(state => state.chats[activePatientId] || []);
 
     const { uiState, uiDispatch } = useUIStore();
     
@@ -121,20 +119,19 @@ const MainLayout: React.FC = () => {
         }
     }, [liveError, chatActions, activePatientId, uiDispatch]);
 
-    // FIX: Removed conflicting useEffect that auto-switched mode based on isLive.
-    // Instead, we strictly enforce that leaving Live mode stops the session.
     useEffect(() => {
-        if (chatMode !== ChatModeEnum.Live && isLive) {
-            stopSession();
-        }
+        if (chatMode !== ChatModeEnum.Live && isLive) stopSession();
     }, [chatMode, isLive, stopSession]);
+
+    useEffect(() => {
+        if (isLive && chatMode !== ChatModeEnum.Live) uiDispatch({ type: 'SET_CHAT_MODE', payload: ChatModeEnum.Live });
+    }, [isLive, chatMode, uiDispatch]);
 
     // --- Chat Orchestrator ---
     const { handleSend, handleStop, handleClearChat, handleExportChat } = useChatOrchestrator({
         messages: activeMessages, 
         activePatientId: activePatientId,
-        // Fallback for robust safety if store is hydrating
-        activePatient: activePatient || { id: activePatientId, name: 'Loading...', status: 'New Admission', entities: { allergies: [], codeStatus: 'Full Code', diagnosis: [] }, documents: [], createdAt: 0, lastActive: 0 }, 
+        activePatient: activePatient, 
         chatMode: chatMode,
         uiDispatch: uiDispatch, 
         uploadedFile,
@@ -149,15 +146,7 @@ const MainLayout: React.FC = () => {
         setViewingImage({ src, alt });
     }, []);
 
-    // FIX: Explicitly set mode when starting live session
-    const toggleLiveSession = useCallback(() => {
-        if (isLive) {
-            stopSession();
-        } else {
-            uiDispatch({ type: 'SET_CHAT_MODE', payload: ChatModeEnum.Live });
-            startSession(activeMessages);
-        }
-    }, [isLive, stopSession, startSession, activeMessages, uiDispatch]);
+    const toggleLiveSession = useCallback(() => isLive ? stopSession() : startSession(activeMessages), [isLive, stopSession, startSession, activeMessages]);
 
     // --- LOCK SCREEN UI (Full Security) ---
     if (isLocked) {
