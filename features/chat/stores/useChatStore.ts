@@ -2,6 +2,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { ChatMessage, GroundingSource } from '../../../types';
+import { indexedDBStorage } from '../../../services/storage';
 
 interface ChatState {
     chats: Record<string, ChatMessage[]>;
@@ -90,7 +91,7 @@ export const useChatStore = create<ChatState & ChatActions>()(
         }),
         {
             name: 'medibrief-chat-storage',
-            storage: createJSONStorage(() => sessionStorage),
+            storage: createJSONStorage(() => indexedDBStorage),
         }
     )
 );

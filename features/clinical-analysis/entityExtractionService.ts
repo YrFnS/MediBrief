@@ -2,13 +2,16 @@
 import { GoogleGenAI } from "@google/genai";
 import { UploadedFile } from '../../types';
 import { ENTITY_EXTRACTION_PROMPT } from '../../constants';
-import { cleanJsonOutput } from '../../utils';
+import { cleanJsonOutput, parseAndValidate } from '../../utils';
 import { PatientEntityData } from '../patient-management/types';
+import { EntityExtractionSchema } from '../chat/schemas';
 
-const MODEL = 'gemini-3-flash-preview'; // Fast, cheap model for extraction
+const MODEL = 'gemini-3-flash-preview'; 
 
-export const extractEntitiesFromUpload = async (file: UploadedFile): Promise<Partial<PatientEntityData>> => {
+export const extractEntitiesFromUpload = async (file: UploadedFile, signal?: AbortSignal): Promise<Partial<PatientEntityData>> => {
     try {
+        if (signal?.aborted) return {};
+
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         
         const contents = [
@@ -34,30 +37,34 @@ export const extractEntitiesFromUpload = async (file: UploadedFile): Promise<Par
             }
         });
 
+        if (signal?.aborted) return {};
+
         const text = response.text;
         if (!text) return {};
 
-        const cleaned = cleanJsonOutput(text);
-        const parsed = JSON.parse(cleaned);
+        // Validated parsing
+        const parsed = parseAndValidate(text, EntityExtractionSchema);
+        if (!parsed) return {};
 
-        // Validation / Sanitization
         const result: Partial<PatientEntityData> = {};
 
-        if (Array.isArray(parsed.allergies) && parsed.allergies.length > 0) {
-            result.allergies = parsed.allergies.map((s: any) => String(s));
+        if (parsed.allergies && parsed.allergies.length > 0) {
+            result.allergies = parsed.allergies;
         }
         
-        if (typeof parsed.codeStatus === 'string' && parsed.codeStatus.trim()) {
+        if (parsed.codeStatus && parsed.codeStatus.trim()) {
             result.codeStatus = parsed.codeStatus.trim();
         }
 
-        if (Array.isArray(parsed.diagnosis) && parsed.diagnosis.length > 0) {
-            result.diagnosis = parsed.diagnosis.map((s: any) => String(s));
+        if (parsed.diagnosis && parsed.diagnosis.length > 0) {
+            result.diagnosis = parsed.diagnosis;
         }
 
         return result;
 
     } catch (e) {
+        // If it was just an abort, we can ignore warning
+        if (signal?.aborted) return {};
         console.warn("Entity Extraction Failed:", e);
         return {};
     }

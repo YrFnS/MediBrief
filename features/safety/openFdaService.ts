@@ -1,10 +1,9 @@
 
-import { cleanJsonOutput } from '../../utils';
-
 const FDA_API_BASE = 'https://api.fda.gov/drug/label.json';
 
 export interface DrugSafetyInfo {
-    found: boolean;
+    status: 'verified' | 'not_found' | 'service_error';
+    found: boolean; // Deprecated but kept for compatibility, maps to status !== 'not_found'
     brandName?: string;
     genericName?: string;
     boxedWarning?: string[]; // The critical "Black Box" warning
@@ -19,7 +18,7 @@ const SAFETY_CACHE: Record<string, DrugSafetyInfo> = {};
  * Queries openFDA for drug label information.
  * Focuses on 'boxed_warning' which is the highest safety alert level.
  */
-export const fetchDrugSafetyInfo = async (drugName: string): Promise<DrugSafetyInfo> => {
+export const fetchDrugSafetyInfo = async (drugName: string, signal?: AbortSignal): Promise<DrugSafetyInfo> => {
     // 1. Check Cache
     const cacheKey = drugName.toLowerCase().trim();
     if (SAFETY_CACHE[cacheKey]) {
@@ -32,11 +31,15 @@ export const fetchDrugSafetyInfo = async (drugName: string): Promise<DrugSafetyI
         const searchQuery = `openfda.brand_name:"${drugName}"+OR+openfda.generic_name:"${drugName}"`;
         const url = `${FDA_API_BASE}?search=${searchQuery}&limit=1`;
 
-        const response = await fetch(url);
+        const response = await fetch(url, { signal });
         
+        if (response.status === 429 || response.status >= 500) {
+            throw new Error("Service Unavailable");
+        }
+
         if (!response.ok) {
             // 404 means drug not found in FDA database (or name mismatch)
-            const result: DrugSafetyInfo = { found: false, source: 'openFDA' };
+            const result: DrugSafetyInfo = { status: 'not_found', found: false, source: 'openFDA' };
             SAFETY_CACHE[cacheKey] = result;
             return result;
         }
@@ -45,13 +48,14 @@ export const fetchDrugSafetyInfo = async (drugName: string): Promise<DrugSafetyI
         const resultEntry = data.results?.[0];
 
         if (!resultEntry) {
-            const result: DrugSafetyInfo = { found: false, source: 'openFDA' };
+            const result: DrugSafetyInfo = { status: 'not_found', found: false, source: 'openFDA' };
             SAFETY_CACHE[cacheKey] = result;
             return result;
         }
 
         // 3. Extract Critical Safety Data
         const info: DrugSafetyInfo = {
+            status: 'verified',
             found: true,
             brandName: resultEntry.openfda?.brand_name?.[0],
             genericName: resultEntry.openfda?.generic_name?.[0],
@@ -64,9 +68,12 @@ export const fetchDrugSafetyInfo = async (drugName: string): Promise<DrugSafetyI
         SAFETY_CACHE[cacheKey] = info;
         return info;
 
-    } catch (error) {
+    } catch (error: any) {
+        if (error.name === 'AbortError') {
+            throw error; // Propagate abort
+        }
         console.warn(`openFDA Fetch Error for ${drugName}:`, error);
-        // Fail open - we don't want to block the UI, but we can't verify.
-        return { found: false, source: 'Unknown' };
+        // Fail open - we don't want to block the UI, but we explicitly report the error
+        return { status: 'service_error', found: false, source: 'Unknown' };
     }
 };

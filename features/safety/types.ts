@@ -10,4 +10,5 @@ export interface SafetyCheckResult {
     isSafe: boolean;
     warnings: string[];
     verifiedItems: string[];
+    serviceError?: boolean;
 }

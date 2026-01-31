@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { FHIRObservation, ClinicalDataStore } from '../../fhir/types';
 import { CDSSAlert } from '../../cdss/types';
+import { indexedDBStorage } from '../../../services/storage';
 
 interface ClinicalState {
     data: Record<string, ClinicalDataStore>;
@@ -94,7 +95,7 @@ export const useClinicalStore = create<ClinicalState & ClinicalActions>()(
         }),
         {
             name: 'medibrief-clinical-storage',
-            storage: createJSONStorage(() => sessionStorage),
+            storage: createJSONStorage(() => indexedDBStorage),
         }
     )
 );

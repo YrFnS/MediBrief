@@ -1,11 +1,12 @@
 
+import { z, ZodSchema } from 'zod';
+
 /**
  * Utility functions for handling AI responses and data parsing.
  */
 
 export const cleanJsonOutput = (text: string): string => {
     // 1. Priority: Look for standard markdown code blocks with json identifier
-    // Regex explains: ```json followed by any whitespace, then capture group until next ```
     const jsonBlockMatch = text.match(/```json\s*([\s\S]*?)\s*```/i);
     if (jsonBlockMatch && jsonBlockMatch[1]) {
         return jsonBlockMatch[1].trim();
@@ -21,8 +22,6 @@ export const cleanJsonOutput = (text: string): string => {
     }
 
     // 3. Fallback: Robust search for valid JSON object.
-    // We iterate through potential starting braces to avoid capturing conversational preambles 
-    // that might contain braces, e.g., "Here is the plan {option A}. JSON: { ... }"
     let startIndex = text.indexOf('{');
     const lastIndex = text.lastIndexOf('}');
 
@@ -30,10 +29,8 @@ export const cleanJsonOutput = (text: string): string => {
         const candidate = text.substring(startIndex, lastIndex + 1);
         try {
             JSON.parse(candidate);
-            // If it parses successfully, return it immediately
             return candidate; 
         } catch (e) {
-            // If parse fails, look for the NEXT opening brace and try again
             startIndex = text.indexOf('{', startIndex + 1);
         }
     }
@@ -52,31 +49,55 @@ export const parseJsonSafe = <T>(content: string): T | null => {
     }
 };
 
+/**
+ * Validates parsed JSON against a Zod schema.
+ * Returns null if validation fails, logging the error.
+ */
+export const parseAndValidate = <T>(content: string, schema: ZodSchema<T>): T | null => {
+    try {
+        const cleaned = cleanJsonOutput(content);
+        let parsed;
+        try {
+            parsed = JSON.parse(cleaned);
+        } catch {
+            return null; // Invalid JSON syntax
+        }
+        
+        const result = schema.safeParse(parsed);
+        
+        if (result.success) {
+            return result.data;
+        } else {
+            console.warn("Zod Validation Failed:", result.error);
+            return null;
+        }
+    } catch (e) {
+        console.error("Parse Error:", e);
+        return null;
+    }
+};
+
 export const isJsonBriefing = (content: string): boolean => {
-    const data = parseJsonSafe<any>(content);
-    return data && typeof data === 'object' && 'briefingTitle' in data && 'sections' in data;
+    // Quick heuristics, but consumers should use Zod for use
+    return content.includes('briefingTitle') && content.includes('sections');
 };
 
 export const isImageAnalysis = (content: string): boolean => {
-     const data = parseJsonSafe<any>(content);
-     return data && typeof data === 'object' && data.reportType === 'medical-image';
+     return content.includes('"reportType": "medical-image"') || content.includes('"reportType":"medical-image"');
 };
 
 export const isLabReport = (content: string): boolean => {
-    const data = parseJsonSafe<any>(content);
-    return data && typeof data === 'object' && data.reportType === 'lab-report';
+    return content.includes('"reportType": "lab-report"') || content.includes('"reportType":"lab-report"');
 };
 
 export const isInteractionMatrix = (content: string): boolean => {
-    const data = parseJsonSafe<any>(content);
-    return data && typeof data === 'object' && data.reportType === 'interaction-check';
+    return content.includes('"reportType": "interaction-check"') || content.includes('"reportType":"interaction-check"');
 };
 
 export const getFriendlyErrorMessage = (error: unknown): string => {
     let errorMessage = 'An unknown error occurred.';
     if (error instanceof Error) {
         try {
-            // Attempt to parse the error message as JSON, which is common for API errors
             const errorObj = JSON.parse(error.message);
             if (errorObj.error && errorObj.error.message) {
                 const message = errorObj.error.message.toLowerCase();

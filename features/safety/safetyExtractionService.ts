@@ -1,7 +1,8 @@
 
 import { GoogleGenAI } from "@google/genai";
-import { cleanJsonOutput } from '../../utils';
+import { parseAndValidate } from '../../utils';
 import { ParsedMedication } from './types';
+import { MedicationListSchema } from '../chat/schemas';
 
 const MODEL = 'gemini-3-flash-preview'; 
 
@@ -54,11 +55,10 @@ export const extractMedicationsFromText = async (text: string): Promise<ParsedMe
         const output = response.text;
         if (!output) return [];
 
-        const cleaned = cleanJsonOutput(output);
-        const parsed = JSON.parse(cleaned);
-
-        if (Array.isArray(parsed)) {
-            return parsed as ParsedMedication[];
+        const parsed = parseAndValidate(output, MedicationListSchema);
+        
+        if (parsed) {
+            return parsed;
         }
         return [];
 

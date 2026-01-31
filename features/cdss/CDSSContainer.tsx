@@ -4,6 +4,7 @@ import { usePatientStore } from '../patient-management/usePatientStore';
 import { useClinicalStore } from '../clinical-analysis/stores/useClinicalStore';
 import { useChatStore } from '../chat/stores/useChatStore';
 import InterventionCard from './InterventionCard';
+import CDSSAggregator from './CDSSAggregator';
 import { CDSSAlert } from './types';
 
 const CDSSContainer: React.FC = () => {
@@ -59,16 +60,21 @@ const CDSSContainer: React.FC = () => {
             {/* TIER 2: STANDARD NOTIFICATION LAYER (BOTTOM RIGHT TOASTS) */}
             {/* Non-intrusive updates for warnings and info */}
             {standardAlerts.length > 0 && (
-                <div className="absolute bottom-4 right-4 z-40 flex flex-col items-end pointer-events-none">
-                    <div className="pointer-events-auto flex flex-col items-end w-full max-w-sm gap-2">
-                        {standardAlerts.map(alert => (
+                <div className="absolute bottom-4 right-4 z-40 flex flex-col items-end pointer-events-none w-full max-w-sm px-4 md:px-0">
+                    <div className="pointer-events-auto w-full">
+                        {standardAlerts.length > 1 ? (
+                            <CDSSAggregator 
+                                alerts={standardAlerts}
+                                onAction={handleAction}
+                            />
+                        ) : (
                             <InterventionCard 
-                                key={alert.id} 
-                                alert={alert} 
+                                key={standardAlerts[0].id} 
+                                alert={standardAlerts[0]} 
                                 onAction={handleAction}
                                 variant="toast" 
                             />
-                        ))}
+                        )}
                     </div>
                 </div>
             )}

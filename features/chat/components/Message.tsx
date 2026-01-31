@@ -3,9 +3,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import type { ChatMessage } from '../../../types';
 import { LinkIcon, DocumentTextIcon, ClipboardIcon, CheckIcon, AlertTriangleIcon, ShieldCheckIcon, BoltIcon } from '../../../components/icons';
 import MessageContent from './MessageContent';
+import MedicationReviewCard from './MedicationReviewCard';
 import { extractMedicationsFromText } from '../../safety/safetyExtractionService';
 import { verifyMedicationSafetyAsync } from '../../safety/dosageVerifier';
-import { SafetyCheckResult } from '../../safety/types';
+import { SafetyCheckResult, ParsedMedication } from '../../safety/types';
 import { blobStorage } from '../../../services/blobStorageService';
 
 const isHighCredibilitySource = (uri: string) => {
@@ -31,6 +32,12 @@ const MapPinIcon: React.FC<{className?: string}> = (props) => (
     </svg>
 );
 
+const WifiOffIcon: React.FC<{className?: string}> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
+        <path d="M23.64 7c-.45-.34-4.93-4-11.64-4-1.5 0-2.89.19-4.15.48L18.18 13.8 23.64 7zm-6.6 8.22L3.27 1.44 2 2.72l2.05 2.06C1.91 5.76.59 6.82.36 7l11.63 14.49.01.01.01-.01 3.9-4.86 3.32 3.32 1.27-1.27-3.46-3.46z"/>
+    </svg>
+);
+
 interface MessageProps {
     message: ChatMessage;
     isLoading?: boolean;
@@ -44,8 +51,10 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLo
     const [isCopied, setIsCopied] = useState(false);
     
     // Safety State
-    const [safetyResult, setSafetyResult] = useState<SafetyCheckResult>({ isSafe: true, warnings: [], verifiedItems: [] });
+    const [extractedMeds, setExtractedMeds] = useState<ParsedMedication[] | null>(null);
+    const [safetyResult, setSafetyResult] = useState<SafetyCheckResult | null>(null);
     const [isVerifying, setIsVerifying] = useState(false);
+    const [isExtractionDone, setIsExtractionDone] = useState(false);
 
     // File Loading State (IDB Integration)
     const [fileUrl, setFileUrl] = useState<string | undefined>(message.filePreview?.url);
@@ -92,33 +101,65 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLo
         };
     }, [message.filePreview]);
 
+    // ASYNC EXTRACTION (Trigger only, no auto-verify)
     useEffect(() => {
-        let isMounted = true;
-        const runSafetyCheck = async () => {
-            if (!isModel || !message.content || isLoading) return;
-            const medKeywords = ['mg', 'mcg', 'g', 'tablet', 'dose', 'prescribe', 'taking'];
-            const mightHaveMeds = medKeywords.some(k => message.content.toLowerCase().includes(k));
-            if (!mightHaveMeds) return;
+        if (isExtractionDone || !isModel || !message.content || isLoading) return;
+        
+        const controller = new AbortController();
+        const medKeywords = ['mg', 'mcg', 'g', 'tablet', 'dose', 'prescribe', 'taking'];
+        const mightHaveMeds = medKeywords.some(k => message.content.toLowerCase().includes(k));
+        
+        if (!mightHaveMeds) return;
 
-            setIsVerifying(true);
+        const runExtraction = async () => {
             try {
                 const meds = await extractMedicationsFromText(message.content);
-                if (meds.length > 0) {
-                    const result = await verifyMedicationSafetyAsync(meds);
-                    if (isMounted) setSafetyResult(result);
+                if (meds.length > 0 && !controller.signal.aborted) {
+                    setExtractedMeds(meds);
                 }
             } catch (e) {
-                console.warn("Safety check failed", e);
+                console.warn("Extraction check failed", e);
             } finally {
-                if (isMounted) setIsVerifying(false);
+                if (!controller.signal.aborted) setIsExtractionDone(true);
             }
         };
-        const timer = setTimeout(runSafetyCheck, 500);
-        return () => { isMounted = false; clearTimeout(timer); };
-    }, [isModel, message.content, isLoading]);
+
+        const timer = setTimeout(runExtraction, 800); // Slight delay to let content settle
+        
+        return () => { 
+            clearTimeout(timer);
+            controller.abort(); 
+        };
+    }, [isModel, message.content, isLoading, isExtractionDone]);
+
+    // Cleanup abort controller for verification on unmount
+    useEffect(() => {
+        const controller = new AbortController();
+        return () => controller.abort();
+    }, []);
+
+    const handleConfirmSafety = async (meds: ParsedMedication[]) => {
+        setExtractedMeds(null); // Remove review card
+        setIsVerifying(true);
+        
+        const controller = new AbortController();
+        try {
+            const result = await verifyMedicationSafetyAsync(meds, controller.signal);
+            setSafetyResult(result);
+        } catch (e) {
+            console.error("Verification failed", e);
+        } finally {
+            setIsVerifying(false);
+        }
+    };
+
+    const handleDiscardSafety = () => {
+        setExtractedMeds(null);
+    };
 
     const isCriticalPromptAlert = isModel && message.content.includes("🛑 CRITICAL SAFETY WARNING");
-    const hasSafetyWarning = isCriticalPromptAlert || !safetyResult.isSafe;
+    const hasSafetyWarning = isCriticalPromptAlert || (safetyResult && !safetyResult.isSafe);
+    const isNetworkError = safetyResult?.serviceError;
 
     const contentToRender = (message.role === 'user' && message.displayContent) 
         ? message.displayContent 
@@ -157,7 +198,24 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLo
                     </div>
                 )}
 
-                {isVerifying && !hasSafetyWarning && (
+                {isNetworkError && !hasSafetyWarning && (
+                    <div className="absolute top-0 right-0 bg-amber-500 text-white px-3 py-1 text-[9px] font-bold uppercase tracking-widest rounded-bl-xl shadow-sm flex items-center gap-2 z-10">
+                        <WifiOffIcon className="w-3 h-3" />
+                        <span>Verification Offline</span>
+                    </div>
+                )}
+
+                {/* STEP 1: HUMAN VERIFICATION (REVIEW CARD) */}
+                {extractedMeds && !isVerifying && !safetyResult && (
+                    <MedicationReviewCard 
+                        medications={extractedMeds} 
+                        onConfirm={handleConfirmSafety}
+                        onDiscard={handleDiscardSafety}
+                    />
+                )}
+
+                {/* STEP 2: PROCESSING STATE */}
+                {isVerifying && (
                      <div className="mb-4 bg-blue-50 border border-blue-100 rounded-lg p-2 flex items-center gap-2 animate-pulse">
                          <div className="w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
                          <div className="flex flex-col">
@@ -167,7 +225,8 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLo
                      </div>
                 )}
 
-                {!safetyResult.isSafe && (
+                {/* STEP 3: RESULTS (WARNINGS) */}
+                {safetyResult && !safetyResult.isSafe && (
                     <div className="mb-4 bg-white border border-red-200 rounded-lg p-3 shadow-sm">
                          <div className="flex items-center gap-2 text-red-600 mb-2 border-b border-red-100 pb-1">
                             <BoltIcon className="w-4 h-4" />
@@ -176,7 +235,7 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLo
                         <ul className="space-y-1">
                             {safetyResult.warnings.map((warn, i) => (
                                 <li key={i} className="text-xs text-red-700 font-medium flex items-start gap-2">
-                                    <span className="text-red-500">>></span> 
+                                    <span className="text-red-500"></span> 
                                     <span>{warn.replace(/🛑 \*\*.*\*\*:/, '').replace(/\*\*/g, '')}</span>
                                 </li>
                             ))}
@@ -185,7 +244,8 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLo
                     </div>
                 )}
                 
-                {safetyResult.isSafe && safetyResult.verifiedItems.length > 0 && !isVerifying && (
+                {/* STEP 3: RESULTS (VERIFIED CLEAR) */}
+                {safetyResult && safetyResult.isSafe && safetyResult.verifiedItems.length > 0 && (
                      <div className="mb-4 bg-emerald-50 border border-emerald-100 rounded-lg p-2 flex flex-col gap-1">
                         {safetyResult.verifiedItems.map((item, i) => (
                              <div key={i} className="flex items-center gap-2">

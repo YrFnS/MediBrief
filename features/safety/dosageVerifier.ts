@@ -15,19 +15,34 @@ const CRITICAL_LIMITS: Record<string, number> = {
  * ASYNCHRONOUS EXTERNAL GUARDRAIL
  * Queries openFDA to check for "Boxed Warnings" (Black Box) and verifies dosage against local critical limits.
  */
-export const verifyMedicationSafetyAsync = async (medications: ParsedMedication[]): Promise<SafetyCheckResult> => {
+export const verifyMedicationSafetyAsync = async (medications: ParsedMedication[], signal?: AbortSignal): Promise<SafetyCheckResult> => {
     const warnings: string[] = [];
     const verifiedItems: string[] = [];
-    const interactions: string[] = [];
+    let serviceError = false;
 
     // Process all meds in parallel
     const promises = medications.map(async (med) => {
+        if (signal?.aborted) return;
+
         const lowerName = med.drugName.toLowerCase();
         
         // 1. External Verification (openFDA)
-        const fdaData = await fetchDrugSafetyInfo(lowerName);
+        let fdaData;
+        try {
+            fdaData = await fetchDrugSafetyInfo(lowerName, signal);
+        } catch (e: any) {
+            if (e.name === 'AbortError') throw e;
+            fdaData = { status: 'service_error' };
+        }
 
-        if (fdaData.found) {
+        if (signal?.aborted) return;
+
+        if (fdaData.status === 'service_error') {
+            serviceError = true;
+            warnings.push(
+                `⚠️ **NETWORK ERROR**: Unable to verify ${med.drugName} against FDA database.`
+            );
+        } else if (fdaData.status === 'verified') {
             const displayName = fdaData.genericName || fdaData.brandName || med.drugName;
 
             // CHECK: Boxed Warning (The most critical safety check)
@@ -43,9 +58,7 @@ export const verifyMedicationSafetyAsync = async (medications: ParsedMedication[
                 );
             }
         } else {
-            // If not found in FDA, we can't verify it.
-            // In a real app, this might be a warning itself.
-            // For now, we just don't add a verification tag.
+            // Not found in FDA
         }
 
         // 2. Local Critical Limit Check (Dosage Math)
@@ -64,11 +77,20 @@ export const verifyMedicationSafetyAsync = async (medications: ParsedMedication[
         }
     });
 
-    await Promise.all(promises);
+    try {
+        await Promise.all(promises);
+    } catch (error: any) {
+        if (error.name === 'AbortError') {
+            // If aborted, we can return a safe default or re-throw
+            // Typically re-throwing lets the caller know it was cancelled
+            throw error; 
+        }
+    }
 
     return {
         isSafe: warnings.length === 0,
         warnings,
-        verifiedItems
+        verifiedItems,
+        serviceError
     };
 };

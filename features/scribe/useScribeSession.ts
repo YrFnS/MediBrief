@@ -11,34 +11,6 @@ type LiveInputMedia = {
     mimeType: string;
 };
 
-// --- Audio Worklet Code ---
-// Renamed class and processor ID to avoid collision with useLiveSession
-const PCM_PROCESSOR_CODE = `
-class ScribePCMProcessor extends AudioWorkletProcessor {
-  constructor() {
-    super();
-    this.bufferSize = 4096;
-    this.buffer = new Float32Array(this.bufferSize);
-    this.index = 0;
-  }
-  process(inputs, outputs, parameters) {
-    const input = inputs[0];
-    if (input && input.length > 0) {
-      const channelData = input[0];
-      for (let i = 0; i < channelData.length; i++) {
-        this.buffer[this.index++] = channelData[i];
-        if (this.index >= this.bufferSize) {
-          this.port.postMessage(this.buffer);
-          this.index = 0;
-        }
-      }
-    }
-    return true;
-  }
-}
-registerProcessor('scribe-pcm-processor', ScribePCMProcessor);
-`;
-
 const encode = (bytes: Uint8Array) => {
   let binary = '';
   const len = bytes.byteLength;
@@ -118,12 +90,9 @@ export const useScribeSession = () => {
             }
             if (audioContextRef.current.state === 'suspended') await audioContextRef.current.resume();
 
-            // Load Worklet (Robust Fallback)
+            // Load Worklet (CSP Compliant via static file)
             try {
-                const blob = new Blob([PCM_PROCESSOR_CODE], { type: 'application/javascript' });
-                const url = URL.createObjectURL(blob);
-                await audioContextRef.current.audioWorklet.addModule(url);
-                URL.revokeObjectURL(url);
+                await audioContextRef.current.audioWorklet.addModule('/workers/pcm-processor.js');
                 workletSupportedRef.current = true;
             } catch (e) {
                  console.warn("Scribe Worklet module load failed, defaulting to ScriptProcessor fallback:", e);
@@ -163,7 +132,7 @@ export const useScribeSession = () => {
 
                          if (workletSupportedRef.current) {
                              try {
-                                 workletNodeRef.current = new AudioWorkletNode(audioContextRef.current, 'scribe-pcm-processor');
+                                 workletNodeRef.current = new AudioWorkletNode(audioContextRef.current, 'pcm-processor');
                                  workletNodeRef.current.port.onmessage = (e) => {
                                      const inputData = e.data;
                                      const pcmBlob = createBlob(inputData);

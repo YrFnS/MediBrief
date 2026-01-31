@@ -16,34 +16,6 @@ type LiveInputMedia = {
     mimeType: string;
 };
 
-// --- Audio Worklet Code ---
-// This runs in a separate thread to prevent UI blocking
-const PCM_PROCESSOR_CODE = `
-class PCMProcessor extends AudioWorkletProcessor {
-  constructor() {
-    super();
-    this.bufferSize = 4096;
-    this.buffer = new Float32Array(this.bufferSize);
-    this.index = 0;
-  }
-  process(inputs, outputs, parameters) {
-    const input = inputs[0];
-    if (input && input.length > 0) {
-      const channelData = input[0];
-      for (let i = 0; i < channelData.length; i++) {
-        this.buffer[this.index++] = channelData[i];
-        if (this.index >= this.bufferSize) {
-          this.port.postMessage(this.buffer);
-          this.index = 0;
-        }
-      }
-    }
-    return true;
-  }
-}
-registerProcessor('pcm-processor', PCMProcessor);
-`;
-
 const encode = (bytes: Uint8Array) => {
   let binary = '';
   const len = bytes.byteLength;
@@ -201,12 +173,9 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
             if (inputAudioContextRef.current.state === 'suspended') await inputAudioContextRef.current.resume();
             if (outputAudioContextRef.current.state === 'suspended') await outputAudioContextRef.current.resume();
 
-            // 2. Load AudioWorklet Module (Robust Fallback)
+            // 2. Load AudioWorklet Module (CSP Compliant via static file)
             try {
-                const blob = new Blob([PCM_PROCESSOR_CODE], { type: 'application/javascript' });
-                const url = URL.createObjectURL(blob);
-                await inputAudioContextRef.current.audioWorklet.addModule(url);
-                URL.revokeObjectURL(url);
+                await inputAudioContextRef.current.audioWorklet.addModule('/workers/pcm-processor.js');
                 workletSupportedRef.current = true;
             } catch (e) {
                 console.warn("AudioWorklet module load failed, defaulting to ScriptProcessor fallback:", e);
@@ -271,11 +240,8 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
                                 mediaStreamSourceRef.current.connect(workletNodeRef.current);
                                 workletNodeRef.current.connect(inputAudioContextRef.current.destination);
                             } catch (e) {
-                                // Double safety catch if creation fails despite module load
                                 console.error("Worklet creation failed:", e);
                                 workletSupportedRef.current = false; 
-                                // Will degrade gracefully if we could re-trigger, but simpler to fail safely here or fallback inline?
-                                // Let's fallback inline to ScriptProcessor if Worklet instantiation fails
                                 fallbackToScriptProcessor(sessionPromise);
                             }
                         } else {
