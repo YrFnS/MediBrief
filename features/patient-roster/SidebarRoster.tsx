@@ -15,12 +15,10 @@ interface SidebarRosterProps {
 }
 
 const SidebarRoster: React.FC<SidebarRosterProps> = ({ isOpen, toggle }) => {
-    // Zustand Selectors
-    const { patients, activePatientId, actions } = usePatientStore(state => ({
-        patients: state.patients,
-        activePatientId: state.activePatientId,
-        actions: state.actions
-    }));
+    // Optimized Selectors: Split to prevent object identity churn
+    const patients = usePatientStore(state => state.patients);
+    const activePatientId = usePatientStore(state => state.activePatientId);
+    const actions = usePatientStore(state => state.actions);
     
     // Access other store actions for CRUD sync
     const chatActions = useChatStore(state => state.actions);

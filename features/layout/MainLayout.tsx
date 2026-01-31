@@ -29,7 +29,6 @@ const MainLayout: React.FC = () => {
     const chatActions = useChatStore(state => state.actions);
     
     // Select messages from the specialized Chat Store
-    // This is the key optimization: changing clinical data won't re-render MessageList parent
     const activeMessages = useChatStore(state => state.chats[activePatientId] || []);
 
     const { uiState, uiDispatch } = useUIStore();
@@ -119,13 +118,13 @@ const MainLayout: React.FC = () => {
         }
     }, [liveError, chatActions, activePatientId, uiDispatch]);
 
+    // FIX: Removed conflicting useEffect that auto-switched mode based on isLive.
+    // Instead, we strictly enforce that leaving Live mode stops the session.
     useEffect(() => {
-        if (chatMode !== ChatModeEnum.Live && isLive) stopSession();
+        if (chatMode !== ChatModeEnum.Live && isLive) {
+            stopSession();
+        }
     }, [chatMode, isLive, stopSession]);
-
-    useEffect(() => {
-        if (isLive && chatMode !== ChatModeEnum.Live) uiDispatch({ type: 'SET_CHAT_MODE', payload: ChatModeEnum.Live });
-    }, [isLive, chatMode, uiDispatch]);
 
     // --- Chat Orchestrator ---
     const { handleSend, handleStop, handleClearChat, handleExportChat } = useChatOrchestrator({
@@ -146,7 +145,15 @@ const MainLayout: React.FC = () => {
         setViewingImage({ src, alt });
     }, []);
 
-    const toggleLiveSession = useCallback(() => isLive ? stopSession() : startSession(activeMessages), [isLive, stopSession, startSession, activeMessages]);
+    // FIX: Explicitly set mode when starting live session
+    const toggleLiveSession = useCallback(() => {
+        if (isLive) {
+            stopSession();
+        } else {
+            uiDispatch({ type: 'SET_CHAT_MODE', payload: ChatModeEnum.Live });
+            startSession(activeMessages);
+        }
+    }, [isLive, stopSession, startSession, activeMessages, uiDispatch]);
 
     // --- LOCK SCREEN UI (Full Security) ---
     if (isLocked) {
