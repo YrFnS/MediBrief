@@ -56,9 +56,22 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLo
     const [isVerifying, setIsVerifying] = useState(false);
     const [isExtractionDone, setIsExtractionDone] = useState(false);
 
+    // Refs for cleanup
+    const verifyAbortControllerRef = useRef<AbortController | null>(null);
+    const extractAbortControllerRef = useRef<AbortController | null>(null);
+    const objectUrlRef = useRef<string | null>(null);
+
     // File Loading State (IDB Integration)
     const [fileUrl, setFileUrl] = useState<string | undefined>(message.filePreview?.url);
-    const objectUrlRef = useRef<string | null>(null);
+
+    // Cleanup: Verification Controller
+    useEffect(() => {
+        return () => {
+            if (verifyAbortControllerRef.current) {
+                verifyAbortControllerRef.current.abort();
+            }
+        };
+    }, []);
 
     // Effect: Load image from IndexedDB if we have a storageId but no URL
     useEffect(() => {
@@ -105,14 +118,22 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLo
     useEffect(() => {
         if (isExtractionDone || !isModel || !message.content || isLoading) return;
         
+        // Cancel previous extraction if any
+        if (extractAbortControllerRef.current) extractAbortControllerRef.current.abort();
         const controller = new AbortController();
+        extractAbortControllerRef.current = controller;
+
         const medKeywords = ['mg', 'mcg', 'g', 'tablet', 'dose', 'prescribe', 'taking'];
         const mightHaveMeds = medKeywords.some(k => message.content.toLowerCase().includes(k));
         
-        if (!mightHaveMeds) return;
+        if (!mightHaveMeds) {
+            setIsExtractionDone(true);
+            return;
+        }
 
         const runExtraction = async () => {
             try {
+                // In a real scenario, we'd pass the signal to the extraction service too if supported
                 const meds = await extractMedicationsFromText(message.content);
                 if (meds.length > 0 && !controller.signal.aborted) {
                     setExtractedMeds(meds);
@@ -132,24 +153,31 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLo
         };
     }, [isModel, message.content, isLoading, isExtractionDone]);
 
-    // Cleanup abort controller for verification on unmount
-    useEffect(() => {
-        const controller = new AbortController();
-        return () => controller.abort();
-    }, []);
-
     const handleConfirmSafety = async (meds: ParsedMedication[]) => {
         setExtractedMeds(null); // Remove review card
         setIsVerifying(true);
         
+        // Cancel any previous verification
+        if (verifyAbortControllerRef.current) {
+            verifyAbortControllerRef.current.abort();
+        }
+        
         const controller = new AbortController();
+        verifyAbortControllerRef.current = controller;
+
         try {
             const result = await verifyMedicationSafetyAsync(meds, controller.signal);
-            setSafetyResult(result);
-        } catch (e) {
-            console.error("Verification failed", e);
+            if (!controller.signal.aborted) {
+                setSafetyResult(result);
+            }
+        } catch (e: any) {
+            if (e.name !== 'AbortError') {
+                console.error("Verification failed", e);
+            }
         } finally {
-            setIsVerifying(false);
+            if (!controller.signal.aborted) {
+                setIsVerifying(false);
+            }
         }
     };
 
@@ -158,6 +186,7 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLo
     };
 
     const isCriticalPromptAlert = isModel && message.content.includes("🛑 CRITICAL SAFETY WARNING");
+    const isActionExecuted = isModel && message.content.includes("✅ **ACTION EXECUTED");
     const hasSafetyWarning = isCriticalPromptAlert || (safetyResult && !safetyResult.isSafe);
     const isNetworkError = safetyResult?.serviceError;
 
@@ -175,9 +204,9 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLo
         <div className={`flex flex-col gap-2 group animate-slide-up ${isModel ? 'items-start' : 'items-end'}`}>
             
             <div className={`flex items-center gap-2 px-1 select-none transition-opacity duration-300 ${isModel ? 'opacity-100' : 'opacity-60'}`}>
-                {isModel && <div className={`h-1.5 w-1.5 rounded-full ${hasSafetyWarning ? 'bg-red-500 animate-pulse' : 'bg-blue-500'}`}></div>}
-                <span className={`text-[10px] font-mono uppercase tracking-widest font-semibold ${isModel ? (hasSafetyWarning ? 'text-red-600' : 'text-slate-500') : 'text-slate-400'}`}>
-                    {isModel ? (hasSafetyWarning ? 'SAFETY INTERVENTION' : 'MEDIBRIEF AI') : 'YOU'}
+                {isModel && <div className={`h-1.5 w-1.5 rounded-full ${hasSafetyWarning ? 'bg-red-500 animate-pulse' : isActionExecuted ? 'bg-green-500' : 'bg-blue-500'}`}></div>}
+                <span className={`text-[10px] font-mono uppercase tracking-widest font-semibold ${isModel ? (hasSafetyWarning ? 'text-red-600' : isActionExecuted ? 'text-green-600' : 'text-slate-500') : 'text-slate-400'}`}>
+                    {isModel ? (hasSafetyWarning ? 'SAFETY INTERVENTION' : isActionExecuted ? 'SYSTEM ACTION' : 'MEDIBRIEF AI') : 'YOU'}
                 </span>
             </div>
 
@@ -186,7 +215,9 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLo
                 ${isModel 
                     ? hasSafetyWarning 
                         ? 'bg-red-50 border border-red-200 shadow-soft'
-                        : 'bg-white border border-slate-100 shadow-float text-left' 
+                        : isActionExecuted
+                            ? 'bg-green-50/50 border border-green-200 shadow-sm'
+                            : 'bg-white border border-slate-100 shadow-float text-left' 
                     : 'bg-slate-100 border border-transparent text-slate-800 rounded-tr-sm'
                 }
             `}>
@@ -195,6 +226,13 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLo
                     <div className="absolute top-0 right-0 bg-red-600 text-white px-3 py-1 text-[9px] font-bold uppercase tracking-widest rounded-bl-xl shadow-sm flex items-center gap-2 z-10">
                         <AlertTriangleIcon className="w-3 h-3" />
                         <span>Protocol Violation</span>
+                    </div>
+                )}
+
+                {isActionExecuted && (
+                    <div className="absolute top-0 right-0 bg-green-600 text-white px-3 py-1 text-[9px] font-bold uppercase tracking-widest rounded-bl-xl shadow-sm flex items-center gap-2 z-10">
+                        <CheckIcon className="w-3 h-3" />
+                        <span>Tool Executed</span>
                     </div>
                 )}
 

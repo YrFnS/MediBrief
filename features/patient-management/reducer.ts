@@ -83,6 +83,22 @@ export const patientReducer = (state: PatientStoreState, action: PatientAction):
                 }
             };
         }
+        case 'ADD_DOCUMENT': {
+            const targetId = action.payload.id;
+            const targetPatient = state.patients[targetId];
+            if (!targetPatient) return state;
+
+            return {
+                ...state,
+                patients: {
+                    ...state.patients,
+                    [targetId]: {
+                        ...targetPatient,
+                        documents: [...(targetPatient.documents || []), action.payload.document]
+                    }
+                }
+            };
+        }
         case 'INGEST_CLINICAL_DATA': {
             const targetId = action.payload.id;
             const targetPatient = state.patients[targetId];

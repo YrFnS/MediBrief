@@ -13,14 +13,31 @@ import BioMetricBackground from './BioMetricBackground';
 import { useLiveSession } from '../../hooks/useLiveSession';
 import { useFileDragAndDrop } from '../../hooks/useFileDragAndDrop';
 import { useChatOrchestrator } from '../chat/hooks/useChatOrchestrator';
-import { DocumentTextIcon, ShieldCheckIcon, EyeIcon } from '../../components/icons';
+import { DocumentTextIcon, ShieldCheckIcon, EyeIcon, WifiOffIcon } from '../../components/icons';
 import { usePatientStore } from '../patient-management/usePatientStore';
 import { useChatStore } from '../chat/stores/useChatStore';
 import { useUIStore } from '../ui/UIContext';
+import { scrubPII } from '../../utils/piiScrubber';
 
 // --- IDLE TIMER CONSTANTS ---
 const PRIVACY_BLUR_MS = 2 * 60 * 1000; // 2 Minutes -> Blur
 const AUTO_LOCK_MS = 15 * 60 * 1000;   // 15 Minutes -> Full Lock
+
+// Simple hook for online status
+const useOnlineStatus = () => {
+    const [isOnline, setIsOnline] = useState(navigator.onLine);
+    useEffect(() => {
+        const handleOnline = () => setIsOnline(true);
+        const handleOffline = () => setIsOnline(false);
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
+    }, []);
+    return isOnline;
+};
 
 const MainLayout: React.FC = () => {
     // --- STORES ---
@@ -29,7 +46,6 @@ const MainLayout: React.FC = () => {
     const chatActions = useChatStore(state => state.actions);
     
     // Select messages from the specialized Chat Store
-    // This is the key optimization: changing clinical data won't re-render MessageList parent
     const activeMessages = useChatStore(state => state.chats[activePatientId] || []);
 
     const { uiState, uiDispatch } = useUIStore();
@@ -42,6 +58,7 @@ const MainLayout: React.FC = () => {
     const [userLocation, setUserLocation] = useState<{latitude: number, longitude: number} | undefined>(undefined);
     const [viewingImage, setViewingImage] = useState<{src: string, alt: string} | null>(null);
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const isOnline = useOnlineStatus();
     
     // Security State
     const [isLocked, setIsLocked] = useState(false);
@@ -65,14 +82,12 @@ const MainLayout: React.FC = () => {
             }
         };
 
-        // Events to track activity
         window.addEventListener('mousemove', resetTimer);
         window.addEventListener('keydown', resetTimer);
         window.addEventListener('touchstart', resetTimer);
         window.addEventListener('scroll', resetTimer);
         
-        // Check interval
-        const intervalId = setInterval(checkIdle, 5000); // Check every 5s
+        const intervalId = setInterval(checkIdle, 5000); 
 
         return () => {
             window.removeEventListener('mousemove', resetTimer);
@@ -106,11 +121,31 @@ const MainLayout: React.FC = () => {
 
     // --- Live Session Integration ---
     const handleLiveTurnComplete = useCallback((userInput: string, modelOutput: string) => {
-        if (userInput) chatActions.addMessage(activePatientId, { role: 'user', content: userInput });
-        if (modelOutput) chatActions.addMessage(activePatientId, { role: 'model', content: modelOutput });
+        if (userInput) {
+            const scrubbedInput = scrubPII(userInput);
+            chatActions.addMessage(activePatientId, { role: 'user', content: scrubbedInput });
+        }
+        if (modelOutput) {
+            chatActions.addMessage(activePatientId, { role: 'model', content: modelOutput });
+        }
     }, [chatActions, activePatientId]);
 
-    const { isLive, transcript, startSession, stopSession, error: liveError } = useLiveSession(handleLiveTurnComplete);
+    const handleLiveToolCall = useCallback((toolName: string, args: any) => {
+        if (toolName === 'scheduleAppointment') {
+            const { date, time, notes } = args;
+            const content = `✅ **ACTION EXECUTED: Appointment Scheduled**\n\n**Date:** ${date}\n**Time:** ${time}\n${notes ? `**Notes:** ${notes}` : ''}`;
+            chatActions.addMessage(activePatientId, { 
+                role: 'model', 
+                content: content,
+                displayContent: content
+            });
+        }
+    }, [chatActions, activePatientId]);
+
+    const { isLive, transcript, startSession, stopSession, error: liveError } = useLiveSession({
+        onTurnComplete: handleLiveTurnComplete,
+        onToolCall: handleLiveToolCall
+    });
 
     useEffect(() => {
         if (liveError) {
@@ -126,6 +161,14 @@ const MainLayout: React.FC = () => {
     useEffect(() => {
         if (isLive && chatMode !== ChatModeEnum.Live) uiDispatch({ type: 'SET_CHAT_MODE', payload: ChatModeEnum.Live });
     }, [isLive, chatMode, uiDispatch]);
+
+    // Force stop live session if offline
+    useEffect(() => {
+        if (!isOnline && isLive) {
+            stopSession();
+            uiDispatch({ type: 'SET_ERROR', payload: "Network Connection Lost. Live session terminated." });
+        }
+    }, [isOnline, isLive, stopSession, uiDispatch]);
 
     // --- Chat Orchestrator ---
     const { handleSend, handleStop, handleClearChat, handleExportChat } = useChatOrchestrator({
@@ -148,7 +191,7 @@ const MainLayout: React.FC = () => {
 
     const toggleLiveSession = useCallback(() => isLive ? stopSession() : startSession(activeMessages), [isLive, stopSession, startSession, activeMessages]);
 
-    // --- LOCK SCREEN UI (Full Security) ---
+    // --- LOCK SCREEN UI ---
     if (isLocked) {
         return (
             <div className="flex flex-col items-center justify-center h-screen bg-slate-950 text-white relative overflow-hidden">
@@ -174,11 +217,11 @@ const MainLayout: React.FC = () => {
 
     if (!process.env.API_KEY) {
          return (
-            <div className="flex flex-col items-center justify-center h-screen bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200 p-4">
-                <div className="bg-white dark:bg-slate-800 p-8 rounded-xl shadow-lg max-w-md text-center">
+            <div className="flex flex-col items-center justify-center h-screen bg-slate-100 text-slate-800 p-4">
+                <div className="bg-white p-8 rounded-xl shadow-lg max-w-md text-center">
                     <div className="text-red-500 text-5xl mb-4">⚠️</div>
                     <h1 className="text-xl font-bold mb-2">API Key Missing</h1>
-                    <p className="text-slate-600 dark:text-slate-400">Environment variable <code>API_KEY</code> is required.</p>
+                    <p className="text-slate-600">Environment variable <code>API_KEY</code> is required.</p>
                 </div>
             </div>
          );
@@ -186,12 +229,12 @@ const MainLayout: React.FC = () => {
 
     return (
         <div 
-            className="flex h-[100dvh] font-sans overflow-hidden relative text-slate-900 dark:text-slate-100"
+            className="flex h-[100dvh] font-sans overflow-hidden relative text-slate-900 bg-slate-50 transition-colors duration-500"
             {...dragHandlers}
         >
             <BioMetricBackground />
 
-            {/* CONTENT WRAPPER: Applied Blur Filter here */}
+            {/* CONTENT WRAPPER */}
             <div className={`flex flex-1 w-full h-full relative transition-all duration-700 ${isBlurred ? 'blur-md opacity-60 grayscale scale-[0.99] pointer-events-none' : ''}`}>
                 <SidebarRoster 
                     isOpen={isSidebarOpen} 
@@ -206,6 +249,14 @@ const MainLayout: React.FC = () => {
                         onExportChat={handleExportChat}
                         onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
                     />
+                    
+                    {/* OFFLINE BANNER */}
+                    {!isOnline && (
+                        <div className="bg-amber-500 text-white px-4 py-1 text-center text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 animate-slide-up shadow-sm z-50">
+                            <WifiOffIcon className="w-3.5 h-3.5" />
+                            <span>System Offline - View Only Mode</span>
+                        </div>
+                    )}
                     
                     {activePatient && (
                         <HeadsUpDisplay patient={activePatient} />
@@ -230,7 +281,7 @@ const MainLayout: React.FC = () => {
                                 onClearFile={clearFile}
                                 setUploadedFile={setUploadedFile}
                                 uploadedFile={uploadedFile}
-                                isLoading={isLoading}
+                                isLoading={isLoading || !isOnline}
                                 currentMode={chatMode}
                                 toggleLiveSession={toggleLiveSession}
                                 isLiveSessionActive={isLive}
@@ -241,7 +292,7 @@ const MainLayout: React.FC = () => {
                 </div>
             </div>
 
-            {/* PRIVACY SHIELD OVERLAY (Visible only when blurred) */}
+            {/* PRIVACY SHIELD OVERLAY */}
             <div className={`absolute inset-0 z-[60] flex items-center justify-center pointer-events-none transition-opacity duration-500 ${isBlurred ? 'opacity-100' : 'opacity-0'}`}>
                  <div className="bg-slate-900/90 text-white px-8 py-4 rounded-full font-mono text-sm uppercase tracking-widest shadow-2xl border border-white/10 flex items-center gap-3 animate-slide-up">
                     <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>

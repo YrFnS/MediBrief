@@ -14,7 +14,7 @@ interface HeaderProps {
 
 const Header: React.FC<HeaderProps> = ({ currentMode, onModeChange, onClearChat, onExportChat, onToggleSidebar }) => {
     return (
-        <header className="flex-shrink-0 bg-white/80 backdrop-blur-md border-b border-slate-200 z-30 relative sticky top-0">
+        <header className="flex-shrink-0 bg-white/80 backdrop-blur-md border-b border-slate-200 z-30 relative sticky top-0 transition-colors">
             <div className="max-w-5xl mx-auto px-3 py-2 md:px-4 md:py-3 flex justify-between items-center gap-2 md:gap-4">
                 
                 <div className="flex items-center gap-2 md:gap-3 flex-1 min-w-0">

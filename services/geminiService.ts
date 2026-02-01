@@ -3,6 +3,7 @@ import { GoogleGenAI, GenerateContentResponse, Content, Part, GenerateContentPar
 import type { ChatMessage, ChatMode, UploadedFile } from '../types';
 import { MODEL_CONFIGS, SYSTEM_INSTRUCTION } from '../constants';
 import { cleanJsonOutput } from '../utils';
+import { scrubPII } from '../utils/piiScrubber';
 
 // Helper to extract a concise summary from a previous model response to substitute for an image
 const extractImageInsights = (modelResponseText: string): string | null => {
@@ -58,7 +59,9 @@ const messageToContent = (message: ChatMessage, isHistory: boolean = false, inje
     }
 
     if (message.content) {
-        let textToSend = message.content;
+        // PII PROTECTION: Scrub only USER messages before sending to history
+        // System instructions instruct the model to be clinical, but we must protect user input.
+        let textToSend = message.role === 'user' ? scrubPII(message.content) : message.content;
         parts.push({ text: textToSend });
     }
     
@@ -157,7 +160,8 @@ export const generateResponseStream = async function* (
     });
   }
   
-  currentMessageParts.push({ text: prompt });
+  // Scrub the current prompt as well
+  currentMessageParts.push({ text: scrubPII(prompt) });
 
   contents.push({ role: 'user', parts: currentMessageParts });
 

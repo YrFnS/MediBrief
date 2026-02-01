@@ -2,7 +2,7 @@
 import { GoogleGenAI } from "@google/genai";
 import { parseAndValidate } from '../../utils';
 import { ParsedMedication } from './types';
-import { MedicationListSchema } from '../chat/schemas';
+import { MedicationListSchema, MedicationList } from '../chat/schemas';
 
 const MODEL = 'gemini-3-flash-preview'; 
 
@@ -55,7 +55,7 @@ export const extractMedicationsFromText = async (text: string): Promise<ParsedMe
         const output = response.text;
         if (!output) return [];
 
-        const parsed = parseAndValidate(output, MedicationListSchema);
+        const parsed = parseAndValidate<MedicationList>(output, MedicationListSchema);
         
         if (parsed) {
             return parsed;

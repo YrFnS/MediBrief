@@ -77,6 +77,26 @@ export const ImageAnalysisSchema = z.object({
     nextSteps: z.string().optional()
 });
 
+// --- CDSS Alert Schema ---
+export const CDSSActionSchema = z.object({
+    label: z.string(),
+    type: z.enum(['order', 'dismiss', 'acknowledge']),
+    payload: z.string().optional()
+});
+
+export const CDSSAlertSchema = z.object({
+    title: z.string(),
+    level: z.enum(['Critical', 'Warning', 'Info']),
+    description: z.string(),
+    triggers: z.array(z.string()),
+    source_citation: z.string().optional(),
+    actions: z.array(CDSSActionSchema).optional()
+});
+
+export const CDSSResponseSchema = z.object({
+    alerts: z.array(CDSSAlertSchema)
+});
+
 // Type Exports
 export type Briefing = z.infer<typeof BriefingSchema>;
 export type LabReport = z.infer<typeof LabReportSchema>;
@@ -84,3 +104,4 @@ export type InteractionMatrix = z.infer<typeof InteractionMatrixSchema>;
 export type EntityExtraction = z.infer<typeof EntityExtractionSchema>;
 export type MedicationList = z.infer<typeof MedicationListSchema>;
 export type ImageAnalysis = z.infer<typeof ImageAnalysisSchema>;
+export type CDSSResponse = z.infer<typeof CDSSResponseSchema>;

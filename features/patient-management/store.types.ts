@@ -1,5 +1,5 @@
 
-import { PatientContext, PatientEntityData } from './types';
+import { PatientContext, PatientEntityData, PatientDocument } from './types';
 import { FHIRObservation } from '../fhir/types';
 import { ChatMessage, GroundingSource } from '../../types';
 import { CDSSAlert } from '../cdss/types';
@@ -15,6 +15,7 @@ export type PatientAction =
     | { type: 'SWITCH_PATIENT'; payload: { id: string } }
     | { type: 'UPDATE_PATIENT_DETAILS'; payload: { id: string; updates: Partial<PatientContext> } }
     | { type: 'UPDATE_PATIENT_ENTITIES'; payload: { id: string; entities: Partial<PatientEntityData> } }
+    | { type: 'ADD_DOCUMENT'; payload: { id: string; document: PatientDocument } }
     | { type: 'INGEST_CLINICAL_DATA'; payload: { id: string; observations: FHIRObservation[] } }
     | { type: 'UPDATE_ALERTS'; payload: { id: string; alerts: CDSSAlert[] } }
     | { type: 'DISMISS_ALERT'; payload: { id: string; alertId: string } }

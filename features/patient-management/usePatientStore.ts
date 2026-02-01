@@ -2,7 +2,10 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { v4 as uuidv4 } from 'uuid';
-import { PatientMetadata, PatientEntityData } from './types';
+import { PatientMetadata, PatientEntityData, PatientDocument } from './types';
+import { FHIRObservation, ClinicalDataStore } from '../fhir/types';
+import { CDSSAlert } from '../cdss/types';
+import { indexedDBStorage } from '../../services/storage';
 
 // --- Default Data Factory ---
 export const DEFAULT_PATIENT_ID = 'general-context';
@@ -34,6 +37,14 @@ export interface PatientActions {
         touchPatient: (id: string) => void;
         // Batch set for Import/Restore
         setAllPatients: (patients: Record<string, PatientMetadata>, activeId: string) => void;
+        
+        // Missing Action Implementations
+        addDocument: (id: string, document: PatientDocument) => void;
+        // NOTE: Clinical Data & Alerts are often handled by useClinicalStore, but metadata might need awareness
+        // For this architecture, we keep the metadata store lean. 
+        // If these were intended for the PatientMetadata object, we implement them here.
+        // However, based on types.ts, PatientMetadata doesn't hold clinical data directly, useClinicalStore does.
+        // We will implement `addDocument` as it IS in PatientMetadata.
     }
 }
 
@@ -104,6 +115,21 @@ export const usePatientStore = create<PatientState & PatientActions>()(
                     };
                 }),
 
+                addDocument: (id, document) => set((state) => {
+                    const target = state.patients[id];
+                    if (!target) return state;
+                    
+                    return {
+                        patients: {
+                            ...state.patients,
+                            [id]: {
+                                ...target,
+                                documents: [...(target.documents || []), document]
+                            }
+                        }
+                    };
+                }),
+
                 touchPatient: (id) => set((state) => {
                     if (!state.patients[id]) return state;
                     return {
@@ -122,7 +148,7 @@ export const usePatientStore = create<PatientState & PatientActions>()(
         }),
         {
             name: 'medibrief-metadata-storage',
-            storage: createJSONStorage(() => sessionStorage),
+            storage: createJSONStorage(() => indexedDBStorage),
         }
     )
 );

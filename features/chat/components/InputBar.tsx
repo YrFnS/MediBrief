@@ -2,7 +2,7 @@
 import React, { useState, useRef, useCallback, KeyboardEvent, useLayoutEffect, useEffect } from 'react';
 import type { UploadedFile, ChatMode } from '../../../types';
 import { ChatMode as ChatModeEnum } from '../../../types';
-import { PaperclipIcon, SendIcon, XCircleIcon, BriefingIcon, UserIcon, DrugsIcon, DownloadIcon, DocumentTextIcon, MicrophoneIcon, CameraIcon, LiveIcon, StopIcon, BodyIcon } from '../../../components/icons';
+import { PaperclipIcon, SendIcon, XCircleIcon, BriefingIcon, UserIcon, DrugsIcon, DownloadIcon, DocumentTextIcon, MicrophoneIcon, CameraIcon, LiveIcon, StopIcon, BodyIcon, PlusIcon } from '../../../components/icons';
 import { useSpeechRecognition } from '../../../hooks/useSpeechRecognition';
 import BodyMap from '../../../components/BodyMap';
 import { useFileDragAndDrop } from '../../../hooks/useFileDragAndDrop';
@@ -30,12 +30,14 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
     const [prompt, setPrompt] = useState('');
     const [showCommands, setShowCommands] = useState(false);
     const [showBodyMap, setShowBodyMap] = useState(false);
+    const [isMenuOpen, setIsMenuOpen] = useState(false); // New state for (+) menu
+    
     const fileInputRef = useRef<HTMLInputElement>(null);
     const cameraInputRef = useRef<HTMLInputElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
 
     // We use the hook here locally just to access the `processFile` logic for clicks
-    // The main drag/drop state is handled in MainLayout, but click uploads happen here
     const { processFile } = useFileDragAndDrop();
 
     const { isListening, toggleListening, stopListening } = useSpeechRecognition({
@@ -47,35 +49,31 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
         let activeUrl = uploadedFile?.url;
         return () => {
             if (activeUrl && activeUrl.startsWith('blob:')) {
-                // Revoke object URL to free memory when file is cleared or changed
                 URL.revokeObjectURL(activeUrl);
             }
         };
     }, [uploadedFile]);
 
+    // Close menus on click outside
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+                setIsMenuOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
     const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (file) {
-            // We need to bridge the local processFile to the parent's setUploadedFile
-            // This is a bit of a workaround because processFile sets its own state
-            // In a real app, we'd refactor the hook to return the processed object promise
-            
-            // Re-implementing simplified process logic here to feed parent prop
             if (file.size > 10 * 1024 * 1024) { 
                 alert("File is too large. Max 10MB.");
                 return;
             }
             
-            // We use the shared logic from the hook instance in MainLayout via props usually,
-            // but here we manually trigger the read to pass to `setUploadedFile` prop.
-            // Ideally, `setUploadedFile` in MainLayout should handle the IDB save.
-            // For now, we will perform the read and let the MainLayout hook handle state.
-            
-            // Actually, best approach: Use the prop. 
-            // The MainLayout `useFileDragAndDrop` is source of truth.
-            // We can't easily access its internal `processFile` without passing it down.
-            // Let's implement the read + save here and call setUploadedFile.
-            
+            // Dynamic import to avoid circular dependencies if any
             const { blobStorage } = await import('../../../services/blobStorageService');
             const { v4: uuidv4 } = await import('uuid');
 
@@ -98,6 +96,7 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
                     uploadPayload.url = URL.createObjectURL(file);
                 }
                 setUploadedFile(uploadPayload);
+                setIsMenuOpen(false);
             };
             reader.readAsDataURL(file);
         }
@@ -124,6 +123,7 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
         const note = `[Observation] Patient reports ${symptom.toLowerCase()} in the ${region}.`;
         setPrompt(prev => prev ? `${prev}\n${note}` : note);
         setShowBodyMap(false);
+        setIsMenuOpen(false);
         setTimeout(() => textareaRef.current?.focus(), 0);
     };
 
@@ -176,11 +176,11 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
                     
                      {uploadedFile && (
                         <div className="absolute bottom-full left-0 mb-3 animate-slide-up z-20">
-                             <div className="flex items-center gap-3 bg-white dark:bg-slate-800 text-slate-800 dark:text-white p-2 pr-4 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700">
+                             <div className="flex items-center gap-3 bg-white text-slate-800 p-2 pr-4 rounded-lg shadow-lg border border-slate-200">
                                 {uploadedFile.url && uploadedFile.type.startsWith('image/') ? (
                                      <img src={uploadedFile.url} alt="Attachment" className="w-8 h-8 object-cover rounded-md border border-slate-200" />
                                 ) : (
-                                    <div className="w-8 h-8 flex items-center justify-center bg-blue-50 dark:bg-slate-700 rounded-md">
+                                    <div className="w-8 h-8 flex items-center justify-center bg-blue-50 rounded-md">
                                         <DocumentTextIcon className="w-4 h-4 text-blue-500" />
                                     </div>
                                 )}
@@ -188,7 +188,7 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
                                     <span className="text-xs font-semibold max-w-[150px] truncate">{uploadedFile.file.name}</span>
                                     <span className="text-[10px] text-slate-400 uppercase tracking-wider">Ready to Ingest</span>
                                 </div>
-                                <button onClick={onClearFile} className="ml-2 text-slate-400 hover:text-red-500">
+                                <button onClick={onClearFile} className="ml-2 text-slate-400 hover:text-red-500" aria-label="Remove attachment">
                                     <XCircleIcon className="w-5 h-5" />
                                 </button>
                             </div>
@@ -196,8 +196,8 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
                     )}
 
                      {showCommands && (
-                        <div className="absolute bottom-full left-0 mb-2 bg-white dark:bg-slate-900 rounded-xl shadow-float border border-slate-100 dark:border-slate-800 w-64 animate-slide-up z-20 overflow-hidden">
-                            <div className="bg-slate-50 dark:bg-slate-800/50 px-3 py-2 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
+                        <div className="absolute bottom-full left-12 mb-2 bg-white rounded-xl shadow-float border border-slate-100 w-64 animate-slide-up z-20 overflow-hidden">
+                            <div className="bg-slate-50 px-3 py-2 border-b border-slate-100 flex justify-between items-center">
                                  <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500">Quick Execute</p>
                             </div>
                             <ul className="p-1">
@@ -205,13 +205,13 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
                                     <li key={command}>
                                         <button
                                             onClick={() => handleCommandSelect(command)}
-                                            className="w-full text-left flex items-center gap-3 p-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors group"
+                                            className="w-full text-left flex items-center gap-3 p-2.5 hover:bg-slate-50 rounded-lg transition-colors group"
                                         >
-                                            <div className="p-1.5 bg-blue-50 dark:bg-slate-800 rounded-md text-blue-500 group-hover:bg-blue-100 transition-colors">
+                                            <div className="p-1.5 bg-blue-50 rounded-md text-blue-500 group-hover:bg-blue-100 transition-colors">
                                                 <Icon className="w-4 h-4" />
                                             </div>
                                             <div>
-                                                <p className="font-mono text-xs font-bold text-slate-700 dark:text-slate-200 group-hover:text-blue-600">{command}</p>
+                                                <p className="font-mono text-xs font-bold text-slate-700 group-hover:text-blue-600">{command}</p>
                                                 <p className="text-[10px] text-slate-400">{description}</p>
                                             </div>
                                         </button>
@@ -222,40 +222,72 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
                     )}
 
                     <div className={`
-                        flex items-end gap-0 rounded-2xl shadow-float transition-all duration-300 border overflow-hidden
+                        flex items-end gap-2 rounded-2xl shadow-float transition-all duration-300 border p-2
                         ${isLiveSessionActive 
-                            ? 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-900 ring-1 ring-red-500/20' 
-                            : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500'
+                            ? 'bg-red-50 border-red-200 ring-1 ring-red-500/20' 
+                            : 'bg-white border-slate-200 focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500'
                         }
                     `}>
-                        {/* Live/Voice Trigger */}
-                        <button
-                            onClick={toggleLiveSession}
-                            className={`flex-shrink-0 self-stretch w-14 flex flex-col items-center justify-center transition-all border-r ${
-                                isLiveSessionActive 
-                                ? 'bg-red-600 text-white border-red-500 hover:bg-red-700' 
-                                : 'bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 border-slate-100 dark:border-slate-800'
-                            }`}
-                            title={isLiveSessionActive ? "Stop Live Session" : "Start Live Consult"}
-                        >
-                            <LiveIcon className={`w-5 h-5 md:w-6 md:h-6 ${isLiveSessionActive ? 'animate-pulse' : ''}`} />
-                            <span className="text-[9px] font-mono font-bold mt-1 uppercase">
-                                {isLiveSessionActive ? 'LIVE' : 'VOICE'}
-                            </span>
-                        </button>
+                        {/* Hidden Inputs */}
+                        <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*,application/pdf,.txt,.md" className="hidden" />
+                        <input type="file" ref={cameraInputRef} onChange={handleFileChange} accept="image/*" capture="environment" className="hidden" />
 
-                        <div className="flex-1 flex flex-col relative min-w-0">
-                            {isLiveSessionActive && (
-                                <div className="absolute inset-0 z-10 bg-white/95 dark:bg-slate-900/95 flex items-center px-4 gap-3 animate-fade-in pointer-events-none">
-                                    <div className="flex gap-1 h-3">
+                        {/* Action Menu (Expandable) */}
+                        {!isLiveSessionActive && (
+                            <div className="relative flex-shrink-0" ref={menuRef}>
+                                <button
+                                    onClick={() => setIsMenuOpen(!isMenuOpen)}
+                                    className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all ${isMenuOpen ? 'bg-slate-100 text-slate-900 rotate-45' : 'bg-slate-50 text-slate-500 hover:bg-blue-50 hover:text-blue-600'}`}
+                                    aria-label="Open attachments menu"
+                                    aria-expanded={isMenuOpen}
+                                >
+                                    <PlusIcon className="w-5 h-5" />
+                                </button>
+
+                                {/* Popover Menu */}
+                                {isMenuOpen && (
+                                    <div className="absolute bottom-full left-0 mb-3 flex flex-col gap-2 p-2 bg-white rounded-xl shadow-xl border border-slate-200 animate-slide-up min-w-[140px]">
+                                        <button onClick={() => setShowBodyMap(true)} className="flex items-center gap-3 w-full p-2 hover:bg-slate-50 rounded-lg text-slate-600 text-xs font-medium transition-colors">
+                                            <div className="p-1.5 bg-blue-100 rounded text-blue-600"><BodyIcon className="w-4 h-4" /></div>
+                                            Body Map
+                                        </button>
+                                        <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-3 w-full p-2 hover:bg-slate-50 rounded-lg text-slate-600 text-xs font-medium transition-colors">
+                                            <div className="p-1.5 bg-indigo-100 rounded text-indigo-600"><PaperclipIcon className="w-4 h-4" /></div>
+                                            Attach File
+                                        </button>
+                                        <button onClick={() => cameraInputRef.current?.click()} className="flex items-center gap-3 w-full p-2 hover:bg-slate-50 rounded-lg text-slate-600 text-xs font-medium transition-colors">
+                                            <div className="p-1.5 bg-emerald-100 rounded text-emerald-600"><CameraIcon className="w-4 h-4" /></div>
+                                            Camera
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Live/Voice Trigger (Condensed) */}
+                        {isLiveSessionActive && (
+                             <button
+                                onClick={toggleLiveSession}
+                                className="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-xl bg-red-100 text-red-600 animate-pulse"
+                                title="Stop Live Session"
+                                aria-label="Stop live session"
+                            >
+                                <LiveIcon className="w-5 h-5" />
+                            </button>
+                        )}
+
+                        {/* Text Area */}
+                        <div className="flex-1 min-w-0 relative">
+                             {isLiveSessionActive && (
+                                <div className="absolute inset-0 z-10 flex items-center gap-3 pointer-events-none">
+                                    <div className="flex gap-1 h-3 ml-2">
                                         {[1,2,3,4].map(i => <div key={i} className="w-1 bg-red-500 animate-music" style={{animationDuration: `${Math.random() * 0.5 + 0.2}s`}}></div>)}
                                     </div>
-                                    <span className="font-mono text-xs text-red-600 dark:text-red-400 uppercase tracking-widest font-bold">
-                                        Microphone Active
+                                    <span className="font-mono text-xs text-red-600 uppercase tracking-widest font-bold">
+                                        Listening...
                                     </span>
                                 </div>
                             )}
-
                             <textarea
                                 ref={textareaRef}
                                 value={prompt}
@@ -264,49 +296,51 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
                                 onBlur={handleBlur}
                                 placeholder={placeholderText}
                                 rows={1}
-                                className={`w-full bg-transparent resize-none outline-none py-4 px-4 text-sm font-medium leading-relaxed max-h-32 placeholder-slate-400 ${
-                                    isLiveSessionActive ? 'text-transparent' : 'text-slate-900 dark:text-white'
+                                className={`w-full bg-transparent resize-none outline-none py-2.5 px-1 text-sm font-medium leading-relaxed max-h-32 placeholder-slate-400 ${
+                                    isLiveSessionActive ? 'text-transparent' : 'text-slate-900'
                                 }`}
                                 disabled={isInputDisabled}
+                                aria-label="Clinical instruction input"
                             />
                         </div>
 
-                        <div className="flex items-center gap-1 self-end pb-2 pr-2">
-                            <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*,application/pdf,.txt,.md" className="hidden" />
-                            <input type="file" ref={cameraInputRef} onChange={handleFileChange} accept="image/*" capture="environment" className="hidden" />
+                        {/* Right Actions */}
+                        <div className="flex items-center gap-1 pb-0.5">
+                            
+                            {/* NEW: Explicit Start Live Button when in Live Mode but not active */}
+                            {(!isLiveSessionActive && currentMode === ChatModeEnum.Live) && (
+                                <button
+                                    onClick={toggleLiveSession}
+                                    className={`w-10 h-10 flex items-center justify-center transition-colors rounded-xl hover:bg-blue-50 text-blue-600 animate-pulse`}
+                                    title="Start Live Session"
+                                    aria-label="Start Live Session"
+                                >
+                                    <LiveIcon className="w-5 h-5" />
+                                </button>
+                            )}
 
-                            {!isLiveSessionActive && (
-                                <>
-                                    <button onClick={() => setShowBodyMap(true)} className="p-2 text-slate-400 hover:text-blue-500 transition-colors rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800" title="Open Body Map">
-                                        <BodyIcon className="w-5 h-5" />
-                                    </button>
-                                    <button onClick={() => fileInputRef.current?.click()} className="p-2 text-slate-400 hover:text-blue-500 transition-colors rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800" title="Attach File">
-                                        <PaperclipIcon className="w-5 h-5" />
-                                    </button>
-                                    <button onClick={() => cameraInputRef.current?.click()} className="p-2 text-slate-400 hover:text-blue-500 transition-colors rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800" title="Camera Capture">
-                                        <CameraIcon className="w-5 h-5" />
-                                    </button>
-                                    {currentMode !== ChatModeEnum.Live && (
-                                        <button 
-                                            onClick={() => toggleListening(prompt)} 
-                                            className={`p-2 transition-colors rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 ${isListening ? 'text-red-500 bg-red-50 dark:bg-red-900/20 animate-pulse' : 'text-slate-400 hover:text-blue-500'}`}
-                                            title="Dictate Text"
-                                        >
-                                            <MicrophoneIcon className="w-5 h-5" />
-                                        </button>
-                                    )}
-                                </>
+                            {/* Standard Dictation Mic (Hidden in Live Mode to avoid confusion) */}
+                            {(!isLiveSessionActive && currentMode !== ChatModeEnum.Live) && (
+                                <button 
+                                    onClick={() => toggleListening(prompt)} 
+                                    className={`w-10 h-10 flex items-center justify-center transition-colors rounded-xl hover:bg-slate-100 ${isListening ? 'text-red-500 bg-red-50 animate-pulse' : 'text-slate-400 hover:text-blue-500'}`}
+                                    title="Dictate Text"
+                                    aria-label={isListening ? "Stop dictation" : "Start dictation"}
+                                >
+                                    <MicrophoneIcon className="w-5 h-5" />
+                                </button>
                             )}
                             
                             {(!isLiveSessionActive && currentMode !== ChatModeEnum.Live) && (
                                 <button 
                                     onClick={showStopButton ? onStop : handleSendClick}
                                     disabled={!showStopButton && (isInputDisabled || (!prompt.trim() && !uploadedFile))}
-                                    className={`ml-2 flex-shrink-0 h-10 w-10 rounded-xl flex items-center justify-center transition-all shadow-md hover:shadow-lg ${
+                                    className={`flex-shrink-0 h-10 w-10 rounded-xl flex items-center justify-center transition-all shadow-md hover:shadow-lg ${
                                         showStopButton
                                         ? 'bg-slate-700 text-white hover:bg-slate-600'
-                                        : 'bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50 disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:text-slate-400 disabled:shadow-none'
+                                        : 'bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none'
                                     }`}
+                                    aria-label={showStopButton ? "Stop generating" : "Send message"}
                                 >
                                     {showStopButton ? <StopIcon className="w-4 h-4" /> : <SendIcon className="w-4 h-4" />}
                                 </button>

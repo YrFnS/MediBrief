@@ -1,5 +1,5 @@
 
-import { ChatMessage, UploadedFile } from '../../types';
+import { ChatMessage } from '../../types';
 import { ClinicalDataStore } from '../fhir/types';
 import { CDSSAlert } from '../cdss/types';
 
@@ -11,6 +11,13 @@ export interface PatientEntityData {
     diagnosis: string[];
 }
 
+export interface PatientDocument {
+    storageId: string;
+    name: string;
+    type: string;
+    uploadedAt: number;
+}
+
 // 1. Metadata Store Interface
 export interface PatientMetadata {
   id: string;
@@ -18,7 +25,7 @@ export interface PatientMetadata {
   mrn?: string;
   status: PatientStatus;
   entities: PatientEntityData;
-  documents: UploadedFile[]; // Kept here as context
+  documents: PatientDocument[]; // Optimized: Metadata only
   createdAt: number;
   lastActive: number;
 }

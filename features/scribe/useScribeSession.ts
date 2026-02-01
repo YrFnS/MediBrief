@@ -90,7 +90,7 @@ export const useScribeSession = () => {
             }
             if (audioContextRef.current.state === 'suspended') await audioContextRef.current.resume();
 
-            // Load Worklet (CSP Compliant via static file)
+            // Load Worklet from File
             try {
                 await audioContextRef.current.audioWorklet.addModule('/workers/pcm-processor.js');
                 workletSupportedRef.current = true;

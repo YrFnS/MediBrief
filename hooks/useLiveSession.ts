@@ -77,7 +77,12 @@ export interface UseLiveSessionReturn {
     error: string | null;
 }
 
-export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput: string) => void): UseLiveSessionReturn => {
+interface LiveSessionOptions {
+    onTurnComplete?: (userInput: string, modelOutput: string) => void;
+    onToolCall?: (toolName: string, args: any) => void;
+}
+
+export const useLiveSession = ({ onTurnComplete, onToolCall }: LiveSessionOptions = {}): UseLiveSessionReturn => {
     const [isLive, setIsLive] = useState(false);
     const [transcript, setTranscript] = useState({ userInput: '', modelOutput: '' });
     const [error, setError] = useState<string | null>(null);
@@ -156,12 +161,10 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
         accumulatedTranscriptRef.current = { userInput: '', modelOutput: '' };
 
         try {
-            // SAFETY CHECK: Check if mediaDevices API exists (it doesn't on insecure HTTP)
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                 throw new Error("Media API not available. Secure context (HTTPS) required.");
             }
 
-            // 1. Initialize Audio Contexts (Singleton Pattern)
             if (!inputAudioContextRef.current || inputAudioContextRef.current.state === 'closed') {
                 inputAudioContextRef.current = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
             }
@@ -169,11 +172,10 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
                 outputAudioContextRef.current = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
             }
             
-            // Resume if suspended
             if (inputAudioContextRef.current.state === 'suspended') await inputAudioContextRef.current.resume();
             if (outputAudioContextRef.current.state === 'suspended') await outputAudioContextRef.current.resume();
 
-            // 2. Load AudioWorklet Module (CSP Compliant via static file)
+            // Load AudioWorklet from File (CSP Compliant)
             try {
                 await inputAudioContextRef.current.audioWorklet.addModule('/workers/pcm-processor.js');
                 workletSupportedRef.current = true;
@@ -182,7 +184,6 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
                 workletSupportedRef.current = false;
             }
 
-            // 3. Get User Media
             let stream: MediaStream;
             try {
                 stream = await navigator.mediaDevices.getUserMedia({ 
@@ -206,7 +207,6 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
             
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-            // 4. Build Context String
             let contextString = "";
             if (history.length > 0) {
                 const recentHistory = history.slice(-6).filter(m => m.content).map(m => {
@@ -216,7 +216,6 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
                 contextString = `\n\n[CONTEXT: ${recentHistory}]`;
             }
 
-            // 5. Connect to Live API
             const sessionPromise = ai.live.connect({
                 model: MODEL_CONFIGS[ChatMode.Live].model,
                 config: {
@@ -229,7 +228,6 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
                         mediaStreamSourceRef.current = inputAudioContextRef.current.createMediaStreamSource(stream);
                         
                         if (workletSupportedRef.current) {
-                            // PRIMARY: AudioWorklet
                             try {
                                 workletNodeRef.current = new AudioWorkletNode(inputAudioContextRef.current, 'pcm-processor');
                                 workletNodeRef.current.port.onmessage = (event) => {
@@ -245,7 +243,6 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
                                 fallbackToScriptProcessor(sessionPromise);
                             }
                         } else {
-                            // FALLBACK: ScriptProcessor
                             fallbackToScriptProcessor(sessionPromise);
                         }
                     },
@@ -261,6 +258,12 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
 
                         if (message.toolCall) {
                              for (const fc of message.toolCall.functionCalls) {
+                                
+                                // Notify UI immediately
+                                if (onToolCall) {
+                                    onToolCall(fc.name, fc.args);
+                                }
+
                                 const result = { result: "Success" };
                                 sessionPromise.then((session) => {
                                     if (liveSessionRef.current) {
@@ -337,9 +340,8 @@ export const useLiveSession = (onTurnComplete?: (userInput: string, modelOutput:
             
             setError(errMsg);
         }
-    }, [isLive, stopSession, onTurnComplete]);
+    }, [isLive, stopSession, onTurnComplete, onToolCall]);
 
-    // Helper for ScriptProcessor fallback
     const fallbackToScriptProcessor = (sessionPromise: Promise<LiveSession>) => {
         if (!inputAudioContextRef.current || !mediaStreamSourceRef.current) return;
         

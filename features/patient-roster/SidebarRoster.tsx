@@ -3,6 +3,7 @@ import React, { useState, useRef } from 'react';
 import { usePatientStore } from '../patient-management/usePatientStore';
 import { useChatStore } from '../chat/stores/useChatStore';
 import { useClinicalStore } from '../clinical-analysis/stores/useClinicalStore';
+import { blobStorage } from '../../services/blobStorageService';
 import PatientCard from './PatientCard';
 import AddPatientDialog from './AddPatientDialog';
 import { ChevronLeftIcon, UsersIcon, DownloadIcon, ClipboardIcon, PlusIcon } from '../../components/icons';
@@ -36,13 +37,31 @@ const SidebarRoster: React.FC<SidebarRosterProps> = ({ isOpen, toggle }) => {
         actions.switchPatient(id);
     };
 
-    const handleDelete = (id: string, name: string) => {
+    const handleDelete = async (id: string, name: string) => {
         if (Object.keys(patients).length <= 1) {
             showToast("Cannot delete the only active patient context.", 'error');
             return;
         }
 
         if (confirm(`Are you sure you want to delete the context for "${name}"?\nThis action cannot be undone.`)) {
+             // 1. Clean up heavy assets in IndexedDB
+             const patient = patients[id];
+             if (patient && patient.documents) {
+                 let deletedCount = 0;
+                 for (const doc of patient.documents) {
+                     if (doc.storageId) {
+                         try {
+                             await blobStorage.deleteFile(doc.storageId);
+                             deletedCount++;
+                         } catch (e) {
+                             console.warn("Failed to delete file asset:", doc.storageId);
+                         }
+                     }
+                 }
+                 if (deletedCount > 0) console.log(`Cleaned up ${deletedCount} assets for deleted patient.`);
+             }
+
+             // 2. Clear Stores
              actions.deletePatient(id);
              chatActions.deleteChat(id);
              clinicalActions.deletePatient(id);

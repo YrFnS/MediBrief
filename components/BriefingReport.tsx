@@ -1,22 +1,14 @@
+
 import React, { useState, useMemo, useCallback } from 'react';
 import { parse } from 'marked';
 import DOMPurify from 'dompurify';
 import { AlertTriangleIcon, UsersIcon, PillIcon, ListChecksIcon, PhoneForwardedIcon, ClockIcon, DownloadIcon, ClipboardCheckIcon, ClipboardIcon } from './icons';
 import { exportBriefingToPdf } from '../services/exportService';
-import { parseJsonSafe } from '../utils';
+import { parseAndValidate } from '../utils';
+import { BriefingSchema, Briefing } from '../features/chat/schemas';
 
 interface BriefingReportProps {
     content: string; // Expects a JSON string
-}
-
-interface ParsedSection {
-    title: string;
-    items: string[];
-}
-
-interface ParsedBriefing {
-    briefingTitle: string;
-    sections: ParsedSection[];
 }
 
 const SECTION_CONFIG: Record<string, { icon: React.FC<{className: string}>; color: string }> = {
@@ -34,8 +26,8 @@ const BriefingReport: React.FC<BriefingReportProps> = ({ content }) => {
     const [isExporting, setIsExporting] = useState(false);
     const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
 
-    const parsedBriefing = useMemo<ParsedBriefing | null>(() => {
-        return parseJsonSafe<ParsedBriefing>(content);
+    const parsedBriefing = useMemo<Briefing | null>(() => {
+        return parseAndValidate<Briefing>(content, BriefingSchema);
     }, [content]);
 
     const handleCopy = useCallback(() => {
@@ -82,6 +74,7 @@ const BriefingReport: React.FC<BriefingReportProps> = ({ content }) => {
     };
 
     if (!parsedBriefing) {
+        // Fallback to rendering generic markdown if JSON parse fails (graceful degradation)
         const rawHtml = parse(content, { breaks: true, gfm: true }) as string;
         const sanitizedRaw = DOMPurify.sanitize(rawHtml);
         
@@ -90,7 +83,7 @@ const BriefingReport: React.FC<BriefingReportProps> = ({ content }) => {
                 <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-sm flex items-start gap-2">
                     <AlertTriangleIcon className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
                     <p className="text-sm text-amber-700 dark:text-amber-200 font-mono">
-                        ERR_PARSE_FAIL: FORMATTING_ERROR
+                        System Notice: Briefing format invalid. Raw content displayed.
                     </p>
                 </div>
                 <div className="prose prose-sm dark:prose-invert max-w-none p-2" dangerouslySetInnerHTML={{ __html: sanitizedRaw }} />

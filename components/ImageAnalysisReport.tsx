@@ -1,24 +1,11 @@
 
 import React, { useMemo } from 'react';
 import { ImageIcon, UserIcon, CalendarIcon, ClipboardListIcon, EyeIcon, LightbulbIcon, AlertTriangleIcon, SparklesIcon } from './icons';
-import { parseJsonSafe } from '../utils';
+import { parseAndValidate } from '../utils';
+import { ImageAnalysisSchema, ImageAnalysis } from '../features/chat/schemas';
 
 interface ImageAnalysisReportProps {
     content: string;
-}
-
-interface ParsedAnalysis {
-    reportType?: string;
-    imageType?: string;
-    patient?: string;
-    date?: string;
-    extractedInformation?: string;
-    visualObservations?: string;
-    potentialAbnormalities?: string;
-    differentialDiagnosisSuggestions?: string;
-    certaintyScore?: string;
-    nextSteps?: string;
-    note?: string;
 }
 
 const ensureString = (val: any): string | null => {
@@ -67,10 +54,10 @@ const Section: React.FC<{ title: string; icon: any; children: React.ReactNode; d
 );
 
 const ImageAnalysisReport: React.FC<ImageAnalysisReportProps> = ({ content }) => {
-    const analysis = useMemo(() => parseJsonSafe<ParsedAnalysis>(content), [content]);
+    const analysis = useMemo(() => parseAndValidate<ImageAnalysis>(content, ImageAnalysisSchema), [content]);
 
-    if (!analysis || Object.keys(analysis).length === 0) {
-        return <div className="text-red-500 text-sm p-4 border border-red-200 bg-red-50 rounded-sm">Error: Invalid Analysis Data</div>;
+    if (!analysis) {
+        return <div className="text-red-500 text-sm p-4 border border-red-200 bg-red-50 rounded-sm">Error: Invalid Analysis Data Format</div>;
     }
 
     const hasAbnormalities = analysis.potentialAbnormalities && 

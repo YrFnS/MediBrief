@@ -8,7 +8,6 @@ export interface UIState {
     isLoading: boolean;
     error: string | null;
     chatMode: ChatMode;
-    // We can add other ephemeral UI states here (e.g. sidebar open) if needed later
 }
 
 // --- Actions ---
@@ -29,9 +28,7 @@ const getInitialMode = (): ChatMode => {
         if (saved && Object.values(ChatMode).includes(saved as ChatMode)) {
             return saved as ChatMode;
         }
-    } catch (e) {
-        // ignore
-    }
+    } catch (e) { }
     return ChatMode.Standard;
 };
 
@@ -70,7 +67,7 @@ const UIContext = createContext<UIContextType | undefined>(undefined);
 export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [uiState, uiDispatch] = useReducer(uiReducer, initialState);
 
-    // Persistence for Chat Mode
+    // Persistence
     useEffect(() => {
         sessionStorage.setItem(STORAGE_KEY_MODE, uiState.chatMode);
     }, [uiState.chatMode]);

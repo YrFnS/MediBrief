@@ -4,8 +4,9 @@ import { v4 as uuidv4 } from 'uuid';
 import { FHIRObservation } from '../fhir/types';
 import { CDSSAlert } from './types';
 import { CDSS_CHECK_PROMPT } from '../../constants';
-import { cleanJsonOutput } from '../../utils';
+import { parseAndValidate } from '../../utils';
 import { retrieveRelevantProtocols } from './retrievalService';
+import { CDSSResponseSchema, CDSSResponse } from '../chat/schemas';
 
 export const evaluateClinicalSafety = async (observations: FHIRObservation[]): Promise<CDSSAlert[]> => {
     if (!observations || observations.length === 0) return [];
@@ -46,13 +47,13 @@ export const evaluateClinicalSafety = async (observations: FHIRObservation[]): P
         const text = response.text;
         if (!text) return [];
 
-        const cleaned = cleanJsonOutput(text);
-        const parsed = JSON.parse(cleaned);
+        // 5. Validate Schema
+        const parsed = parseAndValidate<CDSSResponse>(text, CDSSResponseSchema);
 
-        if (parsed.alerts && Array.isArray(parsed.alerts)) {
-            return parsed.alerts.map((alert: any) => ({
+        if (parsed && parsed.alerts && Array.isArray(parsed.alerts)) {
+            return parsed.alerts.map((alert) => ({
                 id: uuidv4(),
-                ruleId: alert.source_citation ? `prot-${alert.source_citation}` : `ai-${Date.now()}`, // Use protocol ID as key if avail
+                ruleId: alert.source_citation ? `prot-${alert.source_citation}` : `ai-${Date.now()}`,
                 title: alert.title || 'CLINICAL ALERT',
                 description: alert.description || 'Potential protocol violation detected.',
                 level: (alert.level === 'Critical' || alert.level === 'Warning') ? alert.level : 'Info',

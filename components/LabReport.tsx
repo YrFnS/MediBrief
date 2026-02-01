@@ -1,26 +1,11 @@
 
 import React, { useMemo } from 'react';
 import { BeakerIcon } from './icons';
-import { parseJsonSafe } from '../utils';
+import { parseAndValidate } from '../utils';
 import { usePatientStore } from '../features/patient-management/usePatientStore';
 import { useClinicalStore } from '../features/clinical-analysis/stores/useClinicalStore';
 import TrendGraph from '../features/analytics/TrendGraph';
-
-interface LabResult {
-    testName: string;
-    value: string;
-    units: string;
-    refRange: string;
-    flag: 'Normal' | 'High' | 'Low' | 'Critical' | 'Abnormal';
-}
-
-interface ParsedLabReport {
-    reportType: string;
-    patient?: string;
-    date?: string;
-    labs: LabResult[];
-    interpretation?: string;
-}
+import { LabReportSchema, LabReport as LabReportType } from '../features/chat/schemas';
 
 interface LabReportProps {
     content: string;
@@ -80,7 +65,7 @@ const RangeVisualizer: React.FC<{ value: string; range: string }> = ({ value, ra
 };
 
 const LabReport: React.FC<LabReportProps> = ({ content }) => {
-    const report = useMemo(() => parseJsonSafe<ParsedLabReport>(content), [content]);
+    const report = useMemo(() => parseAndValidate<LabReportType>(content, LabReportSchema), [content]);
     
     // Zustand Selector: Specific to Clinical Data
     const activePatientId = usePatientStore(state => state.activePatientId);
@@ -88,7 +73,7 @@ const LabReport: React.FC<LabReportProps> = ({ content }) => {
     const observations = clinicalStore?.observations || [];
 
     if (!report || !report.labs) {
-        return <div className="text-red-500 text-sm">Error parsing lab data.</div>;
+        return <div className="text-red-500 text-sm p-4">Error: Malformed Lab Report Data</div>;
     }
 
     // Find a test that has at least 2 data points in history to graph

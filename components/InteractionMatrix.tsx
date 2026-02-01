@@ -1,21 +1,8 @@
+
 import React, { useMemo } from 'react';
 import { DrugsIcon, AlertTriangleIcon, CheckIcon, ShieldCheckIcon } from './icons';
-import { parseJsonSafe } from '../utils';
-
-interface Interaction {
-    drug1: string;
-    drug2: string;
-    severity: 'High' | 'Moderate' | 'Low' | 'None' | 'Unknown';
-    mechanism?: string;
-    management?: string;
-}
-
-interface ParsedInteractionReport {
-    reportType: string;
-    drugs: string[];
-    interactions: Interaction[];
-    summary: string;
-}
+import { parseAndValidate } from '../utils';
+import { InteractionMatrixSchema, InteractionMatrix as InteractionMatrixType } from '../features/chat/schemas';
 
 const getSeverityStyles = (severity: string) => {
     const s = severity.toLowerCase();
@@ -43,9 +30,9 @@ const getSeverityStyles = (severity: string) => {
 };
 
 const InteractionMatrix: React.FC<{ content: string }> = ({ content }) => {
-    const report = useMemo(() => parseJsonSafe<ParsedInteractionReport>(content), [content]);
+    const report = useMemo(() => parseAndValidate<InteractionMatrixType>(content, InteractionMatrixSchema), [content]);
 
-    if (!report) return <div className="text-red-500 text-xs">Error parsing interaction data.</div>;
+    if (!report) return <div className="text-red-500 text-xs p-2 border border-red-200 bg-red-50 rounded">Error: Invalid Interaction Data</div>;
 
     const hasCritical = report.interactions.some(i => i.severity.toLowerCase() === 'high' || i.severity.toLowerCase() === 'severe');
 

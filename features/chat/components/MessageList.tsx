@@ -4,6 +4,7 @@ import type { ChatMessage, LiveTranscript } from '../../../types';
 import Message from './Message';
 import WelcomeScreen from './WelcomeScreen';
 import { BotIcon, UserIcon, ShieldCheckIcon } from '../../../components/icons';
+import { usePatientStore } from '../../patient-management/usePatientStore';
 
 interface LiveTranscriptDisplayProps {
     transcript: LiveTranscript;
@@ -87,6 +88,7 @@ const MessageList: React.FC<MessageListProps> = ({ messages, isLoading, isLive, 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const [isAtBottom, setIsAtBottom] = useState(true);
+    const activePatientId = usePatientStore(state => state.activePatientId);
 
     const handleScroll = () => {
         if (!containerRef.current) return;
@@ -124,7 +126,9 @@ const MessageList: React.FC<MessageListProps> = ({ messages, isLoading, isLive, 
             <div className="max-w-3xl mx-auto space-y-4 md:space-y-6 pb-4">
                 {messages.map((msg, index) => (
                     <Message 
-                        key={index} 
+                        // CRITICAL FIX: Include patientId in key to force remount on context switch.
+                        // This kills stale async processes (extraction/verification) via useEffect cleanup in Message.tsx
+                        key={`${activePatientId}_${index}`} 
                         message={msg} 
                         isLoading={isLoading} 
                         isLast={index === messages.length - 1}

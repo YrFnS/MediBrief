@@ -4,7 +4,7 @@ import { UploadedFile } from '../../types';
 import { ENTITY_EXTRACTION_PROMPT } from '../../constants';
 import { cleanJsonOutput, parseAndValidate } from '../../utils';
 import { PatientEntityData } from '../patient-management/types';
-import { EntityExtractionSchema } from '../chat/schemas';
+import { EntityExtractionSchema, EntityExtraction } from '../chat/schemas';
 
 const MODEL = 'gemini-3-flash-preview'; 
 
@@ -42,8 +42,8 @@ export const extractEntitiesFromUpload = async (file: UploadedFile, signal?: Abo
         const text = response.text;
         if (!text) return {};
 
-        // Validated parsing
-        const parsed = parseAndValidate(text, EntityExtractionSchema);
+        // Validated parsing with explicit type
+        const parsed = parseAndValidate<EntityExtraction>(text, EntityExtractionSchema);
         if (!parsed) return {};
 
         const result: Partial<PatientEntityData> = {};

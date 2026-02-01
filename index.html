@@ -89,6 +89,8 @@
     body {
       font-family: 'Inter', sans-serif;
       background-color: #F8FAFC; /* Slate-50 */
+      font-feature-settings: "tnum";
+      font-variant-numeric: tabular-nums;
     }
     
     /* Clean scrollbar */
@@ -117,6 +119,11 @@
     .mask-fade-b {
         mask-image: linear-gradient(to bottom, black 80%, transparent 100%);
         -webkit-mask-image: linear-gradient(to bottom, black 80%, transparent 100%);
+    }
+    
+    .mask-fade-r {
+        mask-image: linear-gradient(to right, black 90%, transparent 100%);
+        -webkit-mask-image: linear-gradient(to right, black 90%, transparent 100%);
     }
   </style>
 <script type="importmap">
