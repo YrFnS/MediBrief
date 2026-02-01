@@ -4,7 +4,7 @@ import { Type, Modality } from '@google/genai';
 
 export const WELCOME_CONTENT = {
     title: "MediBrief C.I.L.",
-    subtitle: "Clinical Intelligence Layer v4.2",
+    subtitle: "Clinical Intelligence Layer v5.1",
     introduction: "System initialized. Acting as your primary safety and data synthesis layer. I am designed to:",
     features: [
         { icon: "🛡️", text: "Enforce Protocol: Active allergy & contraindication scanning" },
@@ -82,7 +82,7 @@ const updateSoapNoteFunctionDeclaration = {
 
 export const MODEL_CONFIGS = {
   [ChatMode.Standard]: {
-    model: 'gemini-2.5-flash',
+    model: 'gemini-3-flash-preview', // Upgraded for better reasoning
     config: {
         tools: [{ googleSearch: {}, googleMaps: {} }], 
     },

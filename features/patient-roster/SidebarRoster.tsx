@@ -9,6 +9,7 @@ import AddPatientDialog from './AddPatientDialog';
 import { ChevronLeftIcon, UsersIcon, DownloadIcon, ClipboardIcon, PlusIcon } from '../../components/icons';
 import { useToast } from '../../components/Toast';
 import { PatientMetadata, FullPatientContext, PatientDemographics } from '../patient-management/types';
+import { BackupFileSchema } from '../chat/schemas';
 
 interface SidebarRosterProps {
     isOpen: boolean;
@@ -127,14 +128,26 @@ const SidebarRoster: React.FC<SidebarRosterProps> = ({ isOpen, toggle }) => {
         const reader = new FileReader();
         reader.onload = (event) => {
             try {
-                const imported = JSON.parse(event.target?.result as string);
+                const rawJson = event.target?.result as string;
+                const imported = JSON.parse(rawJson);
                 
-                if (imported && imported.patients) {
+                // --- SECURITY VALIDATION (Risk C Fix) ---
+                // Validate schema before any hydration to prevent state poisoning
+                const validationResult = BackupFileSchema.safeParse(imported);
+                
+                if (!validationResult.success) {
+                    console.error("Schema Validation Errors:", validationResult.error);
+                    throw new Error("Corrupted or malicious file structure.");
+                }
+
+                const validData = validationResult.data;
+                
+                if (validData && validData.patients) {
                     // Deconstruct and distribute to stores
                     const patientMeta: Record<string, PatientMetadata> = {};
                     
-                    Object.keys(imported.patients).forEach(id => {
-                        const full = imported.patients[id] as FullPatientContext;
+                    Object.keys(validData.patients).forEach(id => {
+                        const full = validData.patients[id] as FullPatientContext;
                         
                         // 1. Meta Store
                         patientMeta[id] = {
@@ -160,15 +173,15 @@ const SidebarRoster: React.FC<SidebarRosterProps> = ({ isOpen, toggle }) => {
                         }));
                     });
 
-                    actions.setAllPatients(patientMeta, imported.activePatientId || Object.keys(patientMeta)[0]);
+                    actions.setAllPatients(patientMeta, validData.activePatientId || Object.keys(patientMeta)[0]);
                     
                     showToast('System state restored successfully.', 'success');
                 } else {
                     throw new Error("Invalid format");
                 }
-            } catch (error) {
+            } catch (error: any) {
                 console.error(error);
-                showToast('Invalid backup file format', 'error');
+                showToast(`Import Failed: ${error.message}`, 'error');
             }
         };
         reader.readAsText(file);
@@ -186,7 +199,7 @@ const SidebarRoster: React.FC<SidebarRosterProps> = ({ isOpen, toggle }) => {
                 <button
                     onClick={toggle}
                     className={`
-                        absolute -right-3 top-20 z-50 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full p-1.5 shadow-float text-slate-500 hover:text-blue-500 transition-colors
+                        hidden md:flex absolute -right-3 top-20 z-50 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full p-1.5 shadow-float text-slate-500 hover:text-blue-500 transition-colors
                         ${isOpen ? 'rotate-0' : 'rotate-180'}
                     `}
                     aria-label="Toggle Roster"

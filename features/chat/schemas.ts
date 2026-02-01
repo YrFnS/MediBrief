@@ -97,6 +97,53 @@ export const CDSSResponseSchema = z.object({
     alerts: z.array(CDSSAlertSchema)
 });
 
+// --- Import/Export Safety Schema ---
+export const PatientDocumentSchema = z.object({
+    storageId: z.string(),
+    name: z.string(),
+    type: z.string(),
+    uploadedAt: z.number()
+});
+
+export const PatientEntityDataSchema = z.object({
+    allergies: z.array(z.string()),
+    codeStatus: z.string(),
+    diagnosis: z.array(z.string())
+});
+
+export const PatientMetadataSchema = z.object({
+    id: z.string(),
+    name: z.string(),
+    status: z.enum(['Stable', 'Critical', 'Discharge Ready', 'New Admission']),
+    entities: PatientEntityDataSchema,
+    demographics: z.object({
+        age: z.number().optional(),
+        weight: z.number().optional(),
+        sex: z.enum(['Male', 'Female', 'Other']).optional()
+    }).optional(),
+    documents: z.array(PatientDocumentSchema),
+    createdAt: z.number(),
+    lastActive: z.number()
+});
+
+// We validate the structure of the backup file strictly
+export const BackupFileSchema = z.object({
+    version: z.string(),
+    activePatientId: z.string(),
+    patients: z.record(z.string(), z.object({
+        id: z.string(),
+        name: z.string(),
+        status: z.any(), // Looser on status enum during import to allow forward compatibility
+        entities: z.any(),
+        documents: z.array(z.any()),
+        chatHistory: z.array(z.any()), // Chat messages structure is complex, we assume basic array
+        clinicalData: z.object({
+            observations: z.array(z.any())
+        }).optional(),
+        activeAlerts: z.array(z.any()).optional()
+    }))
+});
+
 // Type Exports
 export type Briefing = z.infer<typeof BriefingSchema>;
 export type LabReport = z.infer<typeof LabReportSchema>;

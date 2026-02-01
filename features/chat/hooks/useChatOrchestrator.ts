@@ -16,6 +16,7 @@ import { evaluateClinicalSafety } from '../../cdss/rulesEngine';
 import { PatientMetadata } from '../../patient-management/types';
 import { UIAction } from '../../ui/UIContext';
 import { LabReportSchema, BriefingSchema, Briefing, LabReport } from '../schemas';
+import { normalizeValue } from '../../fhir/unitService';
 
 interface UseChatOrchestratorProps {
     messages: ChatMessage[];
@@ -30,24 +31,6 @@ interface UseChatOrchestratorProps {
     userLocation?: { latitude: number, longitude: number };
     clearFile: () => void;
 }
-
-// Simple normalization map for common critical values
-const NORMALIZE_UNITS = (val: number, unit: string, testName: string): { value: number, unit: string } => {
-    const u = unit.toLowerCase().trim();
-    const t = testName.toLowerCase();
-    
-    // Glucose: mmol/L -> mg/dL
-    if (t.includes('glucose') && (u === 'mmol/l' || u === 'mmol')) {
-        return { value: parseFloat((val * 18.018).toFixed(1)), unit: 'mg/dL' };
-    }
-    
-    // Creatinine: umol/L -> mg/dL
-    if ((t.includes('creatinine') || t.includes('scr')) && (u === 'umol/l' || u === 'µmol/l')) {
-        return { value: parseFloat((val / 88.4).toFixed(2)), unit: 'mg/dL' };
-    }
-    
-    return { value: val, unit: unit };
-};
 
 export const useChatOrchestrator = ({
     messages,
@@ -316,7 +299,8 @@ export const useChatOrchestrator = ({
                          if (isNaN(rawVal)) return null;
 
                          // SAFETY: Normalize units to prevent CDSS errors
-                         const normalized = NORMALIZE_UNITS(rawVal, lab.units, lab.testName);
+                         // Uses the centralized service for deterministic conversion
+                         const normalized = normalizeValue(rawVal, lab.units, lab.testName);
 
                          const obs: FHIRObservation = {
                              resourceType: 'Observation',
@@ -356,6 +340,7 @@ export const useChatOrchestrator = ({
                         const existingObs = useClinicalStore.getState().data[activePatientId]?.observations || [];
                         const combinedObs = [...existingObs, ...newObs];
                         
+                        // Use the NEW Deterministic Rules Engine (No await needed technically, but good for future async)
                         evaluateClinicalSafety(combinedObs).then(alerts => {
                             if (alerts.length > 0) {
                                 clinicalActions.updateAlerts(activePatientId, alerts);

@@ -23,7 +23,8 @@ const CDSSContainer: React.FC = () => {
         const action = alert.actions[actionIndex];
 
         if (action.type === 'dismiss') {
-            clinicalActions.dismissAlert(activePatientId, alert.ruleId);
+            // Updated: Pass ruleId to enable suppression logic
+            clinicalActions.dismissAlert(activePatientId, alert.id, alert.ruleId);
             auditActions.logEvent(
                 'ALERT_DISMISSED', 
                 activePatientId, 
@@ -39,7 +40,8 @@ const CDSSContainer: React.FC = () => {
                     content: `✅ **ACTION EXECUTED**: ${action.payload}\n\n*Protocol: ${alert.title}*` 
                 });
             }
-            clinicalActions.dismissAlert(activePatientId, alert.ruleId);
+            // Acknowledge implies dismissal/resolution
+            clinicalActions.dismissAlert(activePatientId, alert.id, alert.ruleId);
             
             auditActions.logEvent(
                 'ALERT_ACTION',

@@ -10,6 +10,7 @@ import HeadsUpDisplay from '../hud/HeadsUpDisplay';
 import ScribeInterface from '../scribe/ScribeInterface';
 import CDSSContainer from '../cdss/CDSSContainer';
 import BioMetricBackground from './BioMetricBackground';
+import DisclaimerModal from '../../components/DisclaimerModal';
 import { useLiveSession } from '../../hooks/useLiveSession';
 import { useFileDragAndDrop } from '../../hooks/useFileDragAndDrop';
 import { useChatOrchestrator } from '../chat/hooks/useChatOrchestrator';
@@ -191,6 +192,8 @@ const MainLayout: React.FC = () => {
             {...dragHandlers}
         >
             <BioMetricBackground />
+            
+            <DisclaimerModal />
 
             {/* CONTENT WRAPPER */}
             <div className={`flex flex-1 w-full h-full relative transition-all duration-700 ${isBlurred ? 'blur-md opacity-60 grayscale scale-[0.99] pointer-events-none' : ''}`}>
@@ -244,6 +247,7 @@ const MainLayout: React.FC = () => {
                                 toggleLiveSession={toggleLiveSession}
                                 isLiveSessionActive={isLive}
                                 onStop={handleStop}
+                                onViewImage={handleViewImage} 
                             />
                         </>
                     )}

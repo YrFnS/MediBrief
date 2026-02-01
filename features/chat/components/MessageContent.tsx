@@ -1,6 +1,6 @@
 
 import React, { useMemo } from 'react';
-import { parse } from 'marked';
+import { parse, Renderer } from 'marked';
 import DOMPurify from 'dompurify';
 import BriefingReport from '../../../components/BriefingReport';
 import ImageAnalysisReport from '../../../components/ImageAnalysisReport';
@@ -34,8 +34,18 @@ const MessageContent: React.FC<MessageContentProps> = ({ content, role, isLoadin
 
     const parsedHtml = useMemo(() => {
         if (isStreamingJson || isPlaceholderLoading || isBriefing || isAnalysis || isLab || isInteraction) return null;
-        const html = parse(content, { breaks: true, gfm: true }) as string;
-        return DOMPurify.sanitize(html);
+        
+        // CUSTOM RENDERER: Enforce target="_blank" for safety
+        // Navigating away from the app destroys the in-memory encryption key.
+        const renderer = new Renderer();
+        renderer.link = ({ href, title, text }) => {
+            return `<a href="${href}" title="${title || ''}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline decoration-blue-300 font-medium">${text}</a>`;
+        };
+
+        const html = parse(content, { breaks: true, gfm: true, renderer }) as string;
+        
+        // Add target to allowed attributes in DOMPurify
+        return DOMPurify.sanitize(html, { ADD_ATTR: ['target'] });
     }, [content, isStreamingJson, isPlaceholderLoading, isBriefing, isAnalysis, isLab, isInteraction]);
 
     if (isBriefing) return <BriefingReport content={content} />;

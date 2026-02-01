@@ -356,8 +356,13 @@ export const useLiveSession = ({ onTurnComplete, onToolCall }: LiveSessionOption
         scriptProcessorRef.current.connect(inputAudioContextRef.current.destination);
     };
 
+    // FIXED: Unconditional cleanup on unmount to prevent zombie streams.
     useEffect(() => {
-        return () => { if (isLive) stopSession(); };
+        return () => { 
+            // We do NOT check isLive here because the closure might have a stale false value.
+            // stopSession is idempotent and checks internal refs/flags.
+            stopSession(); 
+        };
     }, [stopSession]);
 
     return { isLive, transcript, startSession, stopSession, error };

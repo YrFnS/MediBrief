@@ -8,9 +8,9 @@ export const useCDSS = (patient?: FullPatientContext) => {
     
     const activeAlerts = patient?.activeAlerts || [];
 
-    const dismissAlert = useCallback((alertId: string) => {
+    const dismissAlert = useCallback((alertId: string, ruleId: string) => {
         if (patient) {
-            actions.dismissAlert(patient.id, alertId);
+            actions.dismissAlert(patient.id, alertId, ruleId);
         }
     }, [actions, patient]);
 

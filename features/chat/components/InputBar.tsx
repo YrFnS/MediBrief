@@ -2,7 +2,7 @@
 import React, { useState, useRef, useCallback, KeyboardEvent, useLayoutEffect, useEffect } from 'react';
 import type { UploadedFile, ChatMode } from '../../../types';
 import { ChatMode as ChatModeEnum } from '../../../types';
-import { PaperclipIcon, SendIcon, XCircleIcon, BriefingIcon, UserIcon, DrugsIcon, DownloadIcon, DocumentTextIcon, MicrophoneIcon, CameraIcon, LiveIcon, StopIcon, BodyIcon, PlusIcon } from '../../../components/icons';
+import { PaperclipIcon, SendIcon, XCircleIcon, BriefingIcon, UserIcon, DrugsIcon, DownloadIcon, DocumentTextIcon, MicrophoneIcon, CameraIcon, LiveIcon, StopIcon, BodyIcon, PlusIcon, EyeIcon } from '../../../components/icons';
 import { useSpeechRecognition } from '../../../hooks/useSpeechRecognition';
 import BodyMap from '../../../components/BodyMap';
 import { useFileDragAndDrop } from '../../../hooks/useFileDragAndDrop';
@@ -17,6 +17,7 @@ interface InputBarProps {
     toggleLiveSession: () => void;
     isLiveSessionActive: boolean;
     onStop?: () => void;
+    onViewImage?: (src: string, alt: string) => void;
 }
 
 const QUICK_COMMANDS = [
@@ -26,7 +27,7 @@ const QUICK_COMMANDS = [
   { command: '/export', description: 'Export PDF', icon: DownloadIcon },
 ];
 
-const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFile, isLoading, currentMode, uploadedFile, toggleLiveSession, isLiveSessionActive, onStop }) => {
+const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFile, isLoading, currentMode, uploadedFile, toggleLiveSession, isLiveSessionActive, onStop, onViewImage }) => {
     const [prompt, setPrompt] = useState('');
     const [showCommands, setShowCommands] = useState(false);
     const [showBodyMap, setShowBodyMap] = useState(false);
@@ -172,13 +173,21 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
             )}
 
             <div className="max-w-4xl mx-auto pointer-events-auto">
-                <div className={`relative transition-all duration-300 transform ${isLiveSessionActive ? 'scale-[1.01]' : ''}`}>
+                <div className="relative transition-all duration-300">
                     
                      {uploadedFile && (
                         <div className="absolute bottom-full left-0 mb-3 animate-slide-up z-20">
                              <div className="flex items-center gap-3 bg-white text-slate-800 p-2 pr-4 rounded-lg shadow-lg border border-slate-200">
                                 {uploadedFile.url && uploadedFile.type.startsWith('image/') ? (
-                                     <img src={uploadedFile.url} alt="Attachment" className="w-8 h-8 object-cover rounded-md border border-slate-200" />
+                                     <button 
+                                        onClick={() => onViewImage && onViewImage(uploadedFile.url!, uploadedFile.file.name)}
+                                        className="relative group overflow-hidden rounded-md border border-slate-200"
+                                     >
+                                        <img src={uploadedFile.url} alt="Attachment" className="w-10 h-10 object-cover" />
+                                        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                            <div className="bg-white/80 p-0.5 rounded-full"><EyeIcon className="w-3 h-3 text-slate-800" /></div>
+                                        </div>
+                                     </button>
                                 ) : (
                                     <div className="w-8 h-8 flex items-center justify-center bg-blue-50 rounded-md">
                                         <DocumentTextIcon className="w-4 h-4 text-blue-500" />
