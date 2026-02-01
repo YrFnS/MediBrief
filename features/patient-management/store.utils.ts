@@ -12,6 +12,7 @@ export const createDefaultPatient = (): PatientContext => ({
     documents: [],
     chatHistory: [],
     entities: { allergies: [], codeStatus: 'Full Code', diagnosis: [] },
+    demographics: {},
     clinicalData: { observations: [] },
     activeAlerts: [],
     createdAt: Date.now(),
@@ -37,6 +38,7 @@ export const getInitialState = (): PatientStoreState => {
                     const p = cleanState.patients[key];
                     if (!p.clinicalData) p.clinicalData = { observations: [] };
                     if (!p.activeAlerts) p.activeAlerts = [];
+                    if (!p.demographics) p.demographics = {};
                 });
                 return cleanState;
             }

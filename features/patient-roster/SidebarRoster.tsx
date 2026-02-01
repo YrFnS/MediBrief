@@ -8,7 +8,7 @@ import PatientCard from './PatientCard';
 import AddPatientDialog from './AddPatientDialog';
 import { ChevronLeftIcon, UsersIcon, DownloadIcon, ClipboardIcon, PlusIcon } from '../../components/icons';
 import { useToast } from '../../components/Toast';
-import { PatientMetadata, FullPatientContext } from '../patient-management/types';
+import { PatientMetadata, FullPatientContext, PatientDemographics } from '../patient-management/types';
 
 interface SidebarRosterProps {
     isOpen: boolean;
@@ -69,8 +69,8 @@ const SidebarRoster: React.FC<SidebarRosterProps> = ({ isOpen, toggle }) => {
         }
     };
 
-    const handleCreate = (name: string) => {
-        const newId = actions.createPatient(name);
+    const handleCreate = (name: string, demographics: PatientDemographics) => {
+        const newId = actions.createPatient(name, demographics);
         chatActions.initializeChat(newId);
         clinicalActions.initializePatient(newId);
         setIsDialogOpen(false);
@@ -142,6 +142,7 @@ const SidebarRoster: React.FC<SidebarRosterProps> = ({ isOpen, toggle }) => {
                             name: full.name,
                             status: full.status,
                             entities: full.entities,
+                            demographics: full.demographics || {},
                             documents: full.documents,
                             createdAt: full.createdAt,
                             lastActive: full.lastActive

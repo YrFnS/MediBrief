@@ -8,6 +8,8 @@ import { extractMedicationsFromText } from '../../safety/safetyExtractionService
 import { verifyMedicationSafetyAsync } from '../../safety/dosageVerifier';
 import { SafetyCheckResult, ParsedMedication } from '../../safety/types';
 import { blobStorage } from '../../../services/blobStorageService';
+import { usePatientStore } from '../../patient-management/usePatientStore';
+import { useAuditStore } from '../../audit/useAuditStore';
 
 const isHighCredibilitySource = (uri: string) => {
     try {
@@ -55,6 +57,11 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLo
     const [safetyResult, setSafetyResult] = useState<SafetyCheckResult | null>(null);
     const [isVerifying, setIsVerifying] = useState(false);
     const [isExtractionDone, setIsExtractionDone] = useState(false);
+
+    // Context Access
+    const activePatientId = usePatientStore(state => state.activePatientId);
+    const activePatient = usePatientStore(state => state.patients[activePatientId]);
+    const auditActions = useAuditStore(state => state.actions);
 
     // Refs for cleanup
     const verifyAbortControllerRef = useRef<AbortController | null>(null);
@@ -166,9 +173,22 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLo
         verifyAbortControllerRef.current = controller;
 
         try {
-            const result = await verifyMedicationSafetyAsync(meds, controller.signal);
+            // Pass active patient context for demographic checks
+            const result = await verifyMedicationSafetyAsync(meds, activePatient, controller.signal);
             if (!controller.signal.aborted) {
                 setSafetyResult(result);
+                
+                // AUDIT LOGGING
+                auditActions.logEvent(
+                    'DOSAGE_CHECK', 
+                    activePatientId, 
+                    `Verified ${meds.length} medications. Result: ${result.isSafe ? 'Safe' : 'Warnings Found'}`, 
+                    'USER',
+                    { 
+                        meds: meds.map(m => m.drugName), 
+                        warnings: result.warnings 
+                    }
+                );
             }
         } catch (e: any) {
             if (e.name !== 'AbortError') {

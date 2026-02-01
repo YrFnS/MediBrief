@@ -92,6 +92,7 @@ export const useChatStore = create<ChatState & ChatActions>()(
         {
             name: 'medibrief-chat-storage',
             storage: createJSONStorage(() => indexedDBStorage),
+            skipHydration: true, // WAIT FOR SECURITY GATE
         }
     )
 );

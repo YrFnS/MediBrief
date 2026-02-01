@@ -9,6 +9,7 @@ import { FILE_ANALYSIS_PROMPT, BRIEFING_TRIGGERS, SHIFT_BRIEFING_PROMPT, HELP_CO
 import { usePatientStore } from '../../patient-management/usePatientStore';
 import { useChatStore } from '../stores/useChatStore';
 import { useClinicalStore } from '../../clinical-analysis/stores/useClinicalStore';
+import { useAuditStore } from '../../audit/useAuditStore';
 import { useEntityExtractor } from '../../../hooks/useEntityExtractor';
 import { FHIRObservation } from '../../fhir/types';
 import { evaluateClinicalSafety } from '../../cdss/rulesEngine';
@@ -61,10 +62,11 @@ export const useChatOrchestrator = ({
     userLocation,
     clearFile
 }: UseChatOrchestratorProps) => {
-    // Access actions from all 3 stores
+    // Access actions from all stores
     const patientActions = usePatientStore(state => state.actions);
     const chatActions = useChatStore(state => state.actions);
     const clinicalActions = useClinicalStore(state => state.actions);
+    const auditActions = useAuditStore(state => state.actions);
     
     const abortControllerRef = useRef<AbortController | null>(null);
     const { triggerExtraction } = useEntityExtractor();
@@ -131,6 +133,16 @@ export const useChatOrchestrator = ({
 
                 await exportBriefingToPdf(parsedBriefing);
                 chatActions.updateLastMessageContent(activePatientId, '✅ Shift briefing PDF downloaded.');
+                
+                // Audit Export
+                auditActions.logEvent(
+                    'EXPORT_PDF', 
+                    activePatientId, 
+                    'Generated and downloaded shift briefing PDF', 
+                    'USER',
+                    { title: parsedBriefing.briefingTitle }
+                );
+
             } catch (e) {
                 if (e.message === "Aborted") {
                      chatActions.updateLastMessageContent(activePatientId, '🛑 Export cancelled.');
@@ -225,6 +237,10 @@ export const useChatOrchestrator = ({
             historyContent = "/brief"; 
             modeForRequest = ChatModeEnum.Standard;
             responseType = 'json';
+            
+            // Log Briefing Request
+            auditActions.logEvent('BRIEFING_GENERATED', activePatientId, 'Briefing requested via command', 'USER');
+
         } else if (isDrugCommand) {
             finalApiPrompt = DRUG_ANALYSIS_PROMPT(trimmedPrompt);
             modeForRequest = ChatModeEnum.Standard; 
@@ -343,6 +359,14 @@ export const useChatOrchestrator = ({
                         evaluateClinicalSafety(combinedObs).then(alerts => {
                             if (alerts.length > 0) {
                                 clinicalActions.updateAlerts(activePatientId, alerts);
+                                
+                                // Audit Alert Trigger
+                                auditActions.logEvent(
+                                    'ALERT_TRIGGERED', 
+                                    activePatientId, 
+                                    `Generated ${alerts.length} safety alerts from lab data`, 
+                                    'SYSTEM'
+                                );
                             }
                         });
                     }
@@ -353,7 +377,7 @@ export const useChatOrchestrator = ({
 
             abortControllerRef.current = null;
         }
-    }, [messages, activePatientId, chatMode, uploadedFile, isLive, stopSession, userLocation, patientActions, chatActions, clinicalActions, uiDispatch, setUploadedFile, triggerExtraction]);
+    }, [messages, activePatientId, chatMode, uploadedFile, isLive, stopSession, userLocation, patientActions, chatActions, clinicalActions, auditActions, uiDispatch, setUploadedFile, triggerExtraction]);
 
     return {
         handleSend,

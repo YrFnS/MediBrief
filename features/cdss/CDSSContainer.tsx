@@ -3,6 +3,7 @@ import React from 'react';
 import { usePatientStore } from '../patient-management/usePatientStore';
 import { useClinicalStore } from '../clinical-analysis/stores/useClinicalStore';
 import { useChatStore } from '../chat/stores/useChatStore';
+import { useAuditStore } from '../audit/useAuditStore';
 import InterventionCard from './InterventionCard';
 import CDSSAggregator from './CDSSAggregator';
 import { CDSSAlert } from './types';
@@ -14,6 +15,7 @@ const CDSSContainer: React.FC = () => {
     const activeAlerts = useClinicalStore(state => state.alerts[activePatientId] || []);
     const clinicalActions = useClinicalStore(state => state.actions);
     const chatActions = useChatStore(state => state.actions);
+    const auditActions = useAuditStore(state => state.actions);
 
     if (activeAlerts.length === 0) return null;
 
@@ -22,6 +24,13 @@ const CDSSContainer: React.FC = () => {
 
         if (action.type === 'dismiss') {
             clinicalActions.dismissAlert(activePatientId, alert.ruleId);
+            auditActions.logEvent(
+                'ALERT_DISMISSED', 
+                activePatientId, 
+                `Dismissed alert: ${alert.title}`, 
+                'USER',
+                { ruleId: alert.ruleId, alertLevel: alert.level }
+            );
         } else if (action.type === 'order' || action.type === 'acknowledge') {
             // Inject the action into the chat as a system note or user action
             if (action.payload) {
@@ -31,6 +40,14 @@ const CDSSContainer: React.FC = () => {
                 });
             }
             clinicalActions.dismissAlert(activePatientId, alert.ruleId);
+            
+            auditActions.logEvent(
+                'ALERT_ACTION',
+                activePatientId,
+                `Executed action "${action.label}" for alert: ${alert.title}`,
+                'USER',
+                { ruleId: alert.ruleId, actionType: action.type, payload: action.payload }
+            );
         }
     };
 

@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { ChatMode as ChatModeEnum } from '../../types';
 import Header from '../../components/Header';
 import MessageList from '../chat/components/MessageList';
@@ -18,10 +18,7 @@ import { usePatientStore } from '../patient-management/usePatientStore';
 import { useChatStore } from '../chat/stores/useChatStore';
 import { useUIStore } from '../ui/UIContext';
 import { scrubPII } from '../../utils/piiScrubber';
-
-// --- IDLE TIMER CONSTANTS ---
-const PRIVACY_BLUR_MS = 2 * 60 * 1000; // 2 Minutes -> Blur
-const AUTO_LOCK_MS = 15 * 60 * 1000;   // 15 Minutes -> Full Lock
+import { useSecurityLock } from '../../hooks/useSecurityLock';
 
 // Simple hook for online status
 const useOnlineStatus = () => {
@@ -61,42 +58,7 @@ const MainLayout: React.FC = () => {
     const isOnline = useOnlineStatus();
     
     // Security State
-    const [isLocked, setIsLocked] = useState(false);
-    const [isBlurred, setIsBlurred] = useState(false);
-    const lastActivityRef = useRef(Date.now());
-
-    // --- IDLE LOCK LOGIC ---
-    useEffect(() => {
-        const resetTimer = () => {
-            lastActivityRef.current = Date.now();
-            setIsBlurred(prev => prev ? false : prev); // Optimistic unblur
-        };
-
-        const checkIdle = () => {
-            const idleTime = Date.now() - lastActivityRef.current;
-            
-            if (idleTime > AUTO_LOCK_MS) {
-                setIsLocked(true);
-            } else if (idleTime > PRIVACY_BLUR_MS) {
-                setIsBlurred(true);
-            }
-        };
-
-        window.addEventListener('mousemove', resetTimer);
-        window.addEventListener('keydown', resetTimer);
-        window.addEventListener('touchstart', resetTimer);
-        window.addEventListener('scroll', resetTimer);
-        
-        const intervalId = setInterval(checkIdle, 5000); 
-
-        return () => {
-            window.removeEventListener('mousemove', resetTimer);
-            window.removeEventListener('keydown', resetTimer);
-            window.removeEventListener('touchstart', resetTimer);
-            window.removeEventListener('scroll', resetTimer);
-            clearInterval(intervalId);
-        };
-    }, []);
+    const { isLocked, isBlurred, unlock } = useSecurityLock();
 
     // Responsive Sidebar Check
     useEffect(() => {
@@ -201,11 +163,7 @@ const MainLayout: React.FC = () => {
                     <h2 className="text-xl font-display font-bold uppercase tracking-widest mb-2">Session Locked</h2>
                     <p className="text-sm text-slate-400 font-mono mb-6">Security Timeout (15m)</p>
                     <button 
-                        onClick={() => {
-                            lastActivityRef.current = Date.now();
-                            setIsLocked(false);
-                            setIsBlurred(false);
-                        }}
+                        onClick={unlock}
                         className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold uppercase tracking-widest rounded-sm transition-colors"
                     >
                         Resume Session

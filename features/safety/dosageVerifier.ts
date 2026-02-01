@@ -1,9 +1,9 @@
 
 import { fetchDrugSafetyInfo } from './openFdaService';
 import { ParsedMedication, SafetyCheckResult } from './types';
+import { PatientMetadata } from '../patient-management/types';
 
 // Fallback "Fast" limits for common OTC items if network fails or for double-checking
-// We keep a small subset of the old list as a "Local Guardrail" for extreme outliers
 const CRITICAL_LIMITS: Record<string, number> = {
     "acetaminophen": 4000,
     "paracetamol": 4000,
@@ -15,10 +15,18 @@ const CRITICAL_LIMITS: Record<string, number> = {
  * ASYNCHRONOUS EXTERNAL GUARDRAIL
  * Queries openFDA to check for "Boxed Warnings" (Black Box) and verifies dosage against local critical limits.
  */
-export const verifyMedicationSafetyAsync = async (medications: ParsedMedication[], signal?: AbortSignal): Promise<SafetyCheckResult> => {
+export const verifyMedicationSafetyAsync = async (medications: ParsedMedication[], patient?: PatientMetadata, signal?: AbortSignal): Promise<SafetyCheckResult> => {
     const warnings: string[] = [];
     const verifiedItems: string[] = [];
     let serviceError = false;
+
+    // Check for missing weight if needed for calculation (general warning)
+    if (patient && !patient.demographics?.weight) {
+         warnings.push("⚠️ **MISSING DATA**: Patient weight not recorded. Cannot validate weight-based dosage safety.");
+    }
+    
+    // Check pediatric context
+    const isPediatric = (patient?.demographics?.age && patient.demographics.age < 18) || (patient?.demographics?.weight && patient.demographics.weight < 40);
 
     // Process all meds in parallel
     const promises = medications.map(async (med) => {
@@ -62,18 +70,28 @@ export const verifyMedicationSafetyAsync = async (medications: ParsedMedication[
         }
 
         // 2. Local Critical Limit Check (Dosage Math)
-        // We attempt to match simple names to our small critical list
         const limit = CRITICAL_LIMITS[lowerName];
         if (limit) {
-            // Simple normalization
-            let amountMg = med.amount;
-            if (med.unit.toLowerCase().includes('g')) amountMg = med.amount * 1000;
-            
-            if (amountMg > limit) {
-                warnings.push(
-                    `⚠️ **DOSAGE LIMIT EXCEEDED**: ${med.drugName} ${med.amount}${med.unit} exceeds critical limit of ${limit}mg/day.`
-                );
-            }
+             let maxDaily = limit;
+             
+             // Pediatric/Low Weight Context Check
+             if (isPediatric) {
+                 if (patient?.demographics?.weight) {
+                     warnings.push(`⚠️ **PEDIATRIC/WEIGHT CONTEXT**: ${med.drugName} requires weight-based calculation (${patient.demographics.weight}kg). Verified against Adult max (${limit}mg) only.`);
+                 } else {
+                     warnings.push(`⚠️ **PEDIATRIC CONTEXT**: ${med.drugName} dosing checked against Adult max (${limit}mg). This may be toxic for pediatric patients.`);
+                 }
+             } else {
+                 // Adult logic
+                 let amountMg = med.amount;
+                 if (med.unit.toLowerCase().includes('g') && !med.unit.toLowerCase().includes('mg')) amountMg = med.amount * 1000;
+                 
+                 if (amountMg > maxDaily) {
+                    warnings.push(
+                        `⚠️ **DOSAGE LIMIT EXCEEDED**: ${med.drugName} ${med.amount}${med.unit} exceeds critical limit of ${maxDaily}mg/day.`
+                    );
+                 }
+             }
         }
     });
 
@@ -81,8 +99,6 @@ export const verifyMedicationSafetyAsync = async (medications: ParsedMedication[
         await Promise.all(promises);
     } catch (error: any) {
         if (error.name === 'AbortError') {
-            // If aborted, we can return a safe default or re-throw
-            // Typically re-throwing lets the caller know it was cancelled
             throw error; 
         }
     }

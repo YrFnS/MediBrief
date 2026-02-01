@@ -2,7 +2,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { v4 as uuidv4 } from 'uuid';
-import { PatientMetadata, PatientEntityData, PatientDocument } from './types';
+import { PatientMetadata, PatientEntityData, PatientDocument, PatientDemographics } from './types';
 import { FHIRObservation, ClinicalDataStore } from '../fhir/types';
 import { CDSSAlert } from '../cdss/types';
 import { indexedDBStorage } from '../../services/storage';
@@ -16,6 +16,7 @@ export const createDefaultPatient = (): PatientMetadata => ({
     status: 'New Admission',
     documents: [],
     entities: { allergies: [], codeStatus: 'Full Code', diagnosis: [] },
+    demographics: {},
     createdAt: Date.now(),
     lastActive: Date.now()
 });
@@ -29,7 +30,7 @@ export interface PatientState {
 
 export interface PatientActions {
     actions: {
-        createPatient: (name?: string) => string; // Returns new ID
+        createPatient: (name?: string, demographics?: PatientDemographics) => string; // Returns new ID
         deletePatient: (id: string) => void;
         switchPatient: (id: string) => void;
         updatePatientDetails: (id: string, updates: Partial<PatientMetadata>) => void;
@@ -38,13 +39,7 @@ export interface PatientActions {
         // Batch set for Import/Restore
         setAllPatients: (patients: Record<string, PatientMetadata>, activeId: string) => void;
         
-        // Missing Action Implementations
         addDocument: (id: string, document: PatientDocument) => void;
-        // NOTE: Clinical Data & Alerts are often handled by useClinicalStore, but metadata might need awareness
-        // For this architecture, we keep the metadata store lean. 
-        // If these were intended for the PatientMetadata object, we implement them here.
-        // However, based on types.ts, PatientMetadata doesn't hold clinical data directly, useClinicalStore does.
-        // We will implement `addDocument` as it IS in PatientMetadata.
     }
 }
 
@@ -55,13 +50,14 @@ export const usePatientStore = create<PatientState & PatientActions>()(
             activePatientId: DEFAULT_PATIENT_ID,
 
             actions: {
-                createPatient: (name) => {
+                createPatient: (name, demographics) => {
                     const newId = uuidv4();
                     const newPatient: PatientMetadata = {
                         ...createDefaultPatient(),
                         id: newId,
                         name: name || `Patient ${newId.substring(0,4)}`,
                         status: 'New Admission',
+                        demographics: demographics || {}
                     };
                     set((state) => ({
                         patients: { ...state.patients, [newId]: newPatient },
@@ -149,6 +145,7 @@ export const usePatientStore = create<PatientState & PatientActions>()(
         {
             name: 'medibrief-metadata-storage',
             storage: createJSONStorage(() => indexedDBStorage),
+            skipHydration: true, // WAIT FOR SECURITY GATE TO UNLOCK
         }
     )
 );

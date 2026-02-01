@@ -96,6 +96,7 @@ export const useClinicalStore = create<ClinicalState & ClinicalActions>()(
         {
             name: 'medibrief-clinical-storage',
             storage: createJSONStorage(() => indexedDBStorage),
+            skipHydration: true, // WAIT FOR SECURITY GATE
         }
     )
 );

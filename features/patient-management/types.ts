@@ -18,6 +18,12 @@ export interface PatientDocument {
     uploadedAt: number;
 }
 
+export interface PatientDemographics {
+    age?: number; // years
+    weight?: number; // kg
+    sex?: 'Male' | 'Female' | 'Other';
+}
+
 // 1. Metadata Store Interface
 export interface PatientMetadata {
   id: string;
@@ -25,6 +31,7 @@ export interface PatientMetadata {
   mrn?: string;
   status: PatientStatus;
   entities: PatientEntityData;
+  demographics?: PatientDemographics;
   documents: PatientDocument[]; // Optimized: Metadata only
   createdAt: number;
   lastActive: number;

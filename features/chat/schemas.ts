@@ -3,21 +3,21 @@ import { z } from 'zod';
 
 // --- Briefing Schema ---
 export const BriefingSectionSchema = z.object({
-    title: z.string(),
-    items: z.array(z.string())
+    title: z.string().min(1),
+    items: z.array(z.string().min(1))
 });
 
 export const BriefingSchema = z.object({
-    briefingTitle: z.string(),
+    briefingTitle: z.string().min(1),
     sections: z.array(BriefingSectionSchema)
 });
 
 // --- Lab Report Schema ---
 export const LabResultSchema = z.object({
-    testName: z.string(),
+    testName: z.string().min(1),
     value: z.union([z.string(), z.number()]).transform(val => String(val)),
-    units: z.string(),
-    refRange: z.string(),
+    units: z.string().min(1).optional().or(z.literal('')), // Units can be empty for some counts
+    refRange: z.string().optional().or(z.literal('')),
     flag: z.enum(['Normal', 'High', 'Low', 'Critical', 'Abnormal', 'Unknown']).optional().default('Normal')
 });
 
@@ -31,8 +31,8 @@ export const LabReportSchema = z.object({
 
 // --- Interaction Matrix Schema ---
 export const InteractionSchema = z.object({
-    drug1: z.string(),
-    drug2: z.string(),
+    drug1: z.string().min(1),
+    drug2: z.string().min(1),
     severity: z.enum(['High', 'Moderate', 'Low', 'None', 'Unknown', 'Severe']), // Handle both High/Severe
     mechanism: z.string().optional(),
     management: z.string().optional()
@@ -54,9 +54,9 @@ export const EntityExtractionSchema = z.object({
 
 // --- Medication Extraction Schema ---
 export const MedicationItemSchema = z.object({
-    drugName: z.string(),
-    amount: z.number(),
-    unit: z.string(),
+    drugName: z.string().min(1),
+    amount: z.number().nonnegative().max(100000), // Max 100k to allow for Units (e.g. Heparin 25,000U)
+    unit: z.string().min(1),
     context: z.string().optional()
 });
 
@@ -79,15 +79,15 @@ export const ImageAnalysisSchema = z.object({
 
 // --- CDSS Alert Schema ---
 export const CDSSActionSchema = z.object({
-    label: z.string(),
+    label: z.string().min(1),
     type: z.enum(['order', 'dismiss', 'acknowledge']),
     payload: z.string().optional()
 });
 
 export const CDSSAlertSchema = z.object({
-    title: z.string(),
+    title: z.string().min(1),
     level: z.enum(['Critical', 'Warning', 'Info']),
-    description: z.string(),
+    description: z.string().min(5),
     triggers: z.array(z.string()),
     source_citation: z.string().optional(),
     actions: z.array(CDSSActionSchema).optional()
