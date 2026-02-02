@@ -4,7 +4,7 @@ import { usePatientStore } from '../patient-management/usePatientStore';
 import { useClinicalStore } from '../clinical-analysis/stores/useClinicalStore';
 import { PatientMetadata, PatientStatus } from '../patient-management/types';
 import { FHIRObservation } from '../fhir/types';
-import { AlertTriangleIcon, ActivityIcon, HelpIcon, CheckIcon, ChevronRightIcon, ClockIcon } from '../../components/icons';
+import { AlertTriangleIcon, ActivityIcon, CheckIcon, ClockIcon } from '../../components/icons';
 
 interface HeadsUpDisplayProps {
     patient: PatientMetadata;
@@ -45,17 +45,48 @@ const getLatestVital = (observations: FHIRObservation[], searchTerms: string[]) 
     return { val, unit, isStale, date };
 };
 
-const VitalCard: React.FC<{ label: string; value: string | number; unit: string; isStale: boolean; colorClass: string }> = ({ label, value, unit, isStale, colorClass }) => (
-    <div className={`flex flex-col px-3 border-r border-slate-100 dark:border-slate-800 last:border-0 min-w-[70px] ${isStale ? 'opacity-50 grayscale' : ''}`}>
-        <span className="text-[9px] font-mono uppercase text-slate-400 font-bold tracking-wider mb-0.5">{label}</span>
-        <div className="flex items-baseline gap-0.5">
-            <span className={`text-sm font-mono font-bold tracking-tight tabular-nums ${colorClass}`}>
-                {value}
-            </span>
-            <span className="text-[9px] text-slate-400 font-medium">{unit}</span>
+const formatTimeAgo = (date: Date) => {
+    const diffMs = Date.now() - date.getTime();
+    const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+    
+    if (diffHrs < 1) return '<1h';
+    if (diffHrs < 24) return `${diffHrs}h`;
+    return `${Math.floor(diffHrs / 24)}d`;
+};
+
+const VitalCard: React.FC<{ label: string; value: string | number; unit: string; isStale: boolean; date?: Date; colorClass: string }> = ({ label, value, unit, isStale, date, colorClass }) => {
+    return (
+        <div className={`flex flex-col px-3 border-r border-slate-100 dark:border-slate-800 last:border-0 min-w-[80px] transition-opacity duration-500`}>
+            <div className="flex justify-between items-center mb-0.5">
+                <span className="text-[9px] font-mono uppercase text-slate-400 font-bold tracking-wider">{label}</span>
+                {isStale && date && (
+                    <div className="flex items-center gap-0.5 text-[8px] font-bold text-amber-500 bg-amber-50 dark:bg-amber-900/30 px-1 rounded-sm" title={`Last updated: ${date.toLocaleString()}`}>
+                        <ClockIcon className="w-2 h-2" />
+                        <span>{formatTimeAgo(date)}</span>
+                    </div>
+                )}
+            </div>
+            
+            <div className="flex items-baseline gap-1 relative">
+                {isStale ? (
+                    // Stale State: Dimmed value with Strikethrough visual cue or just lowered opacity
+                    <span className="text-sm font-mono font-bold tracking-tight tabular-nums text-slate-400 dark:text-slate-500 line-through decoration-slate-300 decoration-1 opacity-70" title="Value is older than 4 hours">
+                        {value}
+                    </span>
+                ) : (
+                    // Fresh State
+                    <span className={`text-sm font-mono font-bold tracking-tight tabular-nums ${colorClass}`}>
+                        {value}
+                    </span>
+                )}
+                
+                <span className="text-[9px] text-slate-400 font-medium">
+                    {unit}
+                </span>
+            </div>
         </div>
-    </div>
-);
+    );
+};
 
 const HeadsUpDisplay: React.FC<HeadsUpDisplayProps> = ({ patient }) => {
     const actions = usePatientStore(state => state.actions);
@@ -113,13 +144,6 @@ const HeadsUpDisplay: React.FC<HeadsUpDisplayProps> = ({ patient }) => {
         const bp = getLatestVital(observations, ['blood pressure', 'bp', 'systolic']);
         const spo2 = getLatestVital(observations, ['o2', 'oxygen', 'saturation', 'spo2']);
         const temp = getLatestVital(observations, ['temp', 'temperature']);
-
-        // Check for BP composite string if quantity missing
-        let bpDisplay = bp?.val;
-        if (!bpDisplay && bp) {
-             const bpObs = observations.find(o => o.code.text?.toLowerCase().includes('blood pressure'));
-             // Logic to find composite BP would go here in full implementation
-        }
 
         return { hr, bp, spo2, temp };
     }, [observations]);
@@ -194,7 +218,7 @@ const HeadsUpDisplay: React.FC<HeadsUpDisplayProps> = ({ patient }) => {
                 <div className="flex items-center flex-1 overflow-x-auto no-scrollbar mask-fade-r px-3 py-1.5 md:py-2 md:justify-end gap-4 divide-x divide-slate-100 dark:divide-slate-800">
                     
                     {/* VITALS MONITOR */}
-                    {(vitals.hr || vitals.bp || vitals.spo2) && (
+                    {(vitals.hr || vitals.bp || vitals.spo2 || vitals.temp) && (
                         <div className="flex items-center gap-0 pr-2 animate-fade-in">
                             {vitals.hr && (
                                 <VitalCard 
@@ -202,6 +226,7 @@ const HeadsUpDisplay: React.FC<HeadsUpDisplayProps> = ({ patient }) => {
                                     value={vitals.hr.val ?? '--'} 
                                     unit="bpm" 
                                     isStale={vitals.hr.isStale}
+                                    date={vitals.hr.date}
                                     colorClass="text-green-600 dark:text-green-400"
                                 />
                             )}
@@ -211,6 +236,7 @@ const HeadsUpDisplay: React.FC<HeadsUpDisplayProps> = ({ patient }) => {
                                     value={vitals.bp.val ?? '--'} 
                                     unit="mmHg" 
                                     isStale={vitals.bp.isStale}
+                                    date={vitals.bp.date}
                                     colorClass="text-slate-700 dark:text-slate-200"
                                 />
                             )}
@@ -220,6 +246,7 @@ const HeadsUpDisplay: React.FC<HeadsUpDisplayProps> = ({ patient }) => {
                                     value={vitals.spo2.val ?? '--'} 
                                     unit="%" 
                                     isStale={vitals.spo2.isStale}
+                                    date={vitals.spo2.date}
                                     colorClass="text-blue-600 dark:text-blue-400"
                                 />
                             )}
@@ -229,6 +256,7 @@ const HeadsUpDisplay: React.FC<HeadsUpDisplayProps> = ({ patient }) => {
                                     value={vitals.temp.val ?? '--'} 
                                     unit="°C" 
                                     isStale={vitals.temp.isStale}
+                                    date={vitals.temp.date}
                                     colorClass="text-amber-600 dark:text-amber-400"
                                 />
                             )}

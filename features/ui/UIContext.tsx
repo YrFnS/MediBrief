@@ -1,6 +1,7 @@
 
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import { ChatMode } from '../../types';
+import { LabReport } from '../chat/schemas';
 
 // --- State Definition ---
 
@@ -8,6 +9,7 @@ export interface UIState {
     isLoading: boolean;
     error: string | null;
     chatMode: ChatMode;
+    pendingLabReport: LabReport | null; // Quarantine state for OCR verification
 }
 
 // --- Actions ---
@@ -16,6 +18,7 @@ export type UIAction =
     | { type: 'SET_LOADING'; payload: boolean }
     | { type: 'SET_ERROR'; payload: string | null }
     | { type: 'SET_CHAT_MODE'; payload: ChatMode }
+    | { type: 'SET_PENDING_LAB_REPORT'; payload: LabReport | null }
     | { type: 'CLEAR_ERROR' };
 
 // --- Initial State ---
@@ -36,6 +39,7 @@ const initialState: UIState = {
     isLoading: false,
     error: null,
     chatMode: getInitialMode(),
+    pendingLabReport: null,
 };
 
 // --- Reducer ---
@@ -50,6 +54,8 @@ const uiReducer = (state: UIState, action: UIAction): UIState => {
             return { ...state, error: null };
         case 'SET_CHAT_MODE':
             return { ...state, chatMode: action.payload };
+        case 'SET_PENDING_LAB_REPORT':
+            return { ...state, pendingLabReport: action.payload };
         default:
             return state;
     }

@@ -1,5 +1,6 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
+import { v4 as uuidv4 } from 'uuid';
 import { ChatMode as ChatModeEnum } from '../../types';
 import Header from '../../components/Header';
 import MessageList from '../chat/components/MessageList';
@@ -11,6 +12,7 @@ import ScribeInterface from '../scribe/ScribeInterface';
 import CDSSContainer from '../cdss/CDSSContainer';
 import BioMetricBackground from './BioMetricBackground';
 import DisclaimerModal from '../../components/DisclaimerModal';
+import LabVerificationModal from '../clinical-analysis/components/LabVerificationModal';
 import { useLiveSession } from '../../hooks/useLiveSession';
 import { useFileDragAndDrop } from '../../hooks/useFileDragAndDrop';
 import { useChatOrchestrator } from '../chat/hooks/useChatOrchestrator';
@@ -20,6 +22,12 @@ import { useChatStore } from '../chat/stores/useChatStore';
 import { useUIStore } from '../ui/UIContext';
 import { scrubPII } from '../../utils/piiScrubber';
 import { useSecurityLock } from '../../hooks/useSecurityLock';
+import { useClinicalStore } from '../clinical-analysis/stores/useClinicalStore';
+import { useAuditStore } from '../audit/useAuditStore';
+import { LabReport } from '../chat/schemas';
+import { FHIRObservation } from '../fhir/types';
+import { normalizeValue } from '../fhir/unitService';
+import { evaluateClinicalSafety } from '../cdss/rulesEngine';
 
 // Simple hook for online status
 const useOnlineStatus = () => {
@@ -42,6 +50,8 @@ const MainLayout: React.FC = () => {
     const activePatientId = usePatientStore(state => state.activePatientId);
     const activePatient = usePatientStore(state => state.patients[activePatientId]);
     const chatActions = useChatStore(state => state.actions);
+    const clinicalActions = useClinicalStore(state => state.actions);
+    const auditActions = useAuditStore(state => state.actions);
     
     // Select messages from the specialized Chat Store
     const activeMessages = useChatStore(state => state.chats[activePatientId] || []);
@@ -50,7 +60,7 @@ const MainLayout: React.FC = () => {
     
     // --- UI State ---
     const { uploadedFile, setUploadedFile, isDragging, clearFile, dragHandlers } = useFileDragAndDrop();
-    const { chatMode, isLoading } = uiState;
+    const { chatMode, isLoading, pendingLabReport } = uiState;
     
     // --- Local UI State ---
     const [userLocation, setUserLocation] = useState<{latitude: number, longitude: number} | undefined>(undefined);
@@ -154,6 +164,104 @@ const MainLayout: React.FC = () => {
 
     const toggleLiveSession = useCallback(() => isLive ? stopSession() : startSession(activeMessages), [isLive, stopSession, startSession, activeMessages]);
 
+    // --- Lab Verification Logic ---
+    const handleLabVerification = useCallback((verifiedReport: LabReport) => {
+        // This is the CRITICAL safety step. Data only enters here after human verification.
+        
+        if (!verifiedReport.labs) return;
+
+        const newObs: FHIRObservation[] = verifiedReport.labs.map((lab: any) => {
+             const rawVal = parseFloat(lab.value.replace(/[^0-9.-]/g, ''));
+             const rangeMatch = lab.refRange ? lab.refRange.match(/([\d.]+)\s*-\s*([\d.]+)/) : null;
+             
+             if (isNaN(rawVal)) return null;
+
+             // Normalize units using the VERIFIED data (not AI hallucinations)
+             const normalized = normalizeValue(rawVal, lab.units || '', lab.testName);
+
+             const obs: FHIRObservation = {
+                 resourceType: 'Observation',
+                 id: uuidv4(),
+                 status: 'final',
+                 code: { text: lab.testName },
+                 subject: { reference: `Patient/${activePatientId}` },
+                 valueQuantity: { 
+                     value: normalized.value, 
+                     unit: normalized.unit,
+                     system: 'http://unitsofmeasure.org'
+                 },
+                 effectiveDateTime: verifiedReport.date && verifiedReport.date !== 'Not Visible' ? new Date(verifiedReport.date).toISOString() : new Date().toISOString(),
+                 issued: new Date().toISOString()
+             };
+
+             // Attach warnings if still present after human edit (rare but possible for legit critical values)
+             if (normalized.warning) {
+                 obs.note = [{ text: `⚠️ DATA QUALITY: ${normalized.warning}` }];
+                 obs.interpretation = [{ text: 'Data Quality Issue' }];
+             } else if (lab.flag && lab.flag !== 'Normal') {
+                 obs.interpretation = [{ text: lab.flag }];
+             }
+
+             if (rangeMatch) {
+                 obs.referenceRange = [{
+                     low: { value: parseFloat(rangeMatch[1]), unit: lab.units, system: 'http://unitsofmeasure.org' },
+                     high: { value: parseFloat(rangeMatch[2]), unit: lab.units, system: 'http://unitsofmeasure.org' },
+                     text: lab.refRange
+                 }];
+             }
+
+             return obs;
+        }).filter(Boolean) as FHIRObservation[];
+
+        if (newObs.length > 0) {
+            // 1. Commit to Clinical Store
+            clinicalActions.ingestObservations(activePatientId, newObs);
+            
+            // 2. Audit the Verification
+            auditActions.logEvent(
+                'SYSTEM_INIT', // Reusing type, ideally add 'DATA_VERIFICATION' type
+                activePatientId, 
+                `User verified and ingested ${newObs.length} lab observations.`,
+                'USER'
+            );
+
+            // 3. Run CDSS Safety Checks
+            const existingObs = useClinicalStore.getState().data[activePatientId]?.observations || [];
+            const combinedObs = [...existingObs, ...newObs];
+            
+            evaluateClinicalSafety(combinedObs).then(alerts => {
+                if (alerts.length > 0) {
+                    clinicalActions.updateAlerts(activePatientId, alerts);
+                    auditActions.logEvent(
+                        'ALERT_TRIGGERED', 
+                        activePatientId, 
+                        `Generated ${alerts.length} safety alerts from VERIFIED lab data`, 
+                        'SYSTEM'
+                    );
+                }
+            });
+            
+            // 4. Notify User via Chat
+            chatActions.addMessage(activePatientId, {
+                role: 'model',
+                content: `✅ **Data Verified & Ingested**\nSuccessfully added ${newObs.length} lab results to the clinical record. Safety protocols active.`
+            });
+        }
+
+        // Close Modal
+        uiDispatch({ type: 'SET_PENDING_LAB_REPORT', payload: null });
+
+    }, [activePatientId, clinicalActions, chatActions, auditActions, uiDispatch]);
+
+    const handleCancelVerification = useCallback(() => {
+        uiDispatch({ type: 'SET_PENDING_LAB_REPORT', payload: null });
+        chatActions.addMessage(activePatientId, {
+            role: 'model',
+            content: `🚫 **Ingestion Cancelled**\nLab data was discarded by user.`
+        });
+    }, [activePatientId, chatActions, uiDispatch]);
+
+
     // --- LOCK SCREEN UI ---
     if (isLocked) {
         return (
@@ -194,6 +302,15 @@ const MainLayout: React.FC = () => {
             <BioMetricBackground />
             
             <DisclaimerModal />
+
+            {/* QUARANTINE MODAL (Verification) */}
+            {pendingLabReport && (
+                <LabVerificationModal 
+                    report={pendingLabReport} 
+                    onConfirm={handleLabVerification} 
+                    onCancel={handleCancelVerification} 
+                />
+            )}
 
             {/* CONTENT WRAPPER */}
             <div className={`flex flex-1 w-full h-full relative transition-all duration-700 ${isBlurred ? 'blur-md opacity-60 grayscale scale-[0.99] pointer-events-none' : ''}`}>

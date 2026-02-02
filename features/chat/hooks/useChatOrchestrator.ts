@@ -286,77 +286,16 @@ export const useChatOrchestrator = ({
         } finally {
             uiDispatch({ type: 'SET_LOADING', payload: false });
             
-            // --- FHIR AUTO-INGESTION PROTOCOL WITH ZOD & UNIT NORMALIZATION ---
+            // --- UPDATED INGESTION PROTOCOL: QUARANTINE FOR HUMAN VERIFICATION ---
             if (activePatientId && isLabReport(fullResponseBuffer)) {
-                // Use generic to validate and infer LabReport type
                 const report = parseAndValidate<LabReport>(fullResponseBuffer, LabReportSchema);
                 
-                if (report && report.labs) {
-                    const newObs: FHIRObservation[] = report.labs.map((lab: any) => {
-                         const rawVal = parseFloat(lab.value.replace(/[^0-9.-]/g, ''));
-                         const rangeMatch = lab.refRange.match(/([\d.]+)\s*-\s*([\d.]+)/);
-                         
-                         if (isNaN(rawVal)) return null;
-
-                         // SAFETY: Normalize units to prevent CDSS errors
-                         // Uses the centralized service for deterministic conversion
-                         const normalized = normalizeValue(rawVal, lab.units, lab.testName);
-
-                         const obs: FHIRObservation = {
-                             resourceType: 'Observation',
-                             id: uuidv4(),
-                             status: 'final',
-                             code: { 
-                                 text: lab.testName 
-                             },
-                             subject: { reference: `Patient/${activePatientId}` },
-                             valueQuantity: { 
-                                 value: normalized.value, 
-                                 unit: normalized.unit,
-                                 system: 'http://unitsofmeasure.org'
-                             },
-                             effectiveDateTime: report.date && report.date !== 'Not Visible' ? new Date(report.date).toISOString() : new Date().toISOString(),
-                             issued: new Date().toISOString()
-                         };
-
-                         if (rangeMatch) {
-                             obs.referenceRange = [{
-                                 low: { value: parseFloat(rangeMatch[1]), unit: lab.units, system: 'http://unitsofmeasure.org' },
-                                 high: { value: parseFloat(rangeMatch[2]), unit: lab.units, system: 'http://unitsofmeasure.org' },
-                                 text: lab.refRange
-                             }];
-                         }
-                         
-                         if (lab.flag && lab.flag !== 'Normal') {
-                             obs.interpretation = [{ text: lab.flag }];
-                         }
-
-                         return obs;
-                    }).filter(Boolean);
-
-                    if (newObs.length > 0) {
-                        clinicalActions.ingestObservations(activePatientId, newObs);
-                        
-                        const existingObs = useClinicalStore.getState().data[activePatientId]?.observations || [];
-                        const combinedObs = [...existingObs, ...newObs];
-                        
-                        // Use the NEW Deterministic Rules Engine (No await needed technically, but good for future async)
-                        evaluateClinicalSafety(combinedObs).then(alerts => {
-                            if (alerts.length > 0) {
-                                clinicalActions.updateAlerts(activePatientId, alerts);
-                                
-                                // Audit Alert Trigger
-                                auditActions.logEvent(
-                                    'ALERT_TRIGGERED', 
-                                    activePatientId, 
-                                    `Generated ${alerts.length} safety alerts from lab data`, 
-                                    'SYSTEM'
-                                );
-                            }
-                        });
-                    }
+                if (report && report.labs && report.labs.length > 0) {
+                    // DO NOT INGEST IMMEDIATELY
+                    // Dispatch to UI Quarantine for modal display
+                    uiDispatch({ type: 'SET_PENDING_LAB_REPORT', payload: report });
                 } else {
-                    console.warn("Lab report detected but failed validation.");
+                    console.warn("Lab report detected but failed validation or was empty.");
                 }
             }
 

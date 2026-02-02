@@ -25,7 +25,14 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 const TrendGraph: React.FC<TrendGraphProps> = ({ testName, observations }) => {
     // Filter and Sort Data
     const data = observations
-        .filter(o => o.code.text === testName && o.valueQuantity && o.valueQuantity.value !== undefined)
+        .filter(o => 
+            o.code.text === testName && 
+            o.valueQuantity && 
+            o.valueQuantity.value !== undefined &&
+            // EXCLUDE DATA QUALITY ISSUES (IMPLAUSIBLE VALUES)
+            // If the note contains "DATA QUALITY", it was flagged by unitService as an OCR/Unit error.
+            !o.note?.some(n => n.text.includes('DATA QUALITY'))
+        )
         .map(o => ({
             date: o.effectiveDateTime ? new Date(o.effectiveDateTime).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'Unknown',
             fullDate: o.effectiveDateTime ? new Date(o.effectiveDateTime).toLocaleString() : 'Unknown',

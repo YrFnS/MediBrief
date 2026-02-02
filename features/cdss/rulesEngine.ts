@@ -36,12 +36,18 @@ const extractLatestValue = (observations: FHIRObservation[], matches: string[]):
     const latest = relevant[0];
     
     if (latest.valueQuantity?.value !== undefined) {
-        // NORMALIZE
+        // NORMALIZE & VALIDATE
         const normalized = normalizeValue(
             latest.valueQuantity.value, 
             latest.valueQuantity.unit || '', 
             latest.code.text || ''
         );
+        
+        // SAFETY GATE: Ignore implausible values to prevent false alerts
+        if (normalized.warning) {
+            console.warn(`[CDSS] Skipped Implausible Value: ${latest.code.text} = ${normalized.value} ${normalized.unit} (${normalized.warning})`);
+            return null;
+        }
         
         return {
             value: normalized.value,
@@ -52,15 +58,30 @@ const extractLatestValue = (observations: FHIRObservation[], matches: string[]):
     return null;
 };
 
+// --- ALERT HIERARCHY / SUPPRESSION MAP ---
+// Key: The "Parent" Rule ID that is more critical/specific.
+// Value: Array of "Child" Rule IDs to suppress if the parent is active.
+const ALERT_HIERARCHY: Record<string, string[]> = {
+    // Septic Shock implies hypotension and tachycardia are present and part of the syndrome.
+    // We suppress the generic alerts to focus on the root cause (Sepsis).
+    'PROT-SEPSIS-3-LACTATE': ['PROT-TACHYCARDIA', 'PROT-HYPOTENSION', 'PROT-SEPSIS-3-WARNING'],
+    
+    // Critical Hyperkalemia supercedes generic AKI warning if immediate cardiac risk is present
+    'PROT-ELECTROLYTE-K-CRIT': ['PROT-KDIGO-AKI-3'], // Optional choice: usually we want both, but K+ is immediate death risk
+    
+    // Critical Hypoxia often causes Tachycardia; treat oxygenation first.
+    'PROT-HYPOXIA': ['PROT-TACHYCARDIA']
+};
+
 export const evaluateClinicalSafety = async (observations: FHIRObservation[]): Promise<CDSSAlert[]> => {
-    const alerts: CDSSAlert[] = [];
+    const rawAlerts: CDSSAlert[] = [];
     const now = Date.now();
 
     // --- 1. SEPSIS-3 PROTOCOL ---
     // Trigger: Lactate > 4.0 mmol/L (Septic Shock Indicator)
     const lactate = extractLatestValue(observations, ['lactate']);
     if (lactate && lactate.unit === NORMALIZED_UNITS.LACTATE && lactate.value > 4.0) {
-        alerts.push({
+        rawAlerts.push({
             id: uuidv4(),
             ruleId: 'PROT-SEPSIS-3-LACTATE',
             title: 'CRITICAL: SEPTIC SHOCK CRITERIA',
@@ -74,7 +95,7 @@ export const evaluateClinicalSafety = async (observations: FHIRObservation[]): P
             ]
         });
     } else if (lactate && lactate.unit === NORMALIZED_UNITS.LACTATE && lactate.value >= 2.0) {
-        alerts.push({
+        rawAlerts.push({
             id: uuidv4(),
             ruleId: 'PROT-SEPSIS-3-WARNING',
             title: 'WARNING: ELEVATED LACTATE',
@@ -90,7 +111,7 @@ export const evaluateClinicalSafety = async (observations: FHIRObservation[]): P
     // Trigger: Potassium > 6.0 (Critical Hyperkalemia)
     const potassium = extractLatestValue(observations, ['potassium', 'k+']);
     if (potassium && potassium.unit === NORMALIZED_UNITS.POTASSIUM && potassium.value > 6.0) {
-        alerts.push({
+        rawAlerts.push({
             id: uuidv4(),
             ruleId: 'PROT-ELECTROLYTE-K-CRIT',
             title: 'CRITICAL: HYPERKALEMIA',
@@ -108,7 +129,7 @@ export const evaluateClinicalSafety = async (observations: FHIRObservation[]): P
     // Trigger: Creatinine > 4.0 (AKI Stage 3)
     const creatinine = extractLatestValue(observations, ['creatinine', 'scr']);
     if (creatinine && creatinine.unit === NORMALIZED_UNITS.CREATININE && creatinine.value > 4.0) {
-        alerts.push({
+        rawAlerts.push({
             id: uuidv4(),
             ruleId: 'PROT-KDIGO-AKI-3',
             title: 'CRITICAL: ACUTE KIDNEY INJURY',
@@ -124,7 +145,7 @@ export const evaluateClinicalSafety = async (observations: FHIRObservation[]): P
     // Trigger: MAP < 65 or SBP < 90 (Hypotension)
     const sbp = extractLatestValue(observations, ['systolic', 'sbp']);
     if (sbp && sbp.value < 90) {
-        alerts.push({
+        rawAlerts.push({
             id: uuidv4(),
             ruleId: 'PROT-HYPOTENSION',
             title: 'CRITICAL: HYPOTENSION',
@@ -139,7 +160,7 @@ export const evaluateClinicalSafety = async (observations: FHIRObservation[]): P
     // Trigger: HR > 130 (Tachycardia)
     const hr = extractLatestValue(observations, ['heart rate', 'pulse', 'hr']);
     if (hr && hr.value > 130) {
-        alerts.push({
+        rawAlerts.push({
             id: uuidv4(),
             ruleId: 'PROT-TACHYCARDIA',
             title: 'WARNING: TACHYCARDIA',
@@ -154,7 +175,7 @@ export const evaluateClinicalSafety = async (observations: FHIRObservation[]): P
     // Trigger: SpO2 < 90% (Hypoxia)
     const spo2 = extractLatestValue(observations, ['spo2', 'oxygen', 'saturation']);
     if (spo2 && spo2.value < 90) {
-        alerts.push({
+        rawAlerts.push({
             id: uuidv4(),
             ruleId: 'PROT-HYPOXIA',
             title: 'CRITICAL: HYPOXIA',
@@ -166,5 +187,20 @@ export const evaluateClinicalSafety = async (observations: FHIRObservation[]): P
         });
     }
 
-    return alerts;
+    // --- 4. ALERT FATIGUE MANAGEMENT (HIERARCHY FILTER) ---
+    // If a parent rule is triggered, suppress its children to prevent alert stacking.
+    
+    // Identify all triggered rule IDs
+    const triggeredIds = new Set(rawAlerts.map(a => a.ruleId));
+    const suppressedIds = new Set<string>();
+
+    for (const parentId of Object.keys(ALERT_HIERARCHY)) {
+        if (triggeredIds.has(parentId)) {
+            // If parent is active, add all its children to suppression list
+            ALERT_HIERARCHY[parentId].forEach(childId => suppressedIds.add(childId));
+        }
+    }
+
+    // Return only non-suppressed alerts
+    return rawAlerts.filter(alert => !suppressedIds.has(alert.ruleId));
 };
