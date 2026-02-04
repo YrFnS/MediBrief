@@ -323,9 +323,10 @@ export const useLiveSession = ({ onTurnComplete, onToolCall }: LiveSessionOption
 
         } catch (e: any) {
             console.error("Live start failed", e);
+            // Ensure we clean up any partial state
             stopSession();
 
-            let errMsg = "Microphone or connection failed.";
+            let errMsg = "Live connection failed.";
             const msg = e.message || e.toString();
 
             if (msg.includes('No microphone found')) {
@@ -334,8 +335,12 @@ export const useLiveSession = ({ onTurnComplete, onToolCall }: LiveSessionOption
                 errMsg = "Microphone access denied. Please allow permissions.";
             } else if (msg.includes('Media API not available')) {
                 errMsg = "Voice is not supported in this browser context (HTTPS required).";
+            } else if (msg.includes('429')) {
+                errMsg = "High traffic detected (429). Please wait a moment and try again.";
+            } else if (msg.includes('403')) {
+                errMsg = "Access denied (403). Please check your API key.";
             } else {
-                errMsg = "Live connection failed: " + msg;
+                errMsg = `Connection error: ${msg}`;
             }
 
             setError(errMsg);

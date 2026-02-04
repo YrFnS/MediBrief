@@ -17,7 +17,7 @@ interface ClinicalActions {
     actions: {
         initializePatient: (patientId: string) => void;
         deletePatient: (patientId: string) => void;
-        
+
         ingestObservations: (patientId: string, observations: FHIRObservation[]) => void;
         updateAlerts: (patientId: string, alerts: CDSSAlert[]) => void;
         dismissAlert: (patientId: string, alertId: string, ruleId: string) => void;
@@ -33,7 +33,7 @@ export const useClinicalStore = create<ClinicalState & ClinicalActions>()(
             data: {},
             alerts: {},
             dismissalHistory: {},
-            
+
             actions: {
                 initializePatient: (patientId) => set((state) => {
                     if (state.data[patientId]) return state;
@@ -47,22 +47,22 @@ export const useClinicalStore = create<ClinicalState & ClinicalActions>()(
                     const newData = { ...state.data };
                     const newAlerts = { ...state.alerts };
                     const newHistory = { ...state.dismissalHistory };
-                    
+
                     delete newData[patientId];
                     delete newAlerts[patientId];
                     delete newHistory[patientId];
-                    
+
                     return { data: newData, alerts: newAlerts, dismissalHistory: newHistory };
                 }),
-                
+
                 ingestObservations: (patientId, observations) => set((state) => {
                     const currentStore = state.data[patientId] || { observations: [] };
                     const existingObs = currentStore.observations;
-                    
+
                     // Deduplication Logic
-                    const newObs = observations.filter(obs => 
-                        !existingObs.some(ex => 
-                            ex.code.text === obs.code.text && 
+                    const newObs = observations.filter(obs =>
+                        !existingObs.some(ex =>
+                            ex.code.text === obs.code.text &&
                             ex.valueQuantity?.value === obs.valueQuantity?.value &&
                             ex.effectiveDateTime === obs.effectiveDateTime
                         )
@@ -132,6 +132,16 @@ export const useClinicalStore = create<ClinicalState & ClinicalActions>()(
             name: 'medibrief-clinical-storage',
             storage: createJSONStorage(() => indexedDBStorage),
             skipHydration: true, // WAIT FOR SECURITY GATE
+            partialize: (state) => ({
+                data: state.data,
+                alerts: state.alerts,
+                dismissalHistory: state.dismissalHistory
+            }),
+            version: 1, // Bump version
+            migrate: (persistedState: any, version: number) => {
+                if (version === 0) return { data: {}, alerts: {}, dismissalHistory: {} } as any;
+                return persistedState;
+            }
         }
     )
 );

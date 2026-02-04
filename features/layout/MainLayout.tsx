@@ -146,8 +146,17 @@ const MainLayout: React.FC = () => {
         // 2. Report Errors accurately
         if (liveError && reportedLiveErrorRef.current !== liveError) {
             reportedLiveErrorRef.current = liveError;
-            chatActions.addMessage(activePatientId, { role: 'model', content: `Error: ${liveError}` });
+
+            // Dispatch UI Error
             uiDispatch({ type: 'SET_ERROR', payload: liveError });
+
+            // If it's a critical live error (like 429), revert chat mode
+            if (liveError.includes('429') || liveError.includes('403') || liveError.includes('not supported') || liveError.includes('denied')) {
+                uiDispatch({ type: 'SET_CHAT_MODE', payload: ChatModeEnum.Standard });
+            }
+
+            // Also log to chat for history
+            chatActions.addMessage(activePatientId, { role: 'model', content: `Error: ${liveError}` });
         } else if (!liveError) {
             reportedLiveErrorRef.current = null;
         }

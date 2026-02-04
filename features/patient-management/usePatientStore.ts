@@ -38,7 +38,7 @@ export interface PatientActions {
         touchPatient: (id: string) => void;
         // Batch set for Import/Restore
         setAllPatients: (patients: Record<string, PatientMetadata>, activeId: string) => void;
-        
+
         addDocument: (id: string, document: PatientDocument) => void;
     }
 }
@@ -55,7 +55,7 @@ export const usePatientStore = create<PatientState & PatientActions>()(
                     const newPatient: PatientMetadata = {
                         ...createDefaultPatient(),
                         id: newId,
-                        name: name || `Patient ${newId.substring(0,4)}`,
+                        name: name || `Patient ${newId.substring(0, 4)}`,
                         status: 'New Admission',
                         demographics: demographics || {}
                     };
@@ -70,7 +70,7 @@ export const usePatientStore = create<PatientState & PatientActions>()(
                     if (Object.keys(state.patients).length <= 1) return state;
                     const newPatients = { ...state.patients };
                     delete newPatients[id];
-                    
+
                     let newActiveId = state.activePatientId;
                     if (state.activePatientId === id) {
                         newActiveId = Object.keys(newPatients)[0];
@@ -102,7 +102,7 @@ export const usePatientStore = create<PatientState & PatientActions>()(
                     if (entities.diagnosis) {
                         newEntities.diagnosis = [...new Set([...newEntities.diagnosis, ...entities.diagnosis])];
                     }
-                    
+
                     return {
                         patients: {
                             ...state.patients,
@@ -114,7 +114,7 @@ export const usePatientStore = create<PatientState & PatientActions>()(
                 addDocument: (id, document) => set((state) => {
                     const target = state.patients[id];
                     if (!target) return state;
-                    
+
                     return {
                         patients: {
                             ...state.patients,
@@ -146,6 +146,20 @@ export const usePatientStore = create<PatientState & PatientActions>()(
             name: 'medibrief-metadata-storage',
             storage: createJSONStorage(() => indexedDBStorage),
             skipHydration: true, // WAIT FOR SECURITY GATE TO UNLOCK
+            partialize: (state) => ({
+                patients: state.patients,
+                activePatientId: state.activePatientId
+            }),
+            version: 1, // Bump version
+            migrate: (persistedState: any, version: number) => {
+                if (version === 0) {
+                    return {
+                        patients: { [DEFAULT_PATIENT_ID]: createDefaultPatient() },
+                        activePatientId: DEFAULT_PATIENT_ID,
+                    } as any;
+                }
+                return persistedState;
+            }
         }
     )
 );
