@@ -78,8 +78,10 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
         sessionStorage.setItem(STORAGE_KEY_MODE, uiState.chatMode);
     }, [uiState.chatMode]);
 
+    const value = React.useMemo(() => ({ uiState, uiDispatch }), [uiState]);
+
     return React.createElement(UIContext.Provider, {
-        value: { uiState, uiDispatch }
+        value
     }, children);
 };
 

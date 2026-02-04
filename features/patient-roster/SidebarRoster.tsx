@@ -18,12 +18,11 @@ interface SidebarRosterProps {
 
 const SidebarRoster: React.FC<SidebarRosterProps> = ({ isOpen, toggle }) => {
     // Zustand Selectors
-    const { patients, activePatientId, actions } = usePatientStore(state => ({
-        patients: state.patients,
-        activePatientId: state.activePatientId,
-        actions: state.actions
-    }));
-    
+    // Zustand Selectors (Stable)
+    const patients = usePatientStore(state => state.patients);
+    const activePatientId = usePatientStore(state => state.activePatientId);
+    const actions = usePatientStore(state => state.actions);
+
     // Access other store actions for CRUD sync
     const chatActions = useChatStore(state => state.actions);
     const clinicalActions = useClinicalStore(state => state.actions);
@@ -32,7 +31,9 @@ const SidebarRoster: React.FC<SidebarRosterProps> = ({ isOpen, toggle }) => {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const patientsList = (Object.values(patients) as PatientMetadata[]).sort((a, b) => b.lastActive - a.lastActive);
+    const patientsList = React.useMemo(() => {
+        return (Object.values(patients) as PatientMetadata[]).sort((a, b) => b.lastActive - a.lastActive);
+    }, [patients]);
 
     const handleSwitch = (id: string) => {
         actions.switchPatient(id);
@@ -45,28 +46,28 @@ const SidebarRoster: React.FC<SidebarRosterProps> = ({ isOpen, toggle }) => {
         }
 
         if (confirm(`Are you sure you want to delete the context for "${name}"?\nThis action cannot be undone.`)) {
-             // 1. Clean up heavy assets in IndexedDB
-             const patient = patients[id];
-             if (patient && patient.documents) {
-                 let deletedCount = 0;
-                 for (const doc of patient.documents) {
-                     if (doc.storageId) {
-                         try {
-                             await blobStorage.deleteFile(doc.storageId);
-                             deletedCount++;
-                         } catch (e) {
-                             console.warn("Failed to delete file asset:", doc.storageId);
-                         }
-                     }
-                 }
-                 if (deletedCount > 0) console.log(`Cleaned up ${deletedCount} assets for deleted patient.`);
-             }
+            // 1. Clean up heavy assets in IndexedDB
+            const patient = patients[id];
+            if (patient && patient.documents) {
+                let deletedCount = 0;
+                for (const doc of patient.documents) {
+                    if (doc.storageId) {
+                        try {
+                            await blobStorage.deleteFile(doc.storageId);
+                            deletedCount++;
+                        } catch (e) {
+                            console.warn("Failed to delete file asset:", doc.storageId);
+                        }
+                    }
+                }
+                if (deletedCount > 0) console.log(`Cleaned up ${deletedCount} assets for deleted patient.`);
+            }
 
-             // 2. Clear Stores
-             actions.deletePatient(id);
-             chatActions.deleteChat(id);
-             clinicalActions.deletePatient(id);
-             showToast(`Patient context deleted`, 'info');
+            // 2. Clear Stores
+            actions.deletePatient(id);
+            chatActions.deleteChat(id);
+            clinicalActions.deletePatient(id);
+            showToast(`Patient context deleted`, 'info');
         }
     };
 
@@ -83,7 +84,7 @@ const SidebarRoster: React.FC<SidebarRosterProps> = ({ isOpen, toggle }) => {
             const chatState = useChatStore.getState().chats;
             const clinicalState = useClinicalStore.getState().data;
             const alertsState = useClinicalStore.getState().alerts;
-            
+
             // Construct composite export object
             const exportData: Record<string, FullPatientContext> = {};
             Object.keys(patients).forEach(id => {
@@ -95,10 +96,10 @@ const SidebarRoster: React.FC<SidebarRosterProps> = ({ isOpen, toggle }) => {
                 };
             });
 
-            const payload = { 
-                version: '4.2', 
-                patients: exportData, 
-                activePatientId 
+            const payload = {
+                version: '4.2',
+                patients: exportData,
+                activePatientId
             };
 
             const dataStr = JSON.stringify(payload);
@@ -130,25 +131,25 @@ const SidebarRoster: React.FC<SidebarRosterProps> = ({ isOpen, toggle }) => {
             try {
                 const rawJson = event.target?.result as string;
                 const imported = JSON.parse(rawJson);
-                
+
                 // --- SECURITY VALIDATION (Risk C Fix) ---
                 // Validate schema before any hydration to prevent state poisoning
                 const validationResult = BackupFileSchema.safeParse(imported);
-                
+
                 if (!validationResult.success) {
                     console.error("Schema Validation Errors:", validationResult.error);
                     throw new Error("Corrupted or malicious file structure.");
                 }
 
                 const validData = validationResult.data;
-                
+
                 if (validData && validData.patients) {
                     // Deconstruct and distribute to stores
                     const patientMeta: Record<string, PatientMetadata> = {};
-                    
+
                     Object.keys(validData.patients).forEach(id => {
                         const full = validData.patients[id] as FullPatientContext;
-                        
+
                         // 1. Meta Store
                         patientMeta[id] = {
                             id: full.id,
@@ -174,7 +175,7 @@ const SidebarRoster: React.FC<SidebarRosterProps> = ({ isOpen, toggle }) => {
                     });
 
                     actions.setAllPatients(patientMeta, validData.activePatientId || Object.keys(patientMeta)[0]);
-                    
+
                     showToast('System state restored successfully.', 'success');
                 } else {
                     throw new Error("Invalid format");
@@ -190,7 +191,7 @@ const SidebarRoster: React.FC<SidebarRosterProps> = ({ isOpen, toggle }) => {
 
     return (
         <>
-            <aside 
+            <aside
                 className={`
                     flex-shrink-0 bg-white/95 dark:bg-[#080b14]/95 backdrop-blur-xl border-r border-slate-200 dark:border-white/5 transition-all duration-300 ease-in-out relative z-40
                     ${isOpen ? 'w-80' : 'w-0 opacity-0 md:opacity-100 md:w-16'}
@@ -208,7 +209,7 @@ const SidebarRoster: React.FC<SidebarRosterProps> = ({ isOpen, toggle }) => {
                 </button>
 
                 <div className={`flex flex-col h-full overflow-hidden ${!isOpen && 'hidden md:flex'}`}>
-                    
+
                     {/* Header */}
                     <div className="p-5 border-b border-slate-100 dark:border-white/5 flex items-center justify-between h-20">
                         {isOpen ? (
@@ -226,7 +227,7 @@ const SidebarRoster: React.FC<SidebarRosterProps> = ({ isOpen, toggle }) => {
                                 <UsersIcon className="w-5 h-5 text-slate-400" />
                             </div>
                         )}
-                        
+
                         {isOpen && (
                             <div className="text-[10px] font-bold text-slate-500 bg-slate-100 dark:bg-white/5 px-2 py-1 rounded-full">
                                 {patientsList.length}
@@ -253,8 +254,8 @@ const SidebarRoster: React.FC<SidebarRosterProps> = ({ isOpen, toggle }) => {
                                         key={patient.id}
                                         onClick={() => handleSwitch(patient.id)}
                                         className={`w-10 h-10 rounded-xl flex items-center justify-center border transition-all relative group shadow-sm
-                                            ${patient.id === activePatientId 
-                                                ? 'bg-blue-600 border-blue-600 text-white shadow-blue-500/30' 
+                                            ${patient.id === activePatientId
+                                                ? 'bg-blue-600 border-blue-600 text-white shadow-blue-500/30'
                                                 : 'bg-white dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-400 hover:border-blue-400'
                                             }
                                         `}
@@ -263,10 +264,9 @@ const SidebarRoster: React.FC<SidebarRosterProps> = ({ isOpen, toggle }) => {
                                         <span className="text-xs font-bold">
                                             {patient.name.substring(0, 2).toUpperCase()}
                                         </span>
-                                        <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-white dark:border-slate-900 ${
-                                            patient.status === 'Critical' ? 'bg-red-500' : 
+                                        <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-white dark:border-slate-900 ${patient.status === 'Critical' ? 'bg-red-500' :
                                             patient.status === 'Stable' ? 'bg-emerald-500' : 'bg-slate-400'
-                                        }`}></div>
+                                            }`}></div>
                                     </button>
                                 ))}
                             </div>
@@ -277,7 +277,7 @@ const SidebarRoster: React.FC<SidebarRosterProps> = ({ isOpen, toggle }) => {
                     <div className="p-4 border-t border-slate-100 dark:border-white/5 bg-white dark:bg-black/20 space-y-3">
                         {isOpen ? (
                             <>
-                                <button 
+                                <button
                                     onClick={() => setIsDialogOpen(true)}
                                     className="w-full flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-4 py-3 rounded-lg text-xs font-bold uppercase tracking-wide transition-all shadow-lg shadow-slate-900/10 active:translate-y-0.5"
                                 >
@@ -285,7 +285,7 @@ const SidebarRoster: React.FC<SidebarRosterProps> = ({ isOpen, toggle }) => {
                                     <span>New Context</span>
                                 </button>
                                 <div className="flex gap-2">
-                                    <button 
+                                    <button
                                         onClick={handleExportData}
                                         className="flex-1 flex items-center justify-center gap-1.5 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/10 text-slate-600 dark:text-slate-400 px-3 py-2 rounded-lg text-[10px] font-bold uppercase transition-colors"
                                         title="Backup Data"
@@ -293,7 +293,7 @@ const SidebarRoster: React.FC<SidebarRosterProps> = ({ isOpen, toggle }) => {
                                         <DownloadIcon className="w-3.5 h-3.5" />
                                         <span>Backup</span>
                                     </button>
-                                    <button 
+                                    <button
                                         onClick={handleImportClick}
                                         className="flex-1 flex items-center justify-center gap-1.5 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/10 text-slate-600 dark:text-slate-400 px-3 py-2 rounded-lg text-[10px] font-bold uppercase transition-colors"
                                         title="Restore Data"
@@ -304,7 +304,7 @@ const SidebarRoster: React.FC<SidebarRosterProps> = ({ isOpen, toggle }) => {
                                 </div>
                             </>
                         ) : (
-                             <button 
+                            <button
                                 onClick={() => setIsDialogOpen(true)}
                                 className="w-full flex items-center justify-center p-3 text-slate-400 hover:text-blue-500 transition-colors"
                                 title="Add Patient"
@@ -319,16 +319,16 @@ const SidebarRoster: React.FC<SidebarRosterProps> = ({ isOpen, toggle }) => {
 
             {/* Mobile Overlay - Lighter/Clean */}
             {isOpen && (
-                <div 
+                <div
                     className="md:hidden fixed inset-0 z-30 bg-slate-900/20 backdrop-blur-sm transition-opacity"
                     onClick={toggle}
                 ></div>
             )}
 
-            <AddPatientDialog 
-                isOpen={isDialogOpen} 
-                onClose={() => setIsDialogOpen(false)} 
-                onSubmit={handleCreate} 
+            <AddPatientDialog
+                isOpen={isDialogOpen}
+                onClose={() => setIsDialogOpen(false)}
+                onSubmit={handleCreate}
             />
         </>
     );

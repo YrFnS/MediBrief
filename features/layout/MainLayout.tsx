@@ -1,7 +1,7 @@
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { ChatMode as ChatModeEnum } from '../../types';
+import { ChatMode as ChatModeEnum, ChatMessage } from '../../types';
 import Header from '../../components/Header';
 import MessageList from '../chat/components/MessageList';
 import InputBar from '../chat/components/InputBar';
@@ -29,6 +29,9 @@ import { FHIRObservation } from '../fhir/types';
 import { normalizeValue } from '../fhir/unitService';
 import { evaluateClinicalSafety } from '../cdss/rulesEngine';
 
+// Stable empty array to prevent infinite render loops
+const EMPTY_MESSAGES: ChatMessage[] = [];
+
 // Simple hook for online status
 const useOnlineStatus = () => {
     const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -52,22 +55,29 @@ const MainLayout: React.FC = () => {
     const chatActions = useChatStore(state => state.actions);
     const clinicalActions = useClinicalStore(state => state.actions);
     const auditActions = useAuditStore(state => state.actions);
-    
-    // Select messages from the specialized Chat Store
-    const activeMessages = useChatStore(state => state.chats[activePatientId] || []);
+
+    // Create a stable selector for messages
+    const messagesSelector = useMemo(
+        () => (state: { chats: Record<string, ChatMessage[]> }) =>
+            state.chats[activePatientId] ?? EMPTY_MESSAGES,
+        [activePatientId]
+    );
+
+    // Select messages from the specialized Chat Store (Stable)
+    const activeMessages: ChatMessage[] = useChatStore(messagesSelector);
 
     const { uiState, uiDispatch } = useUIStore();
-    
+
     // --- UI State ---
     const { uploadedFile, setUploadedFile, isDragging, clearFile, dragHandlers } = useFileDragAndDrop();
     const { chatMode, isLoading, pendingLabReport } = uiState;
-    
+
     // --- Local UI State ---
-    const [userLocation, setUserLocation] = useState<{latitude: number, longitude: number} | undefined>(undefined);
-    const [viewingImage, setViewingImage] = useState<{src: string, alt: string} | null>(null);
+    const [userLocation, setUserLocation] = useState<{ latitude: number, longitude: number } | undefined>(undefined);
+    const [viewingImage, setViewingImage] = useState<{ src: string, alt: string } | null>(null);
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const isOnline = useOnlineStatus();
-    
+
     // Security State
     const { isLocked, isBlurred, unlock } = useSecurityLock();
 
@@ -92,6 +102,8 @@ const MainLayout: React.FC = () => {
         }
     }, []);
 
+    const toggleSidebar = useCallback(() => setIsSidebarOpen(prev => !prev), []);
+
     // --- Live Session Integration ---
     const handleLiveTurnComplete = useCallback((userInput: string, modelOutput: string) => {
         if (userInput) {
@@ -107,8 +119,8 @@ const MainLayout: React.FC = () => {
         if (toolName === 'scheduleAppointment') {
             const { date, time, notes } = args;
             const content = `✅ **ACTION EXECUTED: Appointment Scheduled**\n\n**Date:** ${date}\n**Time:** ${time}\n${notes ? `**Notes:** ${notes}` : ''}`;
-            chatActions.addMessage(activePatientId, { 
-                role: 'model', 
+            chatActions.addMessage(activePatientId, {
+                role: 'model',
                 content: content,
                 displayContent: content
             });
@@ -120,36 +132,39 @@ const MainLayout: React.FC = () => {
         onToolCall: handleLiveToolCall
     });
 
+    const reportedLiveErrorRef = useRef<string | null>(null);
+
     useEffect(() => {
-        if (liveError) {
+        // 1. Sync Chat Mode with Live Status
+        if (isLive && chatMode !== ChatModeEnum.Live) {
+            uiDispatch({ type: 'SET_CHAT_MODE', payload: ChatModeEnum.Live });
+        } else if (!isLive && chatMode === ChatModeEnum.Live) {
+            // Only switch away if we were actually in Live mode
+            uiDispatch({ type: 'SET_CHAT_MODE', payload: ChatModeEnum.Standard });
+        }
+
+        // 2. Report Errors accurately
+        if (liveError && reportedLiveErrorRef.current !== liveError) {
+            reportedLiveErrorRef.current = liveError;
             chatActions.addMessage(activePatientId, { role: 'model', content: `Error: ${liveError}` });
             uiDispatch({ type: 'SET_ERROR', payload: liveError });
+        } else if (!liveError) {
+            reportedLiveErrorRef.current = null;
         }
-    }, [liveError, chatActions, activePatientId, uiDispatch]);
 
-    useEffect(() => {
-        if (chatMode !== ChatModeEnum.Live && isLive) stopSession();
-    }, [chatMode, isLive, stopSession]);
-
-    useEffect(() => {
-        if (isLive && chatMode !== ChatModeEnum.Live) uiDispatch({ type: 'SET_CHAT_MODE', payload: ChatModeEnum.Live });
-    }, [isLive, chatMode, uiDispatch]);
-
-    // Force stop live session if offline
-    useEffect(() => {
+        // 3. Network Safety
         if (!isOnline && isLive) {
             stopSession();
-            uiDispatch({ type: 'SET_ERROR', payload: "Network Connection Lost. Live session terminated." });
         }
-    }, [isOnline, isLive, stopSession, uiDispatch]);
+    }, [isLive, chatMode, liveError, isOnline, stopSession, uiDispatch, chatActions, activePatientId]);
 
     // --- Chat Orchestrator ---
     const { handleSend, handleStop, handleClearChat, handleExportChat } = useChatOrchestrator({
-        messages: activeMessages, 
+        messages: activeMessages,
         activePatientId: activePatientId,
-        activePatient: activePatient, 
+        activePatient: activePatient,
         chatMode: chatMode,
-        uiDispatch: uiDispatch, 
+        uiDispatch: uiDispatch,
         uploadedFile,
         setUploadedFile,
         isLive,
@@ -167,60 +182,60 @@ const MainLayout: React.FC = () => {
     // --- Lab Verification Logic ---
     const handleLabVerification = useCallback((verifiedReport: LabReport) => {
         // This is the CRITICAL safety step. Data only enters here after human verification.
-        
+
         if (!verifiedReport.labs) return;
 
         const newObs: FHIRObservation[] = verifiedReport.labs.map((lab: any) => {
-             const rawVal = parseFloat(lab.value.replace(/[^0-9.-]/g, ''));
-             const rangeMatch = lab.refRange ? lab.refRange.match(/([\d.]+)\s*-\s*([\d.]+)/) : null;
-             
-             if (isNaN(rawVal)) return null;
+            const rawVal = parseFloat(lab.value.replace(/[^0-9.-]/g, ''));
+            const rangeMatch = lab.refRange ? lab.refRange.match(/([\d.]+)\s*-\s*([\d.]+)/) : null;
 
-             // Normalize units using the VERIFIED data (not AI hallucinations)
-             const normalized = normalizeValue(rawVal, lab.units || '', lab.testName);
+            if (isNaN(rawVal)) return null;
 
-             const obs: FHIRObservation = {
-                 resourceType: 'Observation',
-                 id: uuidv4(),
-                 status: 'final',
-                 code: { text: lab.testName },
-                 subject: { reference: `Patient/${activePatientId}` },
-                 valueQuantity: { 
-                     value: normalized.value, 
-                     unit: normalized.unit,
-                     system: 'http://unitsofmeasure.org'
-                 },
-                 effectiveDateTime: verifiedReport.date && verifiedReport.date !== 'Not Visible' ? new Date(verifiedReport.date).toISOString() : new Date().toISOString(),
-                 issued: new Date().toISOString()
-             };
+            // Normalize units using the VERIFIED data (not AI hallucinations)
+            const normalized = normalizeValue(rawVal, lab.units || '', lab.testName);
 
-             // Attach warnings if still present after human edit (rare but possible for legit critical values)
-             if (normalized.warning) {
-                 obs.note = [{ text: `⚠️ DATA QUALITY: ${normalized.warning}` }];
-                 obs.interpretation = [{ text: 'Data Quality Issue' }];
-             } else if (lab.flag && lab.flag !== 'Normal') {
-                 obs.interpretation = [{ text: lab.flag }];
-             }
+            const obs: FHIRObservation = {
+                resourceType: 'Observation',
+                id: uuidv4(),
+                status: 'final',
+                code: { text: lab.testName },
+                subject: { reference: `Patient/${activePatientId}` },
+                valueQuantity: {
+                    value: normalized.value,
+                    unit: normalized.unit,
+                    system: 'http://unitsofmeasure.org'
+                },
+                effectiveDateTime: verifiedReport.date && verifiedReport.date !== 'Not Visible' ? new Date(verifiedReport.date).toISOString() : new Date().toISOString(),
+                issued: new Date().toISOString()
+            };
 
-             if (rangeMatch) {
-                 obs.referenceRange = [{
-                     low: { value: parseFloat(rangeMatch[1]), unit: lab.units, system: 'http://unitsofmeasure.org' },
-                     high: { value: parseFloat(rangeMatch[2]), unit: lab.units, system: 'http://unitsofmeasure.org' },
-                     text: lab.refRange
-                 }];
-             }
+            // Attach warnings if still present after human edit (rare but possible for legit critical values)
+            if (normalized.warning) {
+                obs.note = [{ text: `⚠️ DATA QUALITY: ${normalized.warning}` }];
+                obs.interpretation = [{ text: 'Data Quality Issue' }];
+            } else if (lab.flag && lab.flag !== 'Normal') {
+                obs.interpretation = [{ text: lab.flag }];
+            }
 
-             return obs;
+            if (rangeMatch) {
+                obs.referenceRange = [{
+                    low: { value: parseFloat(rangeMatch[1]), unit: lab.units, system: 'http://unitsofmeasure.org' },
+                    high: { value: parseFloat(rangeMatch[2]), unit: lab.units, system: 'http://unitsofmeasure.org' },
+                    text: lab.refRange
+                }];
+            }
+
+            return obs;
         }).filter(Boolean) as FHIRObservation[];
 
         if (newObs.length > 0) {
             // 1. Commit to Clinical Store
             clinicalActions.ingestObservations(activePatientId, newObs);
-            
+
             // 2. Audit the Verification
             auditActions.logEvent(
                 'SYSTEM_INIT', // Reusing type, ideally add 'DATA_VERIFICATION' type
-                activePatientId, 
+                activePatientId,
                 `User verified and ingested ${newObs.length} lab observations.`,
                 'USER'
             );
@@ -228,19 +243,19 @@ const MainLayout: React.FC = () => {
             // 3. Run CDSS Safety Checks
             const existingObs = useClinicalStore.getState().data[activePatientId]?.observations || [];
             const combinedObs = [...existingObs, ...newObs];
-            
+
             evaluateClinicalSafety(combinedObs).then(alerts => {
                 if (alerts.length > 0) {
                     clinicalActions.updateAlerts(activePatientId, alerts);
                     auditActions.logEvent(
-                        'ALERT_TRIGGERED', 
-                        activePatientId, 
-                        `Generated ${alerts.length} safety alerts from VERIFIED lab data`, 
+                        'ALERT_TRIGGERED',
+                        activePatientId,
+                        `Generated ${alerts.length} safety alerts from VERIFIED lab data`,
                         'SYSTEM'
                     );
                 }
             });
-            
+
             // 4. Notify User via Chat
             chatActions.addMessage(activePatientId, {
                 role: 'model',
@@ -271,7 +286,7 @@ const MainLayout: React.FC = () => {
                     <ShieldCheckIcon className="w-12 h-12 text-blue-500 mx-auto mb-4 animate-pulse" />
                     <h2 className="text-xl font-display font-bold uppercase tracking-widest mb-2">Session Locked</h2>
                     <p className="text-sm text-slate-400 font-mono mb-6">Security Timeout (15m)</p>
-                    <button 
+                    <button
                         onClick={unlock}
                         className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold uppercase tracking-widest rounded-sm transition-colors"
                     >
@@ -283,7 +298,7 @@ const MainLayout: React.FC = () => {
     }
 
     if (!process.env.API_KEY) {
-         return (
+        return (
             <div className="flex flex-col items-center justify-center h-screen bg-slate-100 text-slate-800 p-4">
                 <div className="bg-white p-8 rounded-xl shadow-lg max-w-md text-center">
                     <div className="text-red-500 text-5xl mb-4">⚠️</div>
@@ -291,32 +306,32 @@ const MainLayout: React.FC = () => {
                     <p className="text-slate-600">Environment variable <code>API_KEY</code> is required.</p>
                 </div>
             </div>
-         );
+        );
     }
 
     return (
-        <div 
+        <div
             className="flex h-[100dvh] font-sans overflow-hidden relative text-slate-900 bg-slate-50 transition-colors duration-500"
             {...dragHandlers}
         >
             <BioMetricBackground />
-            
+
             <DisclaimerModal />
 
             {/* QUARANTINE MODAL (Verification) */}
             {pendingLabReport && (
-                <LabVerificationModal 
-                    report={pendingLabReport} 
-                    onConfirm={handleLabVerification} 
-                    onCancel={handleCancelVerification} 
+                <LabVerificationModal
+                    report={pendingLabReport}
+                    onConfirm={handleLabVerification}
+                    onCancel={handleCancelVerification}
                 />
             )}
 
             {/* CONTENT WRAPPER */}
             <div className={`flex flex-1 w-full h-full relative transition-all duration-700 ${isBlurred ? 'blur-md opacity-60 grayscale scale-[0.99] pointer-events-none' : ''}`}>
-                <SidebarRoster 
-                    isOpen={isSidebarOpen} 
-                    toggle={() => setIsSidebarOpen(!isSidebarOpen)} 
+                <SidebarRoster
+                    isOpen={isSidebarOpen}
+                    toggle={toggleSidebar}
                 />
 
                 <div className="flex-1 flex flex-col min-w-0 relative z-10">
@@ -327,7 +342,7 @@ const MainLayout: React.FC = () => {
                         onExportChat={handleExportChat}
                         onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
                     />
-                    
+
                     {/* OFFLINE BANNER */}
                     {!isOnline && (
                         <div className="bg-amber-500 text-white px-4 py-1 text-center text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 animate-slide-up shadow-sm z-50">
@@ -335,25 +350,25 @@ const MainLayout: React.FC = () => {
                             <span>System Offline - View Only Mode</span>
                         </div>
                     )}
-                    
+
                     {activePatient && (
                         <HeadsUpDisplay patient={activePatient} />
                     )}
-                    
+
                     <CDSSContainer />
-                    
+
                     {chatMode === ChatModeEnum.Scribe ? (
                         <ScribeInterface />
                     ) : (
                         <>
-                            <MessageList 
-                                messages={activeMessages} 
-                                isLoading={isLoading} 
-                                isLive={isLive} 
-                                liveTranscript={transcript} 
+                            <MessageList
+                                messages={activeMessages}
+                                isLoading={isLoading}
+                                isLive={isLive}
+                                liveTranscript={transcript}
                                 onViewImage={handleViewImage}
                             />
-                            
+
                             <InputBar
                                 onSend={handleSend}
                                 onClearFile={clearFile}
@@ -364,7 +379,7 @@ const MainLayout: React.FC = () => {
                                 toggleLiveSession={toggleLiveSession}
                                 isLiveSessionActive={isLive}
                                 onStop={handleStop}
-                                onViewImage={handleViewImage} 
+                                onViewImage={handleViewImage}
                             />
                         </>
                     )}
@@ -373,11 +388,11 @@ const MainLayout: React.FC = () => {
 
             {/* PRIVACY SHIELD OVERLAY */}
             <div className={`absolute inset-0 z-[60] flex items-center justify-center pointer-events-none transition-opacity duration-500 ${isBlurred ? 'opacity-100' : 'opacity-0'}`}>
-                 <div className="bg-slate-900/90 text-white px-8 py-4 rounded-full font-mono text-sm uppercase tracking-widest shadow-2xl border border-white/10 flex items-center gap-3 animate-slide-up">
+                <div className="bg-slate-900/90 text-white px-8 py-4 rounded-full font-mono text-sm uppercase tracking-widest shadow-2xl border border-white/10 flex items-center gap-3 animate-slide-up">
                     <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
                     <EyeIcon className="w-4 h-4 text-emerald-500" />
                     <span>Privacy Shield Active</span>
-                 </div>
+                </div>
             </div>
 
             {isDragging && (
@@ -389,12 +404,12 @@ const MainLayout: React.FC = () => {
                     </div>
                 </div>
             )}
-            
+
             {viewingImage && (
-                <ImageViewer 
-                    src={viewingImage.src} 
-                    alt={viewingImage.alt} 
-                    onClose={() => setViewingImage(null)} 
+                <ImageViewer
+                    src={viewingImage.src}
+                    alt={viewingImage.alt}
+                    onClose={() => setViewingImage(null)}
                 />
             )}
         </div>

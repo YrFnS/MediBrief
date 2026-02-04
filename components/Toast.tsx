@@ -27,18 +27,20 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }, 4000);
     }, []);
 
+    const contextValue = React.useMemo(() => ({ showToast }), [showToast]);
+
     return (
-        <ToastContext.Provider value={{ showToast }}>
+        <ToastContext.Provider value={contextValue}>
             {children}
             <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-2 pointer-events-none">
                 {toasts.map(toast => (
-                    <div 
+                    <div
                         key={toast.id}
                         className={`
                             animate-slide-up pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-sm shadow-2xl border-l-4 min-w-[320px] max-w-md backdrop-blur-md
-                            ${toast.type === 'error' ? 'bg-slate-900/95 text-red-400 border-red-500 shadow-red-900/20' : 
-                              toast.type === 'success' ? 'bg-slate-900/95 text-emerald-400 border-emerald-500 shadow-emerald-900/20' :
-                              'bg-slate-900/95 text-blue-400 border-blue-500 shadow-blue-900/20'}
+                            ${toast.type === 'error' ? 'bg-slate-900/95 text-red-400 border-red-500 shadow-red-900/20' :
+                                toast.type === 'success' ? 'bg-slate-900/95 text-emerald-400 border-emerald-500 shadow-emerald-900/20' :
+                                    'bg-slate-900/95 text-blue-400 border-blue-500 shadow-blue-900/20'}
                         `}
                     >
                         {toast.type === 'error' && <XCircleIcon className="w-5 h-5 flex-shrink-0" />}
