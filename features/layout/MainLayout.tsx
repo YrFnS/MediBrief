@@ -133,15 +133,20 @@ const MainLayout: React.FC = () => {
     });
 
     const reportedLiveErrorRef = useRef<string | null>(null);
-
+    const prevIsLiveRef = useRef(isLive);
     useEffect(() => {
         // 1. Sync Chat Mode with Live Status
+        // If we just became live, ensure the UI mode is set to Live
         if (isLive && chatMode !== ChatModeEnum.Live) {
             uiDispatch({ type: 'SET_CHAT_MODE', payload: ChatModeEnum.Live });
-        } else if (!isLive && chatMode === ChatModeEnum.Live) {
-            // Only switch away if we were actually in Live mode
+        }
+        // If we WERE live and the session stopped (e.g. error or turn complete), 
+        // we can optionally revert to Standard mode
+        else if (prevIsLiveRef.current && !isLive && chatMode === ChatModeEnum.Live) {
             uiDispatch({ type: 'SET_CHAT_MODE', payload: ChatModeEnum.Standard });
         }
+
+        prevIsLiveRef.current = isLive;
 
         // 2. Report Errors accurately
         if (liveError && reportedLiveErrorRef.current !== liveError) {
@@ -166,6 +171,14 @@ const MainLayout: React.FC = () => {
             stopSession();
         }
     }, [isLive, chatMode, liveError, isOnline, stopSession, uiDispatch, chatActions, activePatientId]);
+
+    // Added: Manual Mode Change Handler
+    const handleModeChange = useCallback((mode: ChatModeEnum) => {
+        if (isLive && mode !== ChatModeEnum.Live) {
+            stopSession();
+        }
+        uiDispatch({ type: 'SET_CHAT_MODE', payload: mode });
+    }, [isLive, stopSession, uiDispatch]);
 
     // --- Chat Orchestrator ---
     const { handleSend, handleStop, handleClearChat, handleExportChat } = useChatOrchestrator({
@@ -346,7 +359,7 @@ const MainLayout: React.FC = () => {
                 <div className="flex-1 flex flex-col min-w-0 relative z-10">
                     <Header
                         currentMode={chatMode}
-                        onModeChange={(mode) => uiDispatch({ type: 'SET_CHAT_MODE', payload: mode })}
+                        onModeChange={handleModeChange}
                         onClearChat={handleClearChat}
                         onExportChat={handleExportChat}
                         onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
