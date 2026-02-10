@@ -3,26 +3,26 @@ import { ChatMode } from './types';
 import { Type, Modality } from '@google/genai';
 
 export const WELCOME_CONTENT = {
-    title: "MediBrief C.I.L.",
-    subtitle: "Clinical Intelligence Layer v5.1",
-    introduction: "System initialized. Acting as your primary safety and data synthesis layer. I am designed to:",
-    features: [
-        { icon: "🛡️", text: "Enforce Protocol: Active allergy & contraindication scanning" },
-        { icon: "⚖️", text: "Truth Verification: Auto-verification via NIH/CDC/PubMed" },
-        { icon: "🧠", text: "Synthesize Data: Transform raw charts into structured briefings" },
-        { icon: "👁️", text: "Visual Intelligence: Native analysis of X-Rays, EKGs, and wounds" },
-        { icon: "💊", text: "Pharmacology: Interaction matrices & dosage verification" },
-        { icon: "📡", text: "Live Telemetry: Hands-free voice consult & dictation" }
-    ],
-    getStarted: {
-        title: "Standard Operating Procedure:",
-        steps: [
-            "Ingest patient data (PDF/Images) for analysis",
-            "Verify safety alerts before order entry",
-            "Execute /brief to generate handoff artifacts"
-        ]
-    },
-    closing: "Clinical Intelligence Layer active. Awaiting input."
+  title: "MediBrief C.I.L.",
+  subtitle: "Clinical Intelligence Layer v5.1",
+  introduction: "System initialized. Acting as your primary safety and data synthesis layer. I am designed to:",
+  features: [
+    { icon: "🛡️", text: "Enforce Protocol: Active allergy & contraindication scanning" },
+    { icon: "⚖️", text: "Truth Verification: Auto-verification via NIH/CDC/PubMed" },
+    { icon: "🧠", text: "Synthesize Data: Transform raw charts into structured briefings" },
+    { icon: "👁️", text: "Visual Intelligence: Native analysis of X-Rays, EKGs, and wounds" },
+    { icon: "💊", text: "Pharmacology: Interaction matrices & dosage verification" },
+    { icon: "📡", text: "Live Telemetry: Hands-free voice consult & dictation" }
+  ],
+  getStarted: {
+    title: "Standard Operating Procedure:",
+    steps: [
+      "Ingest patient data (PDF/Images) for analysis",
+      "Verify safety alerts before order entry",
+      "Execute /brief to generate handoff artifacts"
+    ]
+  },
+  closing: "Clinical Intelligence Layer active. Awaiting input."
 };
 
 
@@ -64,37 +64,37 @@ const scheduleAppointmentFunctionDeclaration = {
 };
 
 const updateSoapNoteFunctionDeclaration = {
-    name: 'updateSoapNote',
-    parameters: {
-        type: Type.OBJECT,
-        description: 'Updates the structured SOAP note based on the ongoing consultation.',
-        properties: {
-            subjective: { type: Type.STRING, description: 'Patient symptoms, complaints, and history.' },
-            objective: { type: Type.STRING, description: 'Physical findings, vital signs, and observations.' },
-            assessment: { type: Type.STRING, description: 'Diagnosis and differential diagnoses.' },
-            plan: { type: Type.STRING, description: 'Treatment plan, medications, and follow-up.' }
-        },
-        required: ['subjective', 'objective', 'assessment', 'plan']
-    }
+  name: 'updateSoapNote',
+  parameters: {
+    type: Type.OBJECT,
+    description: 'Updates the structured SOAP note based on the ongoing consultation.',
+    properties: {
+      subjective: { type: Type.STRING, description: 'Patient symptoms, complaints, and history.' },
+      objective: { type: Type.STRING, description: 'Physical findings, vital signs, and observations.' },
+      assessment: { type: Type.STRING, description: 'Diagnosis and differential diagnoses.' },
+      plan: { type: Type.STRING, description: 'Treatment plan, medications, and follow-up.' }
+    },
+    required: ['subjective', 'objective', 'assessment', 'plan']
+  }
 };
 
 // --- Model Configs ---
 
 export const MODEL_CONFIGS = {
   [ChatMode.Standard]: {
-    model: 'gemini-3-flash-preview', // Upgraded for better reasoning
+    model: 'gemini-2.5-flash',
     config: {
-        tools: [{ googleSearch: {}, googleMaps: {} }], 
+      tools: [{ googleSearch: {}, googleMaps: {} }],
     },
     description: "Standard clinical synthesis with Search & Maps verification.",
     contextLimit: 30 // Keep last 30 text turns (High Context)
   },
   [ChatMode.Deep]: {
-    model: 'gemini-3-pro-preview',
+    model: 'gemini-2.5-pro',
     config: {
       // CRITICAL: maxOutputTokens MUST be set when using thinkingBudget
       // We set it to 64k to allow room for the 8k thinking budget + long responses
-      maxOutputTokens: 65536, 
+      maxOutputTokens: 65536,
       thinkingConfig: { thinkingBudget: 8192 },
       tools: [{ googleSearch: {} }],
     },
@@ -118,12 +118,12 @@ export const MODEL_CONFIGS = {
   [ChatMode.Scribe]: {
     model: 'gemini-2.5-flash-native-audio-preview-12-2025',
     config: {
-        responseModalities: [Modality.AUDIO], // Required by model, but we suppress playback
-        inputAudioTranscription: {}, // Enable Input Transcription for Log
-        speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } }
-        },
-        tools: [{ functionDeclarations: [updateSoapNoteFunctionDeclaration] }],
+      responseModalities: [Modality.AUDIO], // Required by model, but we suppress playback
+      inputAudioTranscription: {}, // Enable Input Transcription for Log
+      speechConfig: {
+        voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } }
+      },
+      tools: [{ functionDeclarations: [updateSoapNoteFunctionDeclaration] }],
     },
     description: "Passive ambient listening. Generates SOAP notes automatically.",
     contextLimit: 0 // Stateless stream
@@ -351,10 +351,10 @@ Conclude with: "Data integrated into Clinical Intelligence Layer."`;
 
 
 export const BRIEFING_TRIGGERS = [
-    'generate briefing',
-    'create my shift briefing',
-    'brief me',
-    'shift briefing',
+  'generate briefing',
+  'create my shift briefing',
+  'brief me',
+  'shift briefing',
 ];
 
 export const SHIFT_BRIEFING_PROMPT = () => `Based on the Clinical Intelligence Layer's current context (documents and history), generate a comprehensive shift briefing.
