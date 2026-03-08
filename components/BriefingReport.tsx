@@ -27,7 +27,7 @@ const BriefingReport: React.FC<BriefingReportProps> = ({ content }) => {
     const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
 
     const parsedBriefing = useMemo<Briefing | null>(() => {
-        return parseAndValidate<Briefing>(content, BriefingSchema);
+        return parseAndValidate(content, BriefingSchema);
     }, [content]);
 
     const handleCopy = useCallback(() => {

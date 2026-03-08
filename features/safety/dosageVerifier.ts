@@ -1,15 +1,15 @@
 
-import { fetchDrugSafetyInfo } from './openFdaService';
+import { fetchDrugSafetyInfo, sanitizeDrugName } from './openFdaService';
 import { ParsedMedication, SafetyCheckResult } from './types';
 import { PatientMetadata } from '../patient-management/types';
+import criticalLimitsData from './criticalLimits.json';
 
-// Fallback "Fast" limits for common OTC items if network fails or for double-checking
-const CRITICAL_LIMITS: Record<string, number> = {
-    "acetaminophen": 4000,
-    "paracetamol": 4000,
-    "ibuprofen": 3200,
-    "aspirin": 4000
-};
+export interface DrugLimit {
+    maxDailyAdultMg: number;
+    maxDailyPediatricMgPerKg?: number;
+}
+
+const CRITICAL_LIMITS: Record<string, DrugLimit> = criticalLimitsData;
 
 /**
  * ASYNCHRONOUS EXTERNAL GUARDRAIL
@@ -32,7 +32,7 @@ export const verifyMedicationSafetyAsync = async (medications: ParsedMedication[
     const promises = medications.map(async (med) => {
         if (signal?.aborted) return;
 
-        const lowerName = med.drugName.toLowerCase();
+        const lowerName = sanitizeDrugName(med.drugName).toLowerCase();
         
         // 1. External Verification (openFDA)
         let fdaData;
@@ -72,24 +72,42 @@ export const verifyMedicationSafetyAsync = async (medications: ParsedMedication[
         // 2. Local Critical Limit Check (Dosage Math)
         const limit = CRITICAL_LIMITS[lowerName];
         if (limit) {
-             let maxDaily = limit;
-             
+             let amountMg = med.amount;
+             const unitLower = med.unit.toLowerCase();
+             if (unitLower === 'g' || unitLower === 'gram' || unitLower === 'grams') {
+                 amountMg = med.amount * 1000;
+             } else if (unitLower === 'mcg' || unitLower === 'microgram' || unitLower === 'micrograms') {
+                 amountMg = med.amount / 1000;
+             }
+
              // Pediatric/Low Weight Context Check
              if (isPediatric) {
-                 if (patient?.demographics?.weight) {
-                     warnings.push(`⚠️ **PEDIATRIC/WEIGHT CONTEXT**: ${med.drugName} requires weight-based calculation (${patient.demographics.weight}kg). Verified against Adult max (${limit}mg) only.`);
+                 if (patient?.demographics?.weight && limit.maxDailyPediatricMgPerKg) {
+                     const calculatedMax = patient.demographics.weight * limit.maxDailyPediatricMgPerKg;
+                     if (amountMg > calculatedMax) {
+                         warnings.push(`⚠️ **PEDIATRIC DOSAGE EXCEEDED**: ${med.drugName} ${med.amount}${med.unit} exceeds calculated weight-based limit of ${calculatedMax.toFixed(1)}mg/day (for ${patient.demographics.weight}kg).`);
+                     } else {
+                         verifiedItems.push(`✅ Verified (${med.drugName}): Dose ${amountMg}mg is within pediatric limit of ${calculatedMax.toFixed(1)}mg/day.`);
+                     }
+                 } else if (patient?.demographics?.weight) {
+                     warnings.push(`⚠️ **PEDIATRIC/WEIGHT CONTEXT**: ${med.drugName} requires weight-based calculation (${patient.demographics.weight}kg). Verified against Adult max (${limit.maxDailyAdultMg}mg) only.`);
+                     if (amountMg > limit.maxDailyAdultMg) {
+                         warnings.push(`⚠️ **DOSAGE LIMIT EXCEEDED**: ${med.drugName} ${med.amount}${med.unit} exceeds adult critical limit of ${limit.maxDailyAdultMg}mg/day.`);
+                     }
                  } else {
-                     warnings.push(`⚠️ **PEDIATRIC CONTEXT**: ${med.drugName} dosing checked against Adult max (${limit}mg). This may be toxic for pediatric patients.`);
+                     warnings.push(`⚠️ **PEDIATRIC CONTEXT**: ${med.drugName} dosing checked against Adult max (${limit.maxDailyAdultMg}mg). This may be toxic for pediatric patients.`);
+                     if (amountMg > limit.maxDailyAdultMg) {
+                         warnings.push(`⚠️ **DOSAGE LIMIT EXCEEDED**: ${med.drugName} ${med.amount}${med.unit} exceeds adult critical limit of ${limit.maxDailyAdultMg}mg/day.`);
+                     }
                  }
              } else {
                  // Adult logic
-                 let amountMg = med.amount;
-                 if (med.unit.toLowerCase().includes('g') && !med.unit.toLowerCase().includes('mg')) amountMg = med.amount * 1000;
-                 
-                 if (amountMg > maxDaily) {
+                 if (amountMg > limit.maxDailyAdultMg) {
                     warnings.push(
-                        `⚠️ **DOSAGE LIMIT EXCEEDED**: ${med.drugName} ${med.amount}${med.unit} exceeds critical limit of ${maxDaily}mg/day.`
+                        `⚠️ **DOSAGE LIMIT EXCEEDED**: ${med.drugName} ${med.amount}${med.unit} exceeds critical limit of ${limit.maxDailyAdultMg}mg/day.`
                     );
+                 } else {
+                    verifiedItems.push(`✅ Verified (${med.drugName}): Dose ${amountMg}mg is within adult limit of ${limit.maxDailyAdultMg}mg/day.`);
                  }
              }
         }

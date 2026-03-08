@@ -16,6 +16,7 @@ export interface GroundingSource {
     title: string;
     placeId?: string;
   };
+  rejected?: boolean;
 }
 
 export interface ChatMessage {

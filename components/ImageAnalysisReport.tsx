@@ -54,7 +54,7 @@ const Section: React.FC<{ title: string; icon: any; children: React.ReactNode; d
 );
 
 const ImageAnalysisReport: React.FC<ImageAnalysisReportProps> = ({ content }) => {
-    const analysis = useMemo(() => parseAndValidate<ImageAnalysis>(content, ImageAnalysisSchema), [content]);
+    const analysis = useMemo(() => parseAndValidate(content, ImageAnalysisSchema), [content]);
 
     if (!analysis) {
         return <div className="text-red-500 text-sm p-4 border border-red-200 bg-red-50 rounded-sm">Error: Invalid Analysis Data Format</div>;

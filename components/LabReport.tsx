@@ -65,7 +65,7 @@ const RangeVisualizer: React.FC<{ value: string; range: string }> = ({ value, ra
 };
 
 const LabReport: React.FC<LabReportProps> = ({ content }) => {
-    const report = useMemo(() => parseAndValidate<LabReportType>(content, LabReportSchema), [content]);
+    const report = useMemo(() => parseAndValidate(content, LabReportSchema), [content]);
     
     // Zustand Selector: Specific to Clinical Data
     const activePatientId = usePatientStore(state => state.activePatientId);

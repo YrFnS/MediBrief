@@ -30,7 +30,7 @@ const getSeverityStyles = (severity: string) => {
 };
 
 const InteractionMatrix: React.FC<{ content: string }> = ({ content }) => {
-    const report = useMemo(() => parseAndValidate<InteractionMatrixType>(content, InteractionMatrixSchema), [content]);
+    const report = useMemo(() => parseAndValidate(content, InteractionMatrixSchema), [content]);
 
     if (!report) return <div className="text-red-500 text-xs p-2 border border-red-200 bg-red-50 rounded">Error: Invalid Interaction Data</div>;
 

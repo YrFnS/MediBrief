@@ -10,23 +10,7 @@ import { SafetyCheckResult, ParsedMedication } from '../../safety/types';
 import { blobStorage } from '../../../services/blobStorageService';
 import { usePatientStore } from '../../patient-management/usePatientStore';
 import { useAuditStore } from '../../audit/useAuditStore';
-
-const isHighCredibilitySource = (uri: string) => {
-    try {
-        const url = new URL(uri);
-        const domain = url.hostname.toLowerCase();
-        return domain.endsWith('.gov') || 
-               domain.endsWith('.org') || 
-               domain.endsWith('.edu') || 
-               domain.includes('mayoclinic') ||
-               domain.includes('webmd') || 
-               domain.includes('medscape') ||
-               domain.includes('ncbi') ||
-               domain.includes('pubmed');
-    } catch {
-        return false;
-    }
-};
+import { isHighCredibilitySource } from '../../../utils/sourceVerification';
 
 const MapPinIcon: React.FC<{className?: string}> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
@@ -224,7 +208,7 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLo
         <div className={`flex flex-col gap-2 group animate-slide-up ${isModel ? 'items-start' : 'items-end'}`}>
             
             <div className={`flex items-center gap-2 px-1 select-none transition-opacity duration-300 ${isModel ? 'opacity-100' : 'opacity-60'}`}>
-                {isModel && <div className={`h-1.5 w-1.5 rounded-full ${hasSafetyWarning ? 'bg-red-500 animate-pulse' : isActionExecuted ? 'bg-green-500' : 'bg-blue-500'}`}></div>}
+                {isModel && <div className={`h-1.5 w-1.5 rounded-full ${hasSafetyWarning ? 'bg-red-500 animate-pulse' : isActionExecuted ? 'bg-green-500' : (isLoading && isLast ? 'bg-blue-500 animate-pulse' : 'bg-blue-500')}`}></div>}
                 <span className={`text-[10px] font-mono uppercase tracking-widest font-semibold ${isModel ? (hasSafetyWarning ? 'text-red-600' : isActionExecuted ? 'text-green-600' : 'text-slate-500') : 'text-slate-400'}`}>
                     {isModel ? (hasSafetyWarning ? 'SAFETY INTERVENTION' : isActionExecuted ? 'SYSTEM ACTION' : 'MEDIBRIEF AI') : 'YOU'}
                 </span>
@@ -381,18 +365,25 @@ const Message: React.FC<MessageProps> = ({ message, isLoading, isLast, onImageLo
                         <div className="flex flex-wrap gap-2">
                             {message.sources.map((source, i) => {
                                 if (source.web) {
-                                    const isTrusted = isHighCredibilitySource(source.web.uri);
+                                    const isTrusted = !source.rejected;
                                     return (
-                                        <a key={i} href={source.web.uri} target="_blank" rel="noopener noreferrer"
+                                        <div key={i}
                                             className={`flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold border transition-all rounded-full max-w-full
                                                 ${isTrusted 
                                                     ? 'bg-emerald-50 border-emerald-100 text-emerald-600 hover:bg-emerald-100' 
-                                                    : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100'
+                                                    : 'bg-red-50 border-red-200 text-red-600'
                                                 }`}
+                                            title={isTrusted ? "Verified Source" : "Low Credibility Source - Rejected"}
                                         >
-                                            {isTrusted ? <ShieldCheckIcon className="w-3 h-3 text-emerald-500" /> : <LinkIcon className="w-3 h-3 text-slate-400" />}
-                                            <span className="truncate max-w-[200px]">{source.web.title}</span>
-                                        </a>
+                                            {isTrusted ? <ShieldCheckIcon className="w-3 h-3 text-emerald-500" /> : <AlertTriangleIcon className="w-3 h-3 text-red-500" />}
+                                            {isTrusted ? (
+                                                <a href={source.web.uri} target="_blank" rel="noopener noreferrer" className="truncate max-w-[200px] hover:underline">
+                                                    {source.web.title}
+                                                </a>
+                                            ) : (
+                                                <span className="truncate max-w-[200px] line-through opacity-75">{source.web.title}</span>
+                                            )}
+                                        </div>
                                     );
                                 }
                                 if (source.maps) {

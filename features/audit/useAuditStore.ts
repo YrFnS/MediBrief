@@ -38,18 +38,18 @@ export const useAuditStore = create<AuditState & AuditActions>()(
                         details,
                         metadata
                     };
-
+                    
                     set((state) => ({
                         logs: [...state.logs, newLog]
                     }));
-
+                    
                     // Optional: Console log in dev mode for visibility
                     if (process.env.NODE_ENV === 'development') {
                         console.debug(`[AUDIT] ${type}:`, details);
                     }
                 },
                 getLogsByPatient: (patientId) => {
-                    return get().logs.filter(l => l.patientId === patientId).sort((a, b) => b.timestamp - a.timestamp);
+                    return get().logs.filter(l => l.patientId === patientId).sort((a,b) => b.timestamp - a.timestamp);
                 },
                 exportLogs: () => {
                     const logs = get().logs;
@@ -69,13 +69,13 @@ export const useAuditStore = create<AuditState & AuditActions>()(
         {
             name: 'medibrief-audit-storage',
             storage: createJSONStorage(() => indexedDBStorage),
-            skipHydration: true, // Wait for SecurityGate
             partialize: (state) => ({ logs: state.logs }),
-            version: 1, // Bump version
-            migrate: (persistedState: any, version: number) => {
-                if (version === 0) return { logs: [] } as any;
-                return persistedState;
-            }
+            merge: (persistedState, currentState) => ({
+                ...currentState,
+                ...(persistedState as object),
+                actions: currentState.actions,
+            }),
+            skipHydration: true, // Wait for SecurityGate
         }
     )
 );

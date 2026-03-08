@@ -3,7 +3,6 @@
   "description": "A medical-grade intelligence layer for healthcare professionals. Synthesizes patient data, enforces safety protocols, and generates structured clinical briefings using native multimodal AI.",
   "requestFramePermissions": [
     "microphone",
-    "camera",
-    "geolocation"
+    "camera"
   ]
 }

@@ -15,12 +15,31 @@ export interface DrugSafetyInfo {
 const SAFETY_CACHE: Record<string, DrugSafetyInfo> = {};
 
 /**
+ * Sanitizes a drug name by removing dosages, routes, and units.
+ * e.g., "Tylenol 500mg PO" -> "Tylenol"
+ */
+export const sanitizeDrugName = (name: string): string => {
+    return name
+        .replace(/\b\d+(\.\d+)?\s*(mg|g|mcg|ml|l|iu|units|u)\b/gi, '') // Remove dosages like 500mg, 1g
+        .replace(/\b(po|iv|im|subq|pr|topical|oral|intravenous)\b/gi, '') // Remove routes
+        .replace(/[^a-zA-Z0-9\s-]/g, '') // Remove special characters
+        .replace(/\s+/g, ' ') // Collapse multiple spaces
+        .trim();
+};
+
+/**
  * Queries openFDA for drug label information.
  * Focuses on 'boxed_warning' which is the highest safety alert level.
  */
 export const fetchDrugSafetyInfo = async (drugName: string, signal?: AbortSignal): Promise<DrugSafetyInfo> => {
-    // 1. Check Cache
-    const cacheKey = drugName.toLowerCase().trim();
+    // 1. Sanitize and Check Cache
+    const sanitizedName = sanitizeDrugName(drugName);
+    const cacheKey = sanitizedName.toLowerCase();
+    
+    if (!cacheKey) {
+        return { status: 'not_found', found: false, source: 'openFDA' };
+    }
+
     if (SAFETY_CACHE[cacheKey]) {
         return SAFETY_CACHE[cacheKey];
     }
@@ -28,7 +47,7 @@ export const fetchDrugSafetyInfo = async (drugName: string, signal?: AbortSignal
     try {
         // 2. Construct Query
         // We search both brand and generic names for best coverage
-        const searchQuery = `openfda.brand_name:"${drugName}"+OR+openfda.generic_name:"${drugName}"`;
+        const searchQuery = `openfda.brand_name:"${sanitizedName}"+OR+openfda.generic_name:"${sanitizedName}"`;
         const url = `${FDA_API_BASE}?search=${searchQuery}&limit=1`;
 
         const response = await fetch(url, { signal });

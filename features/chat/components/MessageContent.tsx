@@ -32,6 +32,14 @@ const MessageContent: React.FC<MessageContentProps> = ({ content, role, isLoadin
 
     const isPlaceholderLoading = role === 'model' && isLast && isLoading && !content.trim();
 
+    const TypingIndicator = () => (
+        <div className="flex items-center gap-1.5 px-1 py-1">
+            <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+            <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+            <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+        </div>
+    );
+
     const parsedHtml = useMemo(() => {
         if (isStreamingJson || isPlaceholderLoading || isBriefing || isAnalysis || isLab || isInteraction) return null;
         
@@ -54,7 +62,17 @@ const MessageContent: React.FC<MessageContentProps> = ({ content, role, isLoadin
     if (isInteraction) return <InteractionMatrix content={content} />;
 
     if (isPlaceholderLoading) {
-        return <ReasoningIndicator mode={ChatMode.Standard} />;
+        return (
+            <div className="flex flex-col gap-4 animate-fade-in">
+                <div className="flex items-center gap-3">
+                    <TypingIndicator />
+                    <span className="text-[10px] font-mono font-bold text-blue-500 uppercase tracking-widest animate-pulse">
+                        Analyzing clinical context...
+                    </span>
+                </div>
+                <ReasoningIndicator mode={ChatMode.Standard} />
+            </div>
+        );
     }
 
     if (isStreamingJson) {

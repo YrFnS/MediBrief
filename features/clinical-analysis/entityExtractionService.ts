@@ -43,7 +43,7 @@ export const extractEntitiesFromUpload = async (file: UploadedFile, signal?: Abo
         if (!text) return {};
 
         // Validated parsing with explicit type
-        const parsed = parseAndValidate<EntityExtraction>(text, EntityExtractionSchema);
+        const parsed = parseAndValidate(text, EntityExtractionSchema);
         if (!parsed) return {};
 
         const result: Partial<PatientEntityData> = {};

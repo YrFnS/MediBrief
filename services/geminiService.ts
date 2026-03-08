@@ -6,7 +6,7 @@ import { cleanJsonOutput } from '../utils';
 import { scrubPII } from '../utils/piiScrubber';
 
 // Helper to extract a concise summary from a previous model response to substitute for an image
-const extractImageInsights = (modelResponseText: string): string | null => {
+const extractImageInsights = async (modelResponseText: string): Promise<string | null> => {
     if (!modelResponseText) return null;
     
     try {
@@ -28,9 +28,21 @@ const extractImageInsights = (modelResponseText: string): string | null => {
     const match = modelResponseText.match(/\*\*Visual Observations\*\*:\s*(.*?)(\n|$)/i);
     if (match && match[1]) return match[1].trim();
 
-    // 3. Fallback: Take a truncated version of the response as context
-    // Limit to 300 chars to be token-efficient
-    return modelResponseText.slice(0, 300).replace(/\n/g, ' ') + (modelResponseText.length > 300 ? "..." : "");
+    // 3. Structured Summarization: Use a lightweight LLM call to summarize clinical findings
+    try {
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: `Summarize the key clinical findings and visual observations from the following text in 1-2 concise sentences. Focus ONLY on actionable medical data:\n\n${modelResponseText}`,
+            config: {
+                temperature: 0.1,
+            }
+        });
+        return response.text?.trim() || null;
+    } catch (e) {
+        console.error("Failed to summarize image insights", e);
+        return null;
+    }
 };
 
 // Helper to convert our app's message format to Gemini's format.
@@ -93,7 +105,6 @@ const consolidateContents = (contents: Content[]): Content[] => {
 interface GenerateResponseOptions {
   file?: UploadedFile;
   responseType?: 'json' | 'text';
-  location?: { latitude: number; longitude: number };
 }
 
 export const generateResponseStream = async function* (
@@ -139,7 +150,7 @@ export const generateResponseStream = async function* (
       if (msg.role === 'user' && msg.filePreview?.type.startsWith('image/') && nextMsg && nextMsg.role === 'model') {
           // Extract insights from the *next* message (the model's analysis)
           // to substitute for the missing image data in this *user* message.
-          imageContext = extractImageInsights(nextMsg.content);
+          imageContext = await extractImageInsights(nextMsg.content);
       }
       
       contents.push(messageToContent(msg, true, imageContext));
@@ -171,17 +182,7 @@ export const generateResponseStream = async function* (
     config: {
       systemInstruction: SYSTEM_INSTRUCTION,
       ...modelConfig.config,
-      ...(options?.responseType === 'json' ? { responseMimeType: 'application/json' } : {}),
-      ...(options?.location ? {
-         toolConfig: {
-             retrievalConfig: {
-                 latLng: {
-                     latitude: options.location.latitude,
-                     longitude: options.location.longitude
-                 }
-             }
-         } as any
-      } : {})
+      ...(options?.responseType === 'json' ? { responseMimeType: 'application/json' } : {})
     },
   });
 

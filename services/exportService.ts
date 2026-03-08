@@ -1,15 +1,6 @@
 
 import { jsPDF } from 'jspdf';
-
-interface ParsedSection {
-    title: string;
-    items: string[];
-}
-
-interface ParsedBriefing {
-    briefingTitle: string;
-    sections: ParsedSection[];
-}
+import { Briefing } from '../features/chat/schemas';
 
 // Helper to strip emojis and unsupported unicode characters which break jsPDF standard fonts.
 const stripEmojis = (str: string): string => {
@@ -17,7 +8,7 @@ const stripEmojis = (str: string): string => {
               .replace(/\s+/g, ' ').trim();
 };
 
-export const exportBriefingToPdf = async (briefing: ParsedBriefing): Promise<void> => {
+export const exportBriefingToPdf = async (briefing: Briefing): Promise<void> => {
     try {
         const doc = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
 

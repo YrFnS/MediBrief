@@ -13,7 +13,7 @@ interface ChatActions {
         initializeChat: (patientId: string) => void;
         deleteChat: (patientId: string) => void;
         resetChat: (patientId: string) => void;
-
+        
         // Message Operations
         addMessage: (patientId: string, message: ChatMessage) => void;
         addResponsePlaceholder: (patientId: string) => void;
@@ -39,40 +39,40 @@ export const useChatStore = create<ChatState & ChatActions>()(
                 resetChat: (patientId) => set((state) => ({
                     chats: { ...state.chats, [patientId]: [] }
                 })),
-
+                
                 addMessage: (patientId, message) => set((state) => ({
                     chats: {
                         ...state.chats,
                         [patientId]: [...(state.chats[patientId] || []), message]
                     }
                 })),
-
+                
                 addResponsePlaceholder: (patientId) => set((state) => ({
                     chats: {
                         ...state.chats,
                         [patientId]: [...(state.chats[patientId] || []), { role: 'model', content: '' }]
                     }
                 })),
-
+                
                 appendToLastMessage: (patientId, chunk, sources) => set((state) => {
                     const history = [...(state.chats[patientId] || [])];
                     const lastMsg = history[history.length - 1];
-
+                    
                     if (lastMsg && lastMsg.role === 'model') {
                         lastMsg.content += chunk;
                         if (sources) {
                             const existing = lastMsg.sources || [];
                             // Dedup sources
-                            const newSources = sources.filter(ns =>
-                                !existing.some(es =>
-                                    (es.web?.uri && es.web.uri === ns.web?.uri) ||
+                            const newSources = sources.filter(ns => 
+                                !existing.some(es => 
+                                    (es.web?.uri && es.web.uri === ns.web?.uri) || 
                                     (es.maps?.uri && es.maps.uri === ns.maps?.uri)
                                 )
                             );
                             lastMsg.sources = [...existing, ...newSources];
                         }
                     }
-
+                    
                     return {
                         chats: { ...state.chats, [patientId]: history }
                     };
@@ -82,7 +82,7 @@ export const useChatStore = create<ChatState & ChatActions>()(
                     const history = [...(state.chats[patientId] || [])];
                     const lastMsg = history[history.length - 1];
                     if (lastMsg) lastMsg.content = content;
-
+                    
                     return {
                         chats: { ...state.chats, [patientId]: history }
                     };
@@ -92,13 +92,13 @@ export const useChatStore = create<ChatState & ChatActions>()(
         {
             name: 'medibrief-chat-storage',
             storage: createJSONStorage(() => indexedDBStorage),
-            skipHydration: true, // WAIT FOR SECURITY GATE
             partialize: (state) => ({ chats: state.chats }),
-            version: 1, // Bump version to force clear old state
-            migrate: (persistedState: any, version: number) => {
-                if (version === 0) return { chats: {} } as any;
-                return persistedState;
-            }
+            merge: (persistedState, currentState) => ({
+                ...currentState,
+                ...(persistedState as object),
+                actions: currentState.actions,
+            }),
+            skipHydration: true, // WAIT FOR SECURITY GATE
         }
     )
 );

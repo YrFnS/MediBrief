@@ -22,8 +22,15 @@ interface ClinicalValue {
     timestamp: number;
 }
 
-const extractLatestValue = (observations: FHIRObservation[], matches: string[]): ClinicalValue | null => {
+const extractLatestValue = (observations: FHIRObservation[], loincCodes: string[], matches: string[]): ClinicalValue | null => {
     const relevant = observations.filter(o => {
+        // 1. Strict LOINC matching
+        if (o.code.coding && o.code.coding.length > 0) {
+            const hasLoinc = o.code.coding.some(c => c.system === 'http://loinc.org' && c.code && loincCodes.includes(c.code));
+            if (hasLoinc) return true;
+        }
+        
+        // 2. Fallback to text matching
         const text = o.code.text?.toLowerCase() || '';
         return matches.some(m => text.includes(m));
     }).sort((a, b) => {
@@ -36,11 +43,15 @@ const extractLatestValue = (observations: FHIRObservation[], matches: string[]):
     const latest = relevant[0];
     
     if (latest.valueQuantity?.value !== undefined) {
+        // Find LOINC if available
+        const loinc = latest.code.coding?.find(c => c.system === 'http://loinc.org')?.code;
+
         // NORMALIZE & VALIDATE
         const normalized = normalizeValue(
             latest.valueQuantity.value, 
             latest.valueQuantity.unit || '', 
-            latest.code.text || ''
+            latest.code.text || '',
+            loinc
         );
         
         // SAFETY GATE: Ignore implausible values to prevent false alerts
@@ -79,7 +90,7 @@ export const evaluateClinicalSafety = async (observations: FHIRObservation[]): P
 
     // --- 1. SEPSIS-3 PROTOCOL ---
     // Trigger: Lactate > 4.0 mmol/L (Septic Shock Indicator)
-    const lactate = extractLatestValue(observations, ['lactate']);
+    const lactate = extractLatestValue(observations, ['32693-4', '2524-7'], ['lactate']);
     if (lactate && lactate.unit === NORMALIZED_UNITS.LACTATE && lactate.value > 4.0) {
         rawAlerts.push({
             id: uuidv4(),
@@ -109,7 +120,7 @@ export const evaluateClinicalSafety = async (observations: FHIRObservation[]): P
 
     // --- 2. KDIGO AKI / ELECTROLYTE PROTOCOL ---
     // Trigger: Potassium > 6.0 (Critical Hyperkalemia)
-    const potassium = extractLatestValue(observations, ['potassium', 'k+']);
+    const potassium = extractLatestValue(observations, ['2823-3', '6298-4'], ['potassium', 'k+']);
     if (potassium && potassium.unit === NORMALIZED_UNITS.POTASSIUM && potassium.value > 6.0) {
         rawAlerts.push({
             id: uuidv4(),
@@ -127,7 +138,7 @@ export const evaluateClinicalSafety = async (observations: FHIRObservation[]): P
     }
 
     // Trigger: Creatinine > 4.0 (AKI Stage 3)
-    const creatinine = extractLatestValue(observations, ['creatinine', 'scr']);
+    const creatinine = extractLatestValue(observations, ['2160-0', '38483-4'], ['creatinine', 'scr']);
     if (creatinine && creatinine.unit === NORMALIZED_UNITS.CREATININE && creatinine.value > 4.0) {
         rawAlerts.push({
             id: uuidv4(),
@@ -143,8 +154,8 @@ export const evaluateClinicalSafety = async (observations: FHIRObservation[]): P
 
     // --- 3. HEMODYNAMIC STABILITY ---
     // Trigger: MAP < 65 or SBP < 90 (Hypotension)
-    const sbp = extractLatestValue(observations, ['systolic', 'sbp']);
-    if (sbp && sbp.value < 90) {
+    const sbp = extractLatestValue(observations, ['8480-6'], ['systolic', 'sbp']);
+    if (sbp && sbp.unit === NORMALIZED_UNITS.BLOOD_PRESSURE && sbp.value < 90) {
         rawAlerts.push({
             id: uuidv4(),
             ruleId: 'PROT-HYPOTENSION',
@@ -158,8 +169,8 @@ export const evaluateClinicalSafety = async (observations: FHIRObservation[]): P
     }
 
     // Trigger: HR > 130 (Tachycardia)
-    const hr = extractLatestValue(observations, ['heart rate', 'pulse', 'hr']);
-    if (hr && hr.value > 130) {
+    const hr = extractLatestValue(observations, ['8867-4'], ['heart rate', 'pulse', 'hr']);
+    if (hr && hr.unit === NORMALIZED_UNITS.HEART_RATE && hr.value > 130) {
         rawAlerts.push({
             id: uuidv4(),
             ruleId: 'PROT-TACHYCARDIA',
@@ -173,8 +184,8 @@ export const evaluateClinicalSafety = async (observations: FHIRObservation[]): P
     }
 
     // Trigger: SpO2 < 90% (Hypoxia)
-    const spo2 = extractLatestValue(observations, ['spo2', 'oxygen', 'saturation']);
-    if (spo2 && spo2.value < 90) {
+    const spo2 = extractLatestValue(observations, ['2708-6', '59408-5'], ['spo2', 'oxygen', 'saturation']);
+    if (spo2 && spo2.unit === NORMALIZED_UNITS.SPO2 && spo2.value < 90) {
         rawAlerts.push({
             id: uuidv4(),
             ruleId: 'PROT-HYPOXIA',

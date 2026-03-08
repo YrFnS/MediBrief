@@ -1,13 +1,13 @@
 
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality } from "@google/genai";
 import { MODEL_CONFIGS, SYSTEM_INSTRUCTION } from '../constants';
 import { ChatMode, ChatMessage } from '../types';
 
 declare global {
-    interface Window {
-        webkitAudioContext: typeof AudioContext;
-    }
+  interface Window {
+    webkitAudioContext: typeof AudioContext;
+  }
 }
 
 // Type definition for the object expected by session.sendRealtimeInput
@@ -17,54 +17,54 @@ type LiveInputMedia = {
 };
 
 const encode = (bytes: Uint8Array) => {
-    let binary = '';
-    const len = bytes.byteLength;
-    for (let i = 0; i < len; i++) {
-        binary += String.fromCharCode(bytes[i]);
-    }
-    return btoa(binary);
+  let binary = '';
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
 }
 
 const decode = (base64: string) => {
-    const binaryString = atob(base64);
-    const len = binaryString.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-    }
-    return bytes;
+  const binaryString = atob(base64);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
 }
 
 async function decodeAudioData(
-    data: Uint8Array,
-    ctx: AudioContext,
-    sampleRate: number,
-    numChannels: number,
+  data: Uint8Array,
+  ctx: AudioContext,
+  sampleRate: number,
+  numChannels: number,
 ): Promise<AudioBuffer> {
-    const dataInt16 = new Int16Array(data.buffer);
-    const frameCount = dataInt16.length / numChannels;
-    const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
+  const dataInt16 = new Int16Array(data.buffer);
+  const frameCount = dataInt16.length / numChannels;
+  const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
 
-    for (let channel = 0; channel < numChannels; channel++) {
-        const channelData = buffer.getChannelData(channel);
-        for (let i = 0; i < frameCount; i++) {
-            channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
-        }
+  for (let channel = 0; channel < numChannels; channel++) {
+    const channelData = buffer.getChannelData(channel);
+    for (let i = 0; i < frameCount; i++) {
+      channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
     }
-    return buffer;
+  }
+  return buffer;
 }
 
 const createBlob = (data: Float32Array): LiveInputMedia => {
-    const l = data.length;
-    const int16 = new Int16Array(l);
-    for (let i = 0; i < l; i++) {
-        const clamped = Math.max(-1, Math.min(1, data[i]));
-        int16[i] = clamped < 0 ? clamped * 0x8000 : clamped * 0x7FFF;
-    }
-    return {
-        data: encode(new Uint8Array(int16.buffer)),
-        mimeType: 'audio/pcm;rate=16000',
-    };
+  const l = data.length;
+  const int16 = new Int16Array(l);
+  for (let i = 0; i < l; i++) {
+    const clamped = Math.max(-1, Math.min(1, data[i]));
+    int16[i] = clamped < 0 ? clamped * 0x8000 : clamped * 0x7FFF;
+  }
+  return {
+    data: encode(new Uint8Array(int16.buffer)),
+    mimeType: 'audio/pcm;rate=16000',
+  };
 }
 
 type LiveSession = Awaited<ReturnType<InstanceType<typeof GoogleGenAI>['live']['connect']>>;
@@ -94,12 +94,12 @@ export const useLiveSession = ({ onTurnComplete, onToolCall }: LiveSessionOption
     const audioSourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
     const nextStartTimeRef = useRef<number>(0);
     const mediaStreamSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
-
+    
     // Processors
     const workletNodeRef = useRef<AudioWorkletNode | null>(null);
     const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
     const workletSupportedRef = useRef<boolean>(false);
-
+    
     const isStoppingRef = useRef(false);
 
     const stopSession = useCallback(async () => {
@@ -117,35 +117,35 @@ export const useLiveSession = ({ onTurnComplete, onToolCall }: LiveSessionOption
             workletNodeRef.current?.disconnect();
             scriptProcessorRef.current?.disconnect();
             mediaStreamSourceRef.current?.disconnect();
-
+            
             workletNodeRef.current = null;
             scriptProcessorRef.current = null;
             mediaStreamSourceRef.current = null;
 
             // 3. Stop all playing audio
             audioSourcesRef.current.forEach(source => {
-                try { source.stop(); } catch (e) { }
+                try { source.stop(); } catch(e) {}
             });
             audioSourcesRef.current.clear();
 
             // 4. Suspend AudioContexts cleanly
             if (inputAudioContextRef.current && inputAudioContextRef.current.state === 'running') {
-                try { await inputAudioContextRef.current.suspend(); } catch (e) { console.warn("Input suspend failed", e); }
+                try { await inputAudioContextRef.current.suspend(); } catch(e) { console.warn("Input suspend failed", e); }
             }
             if (outputAudioContextRef.current && outputAudioContextRef.current.state === 'running') {
-                try { await outputAudioContextRef.current.suspend(); } catch (e) { console.warn("Output suspend failed", e); }
+                try { await outputAudioContextRef.current.suspend(); } catch(e) { console.warn("Output suspend failed", e); }
             }
 
             nextStartTimeRef.current = 0;
-
+            
             // 5. Finalize transcript
             if ((accumulatedTranscriptRef.current.userInput || accumulatedTranscriptRef.current.modelOutput) && onTurnComplete) {
                 onTurnComplete(accumulatedTranscriptRef.current.userInput, accumulatedTranscriptRef.current.modelOutput);
             }
-
+            
             accumulatedTranscriptRef.current = { userInput: '', modelOutput: '' };
             setTranscript({ userInput: '', modelOutput: '' });
-
+            
         } catch (e) {
             console.error("Error during session stop:", e);
         } finally {
@@ -171,7 +171,7 @@ export const useLiveSession = ({ onTurnComplete, onToolCall }: LiveSessionOption
             if (!outputAudioContextRef.current || outputAudioContextRef.current.state === 'closed') {
                 outputAudioContextRef.current = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
             }
-
+            
             if (inputAudioContextRef.current.state === 'suspended') await inputAudioContextRef.current.resume();
             if (outputAudioContextRef.current.state === 'suspended') await outputAudioContextRef.current.resume();
 
@@ -186,12 +186,12 @@ export const useLiveSession = ({ onTurnComplete, onToolCall }: LiveSessionOption
 
             let stream: MediaStream;
             try {
-                stream = await navigator.mediaDevices.getUserMedia({
+                stream = await navigator.mediaDevices.getUserMedia({ 
                     audio: {
                         echoCancellation: true,
                         noiseSuppression: true,
                         autoGainControl: true,
-                    }
+                    } 
                 });
             } catch (mediaError: any) {
                 if (mediaError.name === 'NotFoundError' || mediaError.name === 'DevicesNotFoundError') {
@@ -202,9 +202,9 @@ export const useLiveSession = ({ onTurnComplete, onToolCall }: LiveSessionOption
                 }
                 throw mediaError;
             }
-
+            
             setIsLive(true);
-
+            
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
             let contextString = "";
@@ -226,7 +226,7 @@ export const useLiveSession = ({ onTurnComplete, onToolCall }: LiveSessionOption
                     onopen: async () => {
                         if (!inputAudioContextRef.current) return;
                         mediaStreamSourceRef.current = inputAudioContextRef.current.createMediaStreamSource(stream);
-
+                        
                         if (workletSupportedRef.current) {
                             try {
                                 workletNodeRef.current = new AudioWorkletNode(inputAudioContextRef.current, 'pcm-processor');
@@ -239,7 +239,7 @@ export const useLiveSession = ({ onTurnComplete, onToolCall }: LiveSessionOption
                                 workletNodeRef.current.connect(inputAudioContextRef.current.destination);
                             } catch (e) {
                                 console.error("Worklet creation failed:", e);
-                                workletSupportedRef.current = false;
+                                workletSupportedRef.current = false; 
                                 fallbackToScriptProcessor(sessionPromise);
                             }
                         } else {
@@ -257,8 +257,8 @@ export const useLiveSession = ({ onTurnComplete, onToolCall }: LiveSessionOption
                         }
 
                         if (message.toolCall) {
-                            for (const fc of message.toolCall.functionCalls) {
-
+                             for (const fc of message.toolCall.functionCalls) {
+                                
                                 // Notify UI immediately
                                 if (onToolCall) {
                                     onToolCall(fc.name, fc.args);
@@ -279,10 +279,10 @@ export const useLiveSession = ({ onTurnComplete, onToolCall }: LiveSessionOption
                         if (audioData && outputAudioContextRef.current) {
                             const outCtx = outputAudioContextRef.current;
                             if (outCtx.state === 'suspended') await outCtx.resume();
-
+                            
                             nextStartTimeRef.current = Math.max(nextStartTimeRef.current, outCtx.currentTime);
                             const audioBuffer = await decodeAudioData(decode(audioData), outCtx, 24000, 1);
-
+                            
                             const source = outCtx.createBufferSource();
                             source.buffer = audioBuffer;
                             source.connect(outCtx.destination);
@@ -291,15 +291,15 @@ export const useLiveSession = ({ onTurnComplete, onToolCall }: LiveSessionOption
                             nextStartTimeRef.current += audioBuffer.duration;
                             audioSourcesRef.current.add(source);
                         }
-
-                        if (message.serverContent?.interrupted) {
-                            audioSourcesRef.current.forEach(source => { try { source.stop(); } catch (e) { } });
+                        
+                         if (message.serverContent?.interrupted) {
+                            audioSourcesRef.current.forEach(source => { try { source.stop(); } catch (e) {} });
                             audioSourcesRef.current.clear();
                             nextStartTimeRef.current = 0;
                         }
 
                         if (message.serverContent?.turnComplete) {
-                            if (onTurnComplete) {
+                             if (onTurnComplete) {
                                 onTurnComplete(accumulatedTranscriptRef.current.userInput, accumulatedTranscriptRef.current.modelOutput);
                             }
                             accumulatedTranscriptRef.current = { userInput: '', modelOutput: '' };
@@ -313,7 +313,7 @@ export const useLiveSession = ({ onTurnComplete, onToolCall }: LiveSessionOption
                     onclose: () => { stopSession(); },
                 },
             });
-
+            
             const session = await sessionPromise;
             if (isStoppingRef.current) {
                 session.close();
@@ -323,33 +323,28 @@ export const useLiveSession = ({ onTurnComplete, onToolCall }: LiveSessionOption
 
         } catch (e: any) {
             console.error("Live start failed", e);
-            // Ensure we clean up any partial state
             stopSession();
-
-            let errMsg = "Live connection failed.";
+            
+            let errMsg = "Microphone or connection failed.";
             const msg = e.message || e.toString();
-
+            
             if (msg.includes('No microphone found')) {
                 errMsg = "No microphone detected. Please connect a microphone.";
             } else if (msg.includes('permission denied')) {
                 errMsg = "Microphone access denied. Please allow permissions.";
             } else if (msg.includes('Media API not available')) {
                 errMsg = "Voice is not supported in this browser context (HTTPS required).";
-            } else if (msg.includes('429')) {
-                errMsg = "High traffic detected (429). Please wait a moment and try again.";
-            } else if (msg.includes('403')) {
-                errMsg = "Access denied (403). Please check your API key.";
             } else {
-                errMsg = `Connection error: ${msg}`;
+                errMsg = "Live connection failed: " + msg;
             }
-
+            
             setError(errMsg);
         }
     }, [isLive, stopSession, onTurnComplete, onToolCall]);
 
     const fallbackToScriptProcessor = (sessionPromise: Promise<LiveSession>) => {
         if (!inputAudioContextRef.current || !mediaStreamSourceRef.current) return;
-
+        
         console.log("Using ScriptProcessorNode fallback for audio input.");
         scriptProcessorRef.current = inputAudioContextRef.current.createScriptProcessor(4096, 1, 1);
         scriptProcessorRef.current.onaudioprocess = (e) => {
@@ -363,12 +358,12 @@ export const useLiveSession = ({ onTurnComplete, onToolCall }: LiveSessionOption
 
     // FIXED: Unconditional cleanup on unmount to prevent zombie streams.
     useEffect(() => {
-        return () => {
+        return () => { 
             // We do NOT check isLive here because the closure might have a stale false value.
             // stopSession is idempotent and checks internal refs/flags.
-            stopSession();
+            stopSession(); 
         };
     }, [stopSession]);
 
-    return React.useMemo(() => ({ isLive, transcript, startSession, stopSession, error }), [isLive, transcript, startSession, stopSession, error]);
+    return { isLive, transcript, startSession, stopSession, error };
 };

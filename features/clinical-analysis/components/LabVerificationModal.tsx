@@ -69,6 +69,7 @@ const LabVerificationModal: React.FC<LabVerificationModalProps> = ({ report, onC
                         <thead className="bg-slate-100 dark:bg-black/30 sticky top-0 z-10 text-[10px] uppercase font-mono font-bold text-slate-500 tracking-wider">
                             <tr>
                                 <th className="px-6 py-3 border-b border-slate-200 dark:border-slate-800">Test Name</th>
+                                <th className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 w-24">LOINC</th>
                                 <th className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 w-32">Value</th>
                                 <th className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 w-24">Unit</th>
                                 <th className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 w-32">Ref Range</th>
@@ -84,6 +85,14 @@ const LabVerificationModal: React.FC<LabVerificationModalProps> = ({ report, onC
                                             onChange={(e) => handleUpdate(i, 'testName', e.target.value)}
                                             className="w-full bg-transparent border-none focus:ring-0 font-medium text-slate-900 dark:text-slate-100 placeholder-slate-400"
                                             placeholder="Test Name"
+                                        />
+                                    </td>
+                                    <td className="px-4 py-2">
+                                        <input 
+                                            value={lab.loinc || ''} 
+                                            onChange={(e) => handleUpdate(i, 'loinc', e.target.value)}
+                                            className="w-full bg-transparent border-none focus:ring-0 text-xs text-slate-500 dark:text-slate-400 font-mono"
+                                            placeholder="LOINC"
                                         />
                                     </td>
                                     <td className="px-4 py-2">
@@ -123,7 +132,7 @@ const LabVerificationModal: React.FC<LabVerificationModalProps> = ({ report, onC
                             ))}
                             {editedLabs.length === 0 && (
                                 <tr>
-                                    <td colSpan={5} className="text-center py-8 text-slate-400 italic">
+                                    <td colSpan={6} className="text-center py-8 text-slate-400 italic">
                                         No data rows. Import cancelled.
                                     </td>
                                 </tr>

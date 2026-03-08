@@ -15,6 +15,7 @@ export const BriefingSchema = z.object({
 // --- Lab Report Schema ---
 export const LabResultSchema = z.object({
     testName: z.string().min(1),
+    loinc: z.string().optional(),
     value: z.union([z.string(), z.number()]).transform(val => String(val)),
     units: z.string().min(1).optional().or(z.literal('')), // Units can be empty for some counts
     refRange: z.string().optional().or(z.literal('')),

@@ -1,5 +1,5 @@
 
-import { z, ZodSchema } from 'zod';
+import { z } from 'zod';
 
 /**
  * Utility functions for handling AI responses and data parsing.
@@ -53,7 +53,7 @@ export const parseJsonSafe = <T>(content: string): T | null => {
  * Validates parsed JSON against a Zod schema.
  * Returns null if validation fails, logging the error.
  */
-export const parseAndValidate = <T>(content: string, schema: ZodSchema<T>): T | null => {
+export const parseAndValidate = <Schema extends z.ZodTypeAny>(content: string, schema: Schema): z.infer<Schema> | null => {
     try {
         const cleaned = cleanJsonOutput(content);
         let parsed;
@@ -68,7 +68,7 @@ export const parseAndValidate = <T>(content: string, schema: ZodSchema<T>): T | 
         if (result.success) {
             return result.data;
         } else {
-            console.warn("Zod Validation Failed:", result.error);
+            console.warn("Zod Validation Failed:", (result as any).error);
             return null;
         }
     } catch (e) {

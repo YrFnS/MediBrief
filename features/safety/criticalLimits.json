@@ -1,0 +1,19 @@
+{
+  "acetaminophen": { "maxDailyAdultMg": 4000, "maxDailyPediatricMgPerKg": 75 },
+  "paracetamol": { "maxDailyAdultMg": 4000, "maxDailyPediatricMgPerKg": 75 },
+  "ibuprofen": { "maxDailyAdultMg": 3200, "maxDailyPediatricMgPerKg": 40 },
+  "aspirin": { "maxDailyAdultMg": 4000, "maxDailyPediatricMgPerKg": 80 },
+  "morphine": { "maxDailyAdultMg": 120, "maxDailyPediatricMgPerKg": 1.2 },
+  "oxycodone": { "maxDailyAdultMg": 160, "maxDailyPediatricMgPerKg": 1.0 },
+  "hydrocodone": { "maxDailyAdultMg": 60, "maxDailyPediatricMgPerKg": 0.8 },
+  "apixaban": { "maxDailyAdultMg": 10, "maxDailyPediatricMgPerKg": 0.2 },
+  "rivaroxaban": { "maxDailyAdultMg": 20, "maxDailyPediatricMgPerKg": 0.4 },
+  "warfarin": { "maxDailyAdultMg": 10, "maxDailyPediatricMgPerKg": 0.2 },
+  "amoxicillin": { "maxDailyAdultMg": 3000, "maxDailyPediatricMgPerKg": 90 },
+  "azithromycin": { "maxDailyAdultMg": 500, "maxDailyPediatricMgPerKg": 10 },
+  "lisinopril": { "maxDailyAdultMg": 80, "maxDailyPediatricMgPerKg": 0.6 },
+  "amlodipine": { "maxDailyAdultMg": 10, "maxDailyPediatricMgPerKg": 0.3 },
+  "metformin": { "maxDailyAdultMg": 2550, "maxDailyPediatricMgPerKg": 40 },
+  "atorvastatin": { "maxDailyAdultMg": 80, "maxDailyPediatricMgPerKg": 1.0 },
+  "levothyroxine": { "maxDailyAdultMg": 0.3, "maxDailyPediatricMgPerKg": 0.005 }
+}

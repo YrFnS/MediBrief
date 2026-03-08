@@ -31,7 +31,7 @@ Extract all medications and their specific dosages from the provided text.
 If no medications are found, return an empty array [].
 `;
 
-export const extractMedicationsFromText = async (text: string): Promise<ParsedMedication[]> => {
+export const extractMedicationsFromText = async (text: string): Promise<MedicationList> => {
     try {
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         
@@ -55,7 +55,7 @@ export const extractMedicationsFromText = async (text: string): Promise<ParsedMe
         const output = response.text;
         if (!output) return [];
 
-        const parsed = parseAndValidate<MedicationList>(output, MedicationListSchema);
+        const parsed = parseAndValidate(output, MedicationListSchema);
         
         if (parsed) {
             return parsed;
