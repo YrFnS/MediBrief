@@ -90,7 +90,7 @@ export const MODEL_CONFIGS = {
     contextLimit: 30 // Keep last 30 text turns (High Context)
   },
   [ChatMode.Deep]: {
-    model: 'gemini-3-pro-preview',
+    model: 'gemini-3.1-pro-preview',
     config: {
       // CRITICAL: maxOutputTokens MUST be set when using thinkingBudget
       // We set it to 64k to allow room for the 8k thinking budget + long responses
