@@ -82,7 +82,7 @@ const updateSoapNoteFunctionDeclaration = {
 
 export const MODEL_CONFIGS = {
   [ChatMode.Standard]: {
-    model: 'gemini-3-flash-preview', // Updated to gemini-3-flash-preview
+    model: 'gemini-flash-lite-latest', // Updated to gemini-flash-lite-latest
     config: {
         tools: [{ googleSearch: {} }], 
     },

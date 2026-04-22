@@ -2,7 +2,7 @@
 import React from 'react';
 import type { ChatMode } from '../types';
 import ModeSelector from './ModeSelector';
-import { LogoIcon, NewChatIcon, DownloadIcon, MenuIcon } from './icons';
+import { LogoIcon, NewChatIcon, DownloadIcon, MenuIcon, CogIcon } from './icons';
 
 interface HeaderProps {
     currentMode: ChatMode;
@@ -10,9 +10,10 @@ interface HeaderProps {
     onClearChat: () => void;
     onExportChat: () => void;
     onToggleSidebar: () => void;
+    onOpenSettings: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ currentMode, onModeChange, onClearChat, onExportChat, onToggleSidebar }) => {
+const Header: React.FC<HeaderProps> = ({ currentMode, onModeChange, onClearChat, onExportChat, onToggleSidebar, onOpenSettings }) => {
     return (
         <header className="flex-shrink-0 bg-white/80 backdrop-blur-md border-b border-slate-200 z-30 relative sticky top-0 transition-colors">
             <div className="max-w-5xl mx-auto px-3 py-2 md:px-4 md:py-3 flex justify-between items-center gap-2 md:gap-4">
@@ -52,6 +53,13 @@ const Header: React.FC<HeaderProps> = ({ currentMode, onModeChange, onClearChat,
                     <div className="h-6 w-px bg-slate-200 mx-1 hidden md:block"></div>
 
                     <div className="flex items-center gap-0.5 md:gap-1">
+                        <button 
+                            onClick={onOpenSettings}
+                            className="p-1.5 md:p-2 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-all"
+                            title="AI Settings"
+                        >
+                            <CogIcon className="w-4 h-4 md:w-5 md:h-5" />
+                        </button>
                         <button 
                             onClick={onExportChat}
                             className="p-1.5 md:p-2 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-all"

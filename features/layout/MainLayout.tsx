@@ -13,6 +13,7 @@ import CDSSContainer from '../cdss/CDSSContainer';
 import BioMetricBackground from './BioMetricBackground';
 import DisclaimerModal from '../../components/DisclaimerModal';
 import LabVerificationModal from '../clinical-analysis/components/LabVerificationModal';
+import SettingsModal from '../settings/SettingsModal';
 import { useLiveSession } from '../../hooks/useLiveSession';
 import { useFileDragAndDrop } from '../../hooks/useFileDragAndDrop';
 import { useChatOrchestrator } from '../chat/hooks/useChatOrchestrator';
@@ -24,6 +25,7 @@ import { scrubPII } from '../../utils/piiScrubber';
 import { useSecurityLock } from '../../hooks/useSecurityLock';
 import { useClinicalStore } from '../clinical-analysis/stores/useClinicalStore';
 import { useAuditStore } from '../audit/useAuditStore';
+import { useSettingsStore } from '../settings/useSettingsStore';
 import { LabReport } from '../chat/schemas';
 import { FHIRObservation } from '../fhir/types';
 import { normalizeValue } from '../fhir/unitService';
@@ -74,10 +76,14 @@ const MainLayout: React.FC = () => {
     // --- Local UI State ---
     const [viewingImage, setViewingImage] = useState<{src: string, alt: string} | null>(null);
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const isOnline = useOnlineStatus();
     
     // Security State
     const { isLocked, isBlurred, unlock } = useSecurityLock();
+
+    const { geminiApiKey, openRouterApiKey } = useSettingsStore();
+    const hasAnyApiKey = !!(process.env.API_KEY || geminiApiKey || openRouterApiKey);
 
     // Responsive Sidebar Check
     useEffect(() => {
@@ -294,14 +300,29 @@ const MainLayout: React.FC = () => {
         );
     }
 
-    if (!process.env.API_KEY) {
+    if (!hasAnyApiKey && !isSettingsOpen) {
          return (
-            <div className="flex flex-col items-center justify-center h-screen bg-slate-100 text-slate-800 p-4">
-                <div className="bg-white p-8 rounded-xl shadow-lg max-w-md text-center">
-                    <div className="text-red-500 text-5xl mb-4">⚠️</div>
-                    <h1 className="text-xl font-bold mb-2">API Key Missing</h1>
-                    <p className="text-slate-600">Environment variable <code>API_KEY</code> is required.</p>
+            <div className="flex flex-col items-center justify-center h-[100dvh] bg-slate-100 text-slate-800 p-4 font-sans">
+                <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md text-center border border-slate-200">
+                    <div className="text-amber-500 text-5xl mb-4 animate-bounce">🔑</div>
+                    <h1 className="text-2xl font-display font-bold mb-3 text-slate-900 uppercase tracking-tight">AI Key Required</h1>
+                    <p className="text-slate-600 mb-6 text-sm leading-relaxed">
+                        To activate the Clinical Intelligence Layer, you must provide your own Gemini or OpenRouter API key.
+                    </p>
+                    <button 
+                        onClick={() => setIsSettingsOpen(true)}
+                        className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-blue-500/20"
+                    >
+                        Configure Protocol
+                    </button>
+                    <p className="mt-6 text-[10px] text-slate-400 font-mono italic">
+                        Keys are stored locally in your browser's encrypted vault.
+                    </p>
                 </div>
+                <SettingsModal 
+                    isOpen={isSettingsOpen} 
+                    onClose={() => setIsSettingsOpen(false)} 
+                />
             </div>
          );
     }
@@ -314,6 +335,11 @@ const MainLayout: React.FC = () => {
             <BioMetricBackground />
             
             <DisclaimerModal />
+            
+            <SettingsModal 
+                isOpen={isSettingsOpen} 
+                onClose={() => setIsSettingsOpen(false)} 
+            />
 
             {/* QUARANTINE MODAL (Verification) */}
             {pendingLabReport && (
@@ -338,6 +364,7 @@ const MainLayout: React.FC = () => {
                         onClearChat={handleClearChat}
                         onExportChat={handleExportChat}
                         onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+                        onOpenSettings={() => setIsSettingsOpen(true)}
                     />
                     
                     {/* OFFLINE BANNER */}

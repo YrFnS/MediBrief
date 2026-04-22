@@ -3,6 +3,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality } from "@google/genai";
 import { MODEL_CONFIGS, SYSTEM_INSTRUCTION } from '../constants';
 import { ChatMode, ChatMessage } from '../types';
+import { useSettingsStore } from '../features/settings/useSettingsStore';
 
 declare global {
   interface Window {
@@ -86,6 +87,8 @@ export const useLiveSession = ({ onTurnComplete, onToolCall }: LiveSessionOption
     const [isLive, setIsLive] = useState(false);
     const [transcript, setTranscript] = useState({ userInput: '', modelOutput: '' });
     const [error, setError] = useState<string | null>(null);
+
+    const { geminiApiKey } = useSettingsStore();
 
     const accumulatedTranscriptRef = useRef({ userInput: '', modelOutput: '' });
     const liveSessionRef = useRef<LiveSession | null>(null);
@@ -205,7 +208,11 @@ export const useLiveSession = ({ onTurnComplete, onToolCall }: LiveSessionOption
             
             setIsLive(true);
             
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            const apiKey = geminiApiKey || process.env.API_KEY || '';
+            if (!apiKey) {
+                throw new Error("Gemini API Key is required for Live Mode.");
+            }
+            const ai = new GoogleGenAI({ apiKey });
 
             let contextString = "";
             if (history.length > 0) {

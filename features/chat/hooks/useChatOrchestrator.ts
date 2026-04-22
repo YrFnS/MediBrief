@@ -2,7 +2,7 @@
 import React, { useRef, useCallback, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { ChatMode as ChatModeEnum, UploadedFile, ChatMessage, GroundingSource } from '../../../types';
-import { generateResponseStream } from '../../../services/geminiService';
+import { generateResponseStream } from '../../../services/aiService';
 import { exportBriefingToPdf } from '../../../services/exportService';
 import { cleanJsonOutput, isJsonBriefing, getFriendlyErrorMessage, isLabReport, parseAndValidate } from '../../../utils';
 import { FILE_ANALYSIS_PROMPT, BRIEFING_TRIGGERS, SHIFT_BRIEFING_PROMPT, HELP_COMMAND_RESPONSE, DRUG_ANALYSIS_PROMPT } from '../../../constants';
@@ -10,6 +10,7 @@ import { usePatientStore } from '../../patient-management/usePatientStore';
 import { useChatStore } from '../stores/useChatStore';
 import { useClinicalStore } from '../../clinical-analysis/stores/useClinicalStore';
 import { useAuditStore } from '../../audit/useAuditStore';
+import { useSettingsStore, AIProvider } from '../../settings/useSettingsStore';
 import { useEntityExtractor } from '../../../hooks/useEntityExtractor';
 import { FHIRObservation } from '../../fhir/types';
 import { evaluateClinicalSafety } from '../../cdss/rulesEngine';
@@ -55,6 +56,9 @@ export const useChatOrchestrator = ({
     
     const clinicalActions = useClinicalStore(state => state.actions);
     const auditActions = useAuditStore(state => state.actions);
+    
+    // Settings Store
+    const { provider, geminiApiKey, openRouterApiKey, selectedModel } = useSettingsStore();
     
     const abortControllerRef = useRef<AbortController | null>(null);
     const { triggerExtraction } = useEntityExtractor();
@@ -104,7 +108,13 @@ export const useChatOrchestrator = ({
             abortControllerRef.current = new AbortController();
             try {
                 const modeForRequest = ChatModeEnum.Standard;
-                const stream = generateResponseStream(SHIFT_BRIEFING_PROMPT(), history, modeForRequest, { responseType: 'json' });
+                const apiKey = provider === AIProvider.Gemini ? (geminiApiKey || process.env.API_KEY || '') : openRouterApiKey;
+                const stream = generateResponseStream(SHIFT_BRIEFING_PROMPT(), history, modeForRequest, { 
+                    responseType: 'json',
+                    apiKey,
+                    provider,
+                    model: selectedModel
+                });
                 let fullResponseText = '';
                 for await (const chunk of stream) {
                     if (abortControllerRef.current?.signal.aborted) throw new Error("Aborted");
@@ -260,7 +270,14 @@ export const useChatOrchestrator = ({
 
         try {
             const history = [...messages];
-            const stream = generateResponseStream(finalApiPrompt, history, modeForRequest, { file: fileForApi, responseType });
+            const apiKey = provider === AIProvider.Gemini ? (geminiApiKey || process.env.API_KEY || '') : openRouterApiKey;
+            const stream = generateResponseStream(finalApiPrompt, history, modeForRequest, { 
+                file: fileForApi, 
+                responseType,
+                apiKey,
+                provider,
+                model: selectedModel
+            });
             
             for await (const chunk of stream) {
                 if (abortControllerRef.current?.signal.aborted) throw new Error("Aborted");
