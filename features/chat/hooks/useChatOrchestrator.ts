@@ -5,7 +5,7 @@ import { ChatMode as ChatModeEnum, UploadedFile, ChatMessage, GroundingSource } 
 import { generateResponseStream } from '../../../services/aiService';
 import { exportBriefingToPdf } from '../../../services/exportService';
 import { cleanJsonOutput, isJsonBriefing, getFriendlyErrorMessage, isLabReport, parseAndValidate } from '../../../utils';
-import { FILE_ANALYSIS_PROMPT, BRIEFING_TRIGGERS, SHIFT_BRIEFING_PROMPT, HELP_COMMAND_RESPONSE, DRUG_ANALYSIS_PROMPT } from '../../../constants';
+import { FILE_ANALYSIS_PROMPT, BRIEFING_TRIGGERS, SHIFT_BRIEFING_PROMPT, HELP_COMMAND_RESPONSE, DRUG_ANALYSIS_PROMPT, MODEL_CONFIGS } from '../../../constants';
 import { usePatientStore } from '../../patient-management/usePatientStore';
 import { useChatStore } from '../stores/useChatStore';
 import { useClinicalStore } from '../../clinical-analysis/stores/useClinicalStore';
@@ -58,8 +58,13 @@ export const useChatOrchestrator = ({
     const auditActions = useAuditStore(state => state.actions);
     
     // Settings Store
-    const { provider, geminiApiKey, openRouterApiKey, selectedModel } = useSettingsStore();
+    const { provider, geminiApiKey, openRouterApiKey, customModels } = useSettingsStore();
     
+    // Determine the actual model to use based on settings or defaults
+    const getModelForMode = useCallback((mode: ChatModeEnum) => {
+        return customModels[mode] || MODEL_CONFIGS[mode]?.model || 'gemini-1.5-flash';
+    }, [customModels]);
+
     const abortControllerRef = useRef<AbortController | null>(null);
     const { triggerExtraction } = useEntityExtractor();
 
@@ -113,7 +118,7 @@ export const useChatOrchestrator = ({
                     responseType: 'json',
                     apiKey,
                     provider,
-                    model: selectedModel
+                    model: getModelForMode(modeForRequest)
                 });
                 let fullResponseText = '';
                 for await (const chunk of stream) {
@@ -276,7 +281,7 @@ export const useChatOrchestrator = ({
                 responseType,
                 apiKey,
                 provider,
-                model: selectedModel
+                model: getModelForMode(modeForRequest)
             });
             
             for await (const chunk of stream) {

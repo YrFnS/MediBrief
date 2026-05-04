@@ -4,6 +4,7 @@ import { GoogleGenAI, LiveServerMessage, Modality } from "@google/genai";
 import { MODEL_CONFIGS, SCRIBE_SYSTEM_INSTRUCTION } from '../../constants';
 import { ChatMode } from '../../types';
 import { SoapNote } from './types';
+import { useSettingsStore } from '../settings/useSettingsStore';
 
 // Type definition for the object expected by session.sendRealtimeInput
 type LiveInputMedia = {
@@ -43,6 +44,8 @@ export const useScribeSession = () => {
     });
     const [transcript, setTranscript] = useState<string[]>([]);
     const [error, setError] = useState<string | null>(null);
+
+    const { geminiApiKey, customModels } = useSettingsStore();
 
     const liveSessionRef = useRef<any>(null);
     const audioContextRef = useRef<AudioContext | null>(null);
@@ -106,9 +109,9 @@ export const useScribeSession = () => {
             setIsActive(true);
 
             // 2. Connect Gemini
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            const ai = new GoogleGenAI({ apiKey: geminiApiKey || process.env.API_KEY || '' });
             const sessionPromise = ai.live.connect({
-                model: MODEL_CONFIGS[ChatMode.Scribe].model,
+                model: customModels[ChatMode.Scribe] || MODEL_CONFIGS[ChatMode.Scribe].model,
                 config: {
                     ...MODEL_CONFIGS[ChatMode.Scribe].config,
                     systemInstruction: SCRIBE_SYSTEM_INSTRUCTION

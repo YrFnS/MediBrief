@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { useSettingsStore, AIProvider } from './useSettingsStore';
+import { ChatMode } from '../../types';
 import { XCircleIcon, ShieldCheckIcon, BoltIcon } from '../../components/icons';
 
 interface SettingsModalProps {
@@ -13,19 +14,21 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
         provider, setProvider, 
         geminiApiKey, setGeminiApiKey, 
         openRouterApiKey, setOpenRouterApiKey,
-        selectedModel, setSelectedModel 
+        customModels, setCustomModel 
     } = useSettingsStore();
 
     const [tempGeminiKey, setTempGeminiKey] = useState(geminiApiKey);
     const [tempOpenRouterKey, setTempOpenRouterKey] = useState(openRouterApiKey);
-    const [tempModel, setTempModel] = useState(selectedModel);
+    const [tempModels, setTempModels] = useState<Record<ChatMode, string>>(customModels);
 
     if (!isOpen) return null;
 
     const handleSave = () => {
         setGeminiApiKey(tempGeminiKey);
         setOpenRouterApiKey(tempOpenRouterKey);
-        setSelectedModel(tempModel);
+        Object.entries(tempModels).forEach(([mode, modelName]) => {
+            setCustomModel(mode as ChatMode, modelName as string);
+        });
         onClose();
     };
 
@@ -69,9 +72,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                                     key={p}
                                     onClick={() => {
                                         setProvider(p);
-                                        // Update temp model if switching provider to a sensible default
-                                        if (p === AIProvider.Gemini) setTempModel('gemini-flash-lite-latest');
-                                        else setTempModel('anthropic/claude-3.7-sonnet');
+                                        // Optional: When they switch, we could reset. But maybe let them keep their custom setup.
                                     }}
                                     className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
                                         provider === p 
@@ -105,18 +106,29 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                     </div>
 
                     {/* Model Selection */}
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-widest">Model Selection</label>
-                        <select
-                            value={tempModel}
-                            onChange={(e) => setTempModel(e.target.value)}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-medium appearance-none cursor-pointer"
-                        >
-                            {currentModels.map(m => (
-                                <option key={m} value={m}>{m}</option>
+                     <div className="space-y-3">
+                         <label className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-widest">Model Configurations</label>
+                         <div className="space-y-3 max-h-48 overflow-y-auto pr-2">
+                            {Object.entries(tempModels).map(([mode, modelValue]) => (
+                                <div key={mode} className="flex flex-col gap-1">
+                                    <span className="text-xs font-semibold text-slate-700">{mode} Mode</span>
+                                    <input
+                                        type="text"
+                                        list="model-suggestions"
+                                        value={modelValue}
+                                        onChange={(e) => setTempModels(prev => ({ ...prev, [mode]: e.target.value }))}
+                                        placeholder={`e.g., ${provider === AIProvider.Gemini ? 'gemini-1.5-pro' : 'anthropic/claude-3-opus'}`}
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-medium font-mono"
+                                    />
+                                </div>
                             ))}
-                        </select>
-                    </div>
+                         </div>
+                         <datalist id="model-suggestions">
+                             {currentModels.map(m => (
+                                 <option key={m} value={m} />
+                             ))}
+                         </datalist>
+                     </div>
 
                     <div className="pt-4 flex gap-3">
                         <button

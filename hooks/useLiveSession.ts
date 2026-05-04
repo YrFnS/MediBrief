@@ -88,7 +88,7 @@ export const useLiveSession = ({ onTurnComplete, onToolCall }: LiveSessionOption
     const [transcript, setTranscript] = useState({ userInput: '', modelOutput: '' });
     const [error, setError] = useState<string | null>(null);
 
-    const { geminiApiKey } = useSettingsStore();
+    const { geminiApiKey, customModels } = useSettingsStore();
 
     const accumulatedTranscriptRef = useRef({ userInput: '', modelOutput: '' });
     const liveSessionRef = useRef<LiveSession | null>(null);
@@ -224,7 +224,7 @@ export const useLiveSession = ({ onTurnComplete, onToolCall }: LiveSessionOption
             }
 
             const sessionPromise = ai.live.connect({
-                model: MODEL_CONFIGS[ChatMode.Live].model,
+                model: customModels[ChatMode.Live] || MODEL_CONFIGS[ChatMode.Live].model,
                 config: {
                     ...MODEL_CONFIGS[ChatMode.Live].config,
                     systemInstruction: SYSTEM_INSTRUCTION + contextString
