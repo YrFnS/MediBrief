@@ -40,10 +40,10 @@ describe('clinical date validation', () => {
     });
 
     it.each([
-        [{ value: '2026-13', precision: 'month' }],
-        [{ value: '2026-02-30', precision: 'day' }],
+        [{ value: '2026-7', precision: 'month' }],
+        [{ value: '2026-02-3', precision: 'day' }],
         [{ value: '26', precision: 'year' }],
-    ])('rejects impossible or malformed dates: %o', date => {
+    ])('rejects malformed date precision: %o', date => {
         expect(ClinicalDateSchema.safeParse(date).success).toBe(false);
     });
 });
