@@ -6,6 +6,11 @@ import {
     XCircleIcon,
 } from '../../../components/icons';
 import { blobStorage } from '../../../services/blobStorageService';
+import {
+    getSourcePreviewKind,
+    resolveDocumentSource,
+    sourceFileUnavailableMessage,
+} from '../sourceDocuments';
 import type { SourceDocumentReference } from '../types';
 import { useClinicalRecordStore } from '../useClinicalRecordStore';
 
@@ -30,23 +35,18 @@ const DocumentSourcePreview: React.FC<DocumentSourcePreviewProps> = ({
     onClose,
 }) => {
     const record = useClinicalRecordStore(state => state.records[patientId]);
-    const documentRecord = useMemo(
-        () => record?.resources.documents.find(document =>
-            document.id === source.documentId
-            || document.storageId === source.documentId,
-        ),
-        [record, source.documentId],
+    const resolvedSource = useMemo(
+        () => resolveDocumentSource(record, source),
+        [record, source],
     );
-
-    const storageId = documentRecord?.storageId || source.documentId;
-    const fileName = documentRecord?.fileName
-        || source.fileName
-        || 'Source document';
+    const {
+        documentRecord,
+        storageId,
+        fileName,
+    } = resolvedSource;
 
     const [objectUrl, setObjectUrl] = useState<string | null>(null);
-    const [mimeType, setMimeType] = useState(
-        documentRecord?.mimeType || 'application/octet-stream',
-    );
+    const [mimeType, setMimeType] = useState(resolvedSource.mimeType);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -71,14 +71,12 @@ const DocumentSourcePreview: React.FC<DocumentSourcePreviewProps> = ({
                 const stored = await blobStorage.getFile(storageId);
                 if (cancelled) return;
                 if (!stored) {
-                    setError(
-                        'The source metadata is available, but the original file is not present in this browser’s local asset vault.',
-                    );
+                    setError(sourceFileUnavailableMessage(storageId));
                     return;
                 }
 
                 const resolvedMimeType = stored.mimeType
-                    || documentRecord?.mimeType
+                    || resolvedSource.mimeType
                     || 'application/octet-stream';
                 const blob = base64ToBlob(stored.data, resolvedMimeType);
                 nextUrl = URL.createObjectURL(blob);
@@ -99,7 +97,7 @@ const DocumentSourcePreview: React.FC<DocumentSourcePreviewProps> = ({
             cancelled = true;
             if (nextUrl) URL.revokeObjectURL(nextUrl);
         };
-    }, [documentRecord?.mimeType, storageId]);
+    }, [resolvedSource.mimeType, storageId]);
 
     const previewUrl = objectUrl
         && mimeType === 'application/pdf'
@@ -107,10 +105,7 @@ const DocumentSourcePreview: React.FC<DocumentSourcePreviewProps> = ({
         ? `${objectUrl}#page=${source.pageNumber}`
         : objectUrl;
 
-    const isImage = mimeType.startsWith('image/');
-    const canEmbed = mimeType === 'application/pdf'
-        || mimeType.startsWith('text/')
-        || mimeType === 'application/json';
+    const previewKind = getSourcePreviewKind(mimeType);
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/75 p-3 backdrop-blur-sm">
@@ -187,7 +182,7 @@ const DocumentSourcePreview: React.FC<DocumentSourcePreviewProps> = ({
                         </div>
                     )}
 
-                    {!isLoading && !error && previewUrl && isImage && (
+                    {!isLoading && !error && previewUrl && previewKind === 'image' && (
                         <div className="h-full w-full overflow-auto p-4">
                             <img
                                 src={previewUrl}
@@ -197,7 +192,7 @@ const DocumentSourcePreview: React.FC<DocumentSourcePreviewProps> = ({
                         </div>
                     )}
 
-                    {!isLoading && !error && previewUrl && canEmbed && !isImage && (
+                    {!isLoading && !error && previewUrl && previewKind === 'embedded' && (
                         <iframe
                             src={previewUrl}
                             title={fileName}
@@ -205,7 +200,7 @@ const DocumentSourcePreview: React.FC<DocumentSourcePreviewProps> = ({
                         />
                     )}
 
-                    {!isLoading && !error && previewUrl && !isImage && !canEmbed && (
+                    {!isLoading && !error && previewUrl && previewKind === 'download' && (
                         <div className="absolute inset-0 flex items-center justify-center p-6">
                             <div className="max-w-xl rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-lg dark:border-slate-700 dark:bg-slate-900">
                                 <DocumentTextIcon className="mx-auto mb-3 h-10 w-10 text-blue-500" />
