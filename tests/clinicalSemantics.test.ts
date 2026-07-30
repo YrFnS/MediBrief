@@ -109,7 +109,8 @@ describe('user-facing semantic regression guards', () => {
 
         expect(reviewCard).not.toContain('Run Safety Check');
         expect(message).not.toContain('Verified Safe');
-        expect(message).toContain('FDA Label Review');
+        expect(message).toContain('FDA label information');
+        expect(message).toContain('This does not validate the patient’s regimen');
     });
 
     it('renders only explicitly validated advisories', () => {
