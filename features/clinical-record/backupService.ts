@@ -60,6 +60,12 @@ export interface BackupApplyResult {
 const cloneJson = <T>(value: T): T =>
     JSON.parse(JSON.stringify(value)) as T;
 
+const parseBackupV2 = (input: unknown): MediBriefBackupV2 =>
+    MediBriefBackupV2Schema.parse(input) as unknown as MediBriefBackupV2;
+
+const parseLegacyBackup = (input: unknown): LegacyBackupV4_2 =>
+    LegacyBackupV4_2Schema.parse(input) as unknown as LegacyBackupV4_2;
+
 const sanitizeChatMessage = (message: ChatMessage): BackupChatMessage => ({
     role: message.role,
     content: message.content,
@@ -198,7 +204,7 @@ export const createMediBriefBackupV2 = async (): Promise<BackupCreationResult> =
     });
     const assets = await exportAssets(storageIds);
 
-    const backup = MediBriefBackupV2Schema.parse({
+    const backup = parseBackupV2({
         format: MEDIBRIEF_BACKUP_FORMAT,
         version: MEDIBRIEF_BACKUP_VERSION,
         exportedAt,
@@ -302,7 +308,7 @@ const convertLegacyBackup = (
         records: migration.records,
     });
 
-    const backup = MediBriefBackupV2Schema.parse({
+    const backup = parseBackupV2({
         format: MEDIBRIEF_BACKUP_FORMAT,
         version: MEDIBRIEF_BACKUP_VERSION,
         exportedAt: convertedAt,
@@ -347,13 +353,13 @@ export const prepareMediBriefBackupImport = (
         && (input as { format?: unknown }).format === MEDIBRIEF_BACKUP_FORMAT
     ) {
         return {
-            backup: MediBriefBackupV2Schema.parse(input),
+            backup: parseBackupV2(input),
             sourceFormat: 'v2',
             warnings: [],
         };
     }
 
-    return convertLegacyBackup(LegacyBackupV4_2Schema.parse(input));
+    return convertLegacyBackup(parseLegacyBackup(input));
 };
 
 export const prepareMediBriefBackupText = (
@@ -394,7 +400,7 @@ export const applyPreparedMediBriefBackup = async (
 ): Promise<BackupApplyResult> => {
     // Parse again immediately before mutation so callers cannot alter a prepared
     // object between validation and application.
-    const backup = MediBriefBackupV2Schema.parse(prepared.backup);
+    const backup = parseBackupV2(prepared.backup);
 
     const previousPatients = cloneJson(usePatientStore.getState().patients);
     const previousActivePatientId = usePatientStore.getState().activePatientId;
@@ -422,7 +428,7 @@ export const applyPreparedMediBriefBackup = async (
         }
 
         usePatientStore.setState({
-            patients: cloneJson(backup.patients) as Record<string, PatientMetadata>,
+            patients: cloneJson(backup.patients),
             activePatientId: backup.activePatientId,
         });
         useChatStore.setState({
