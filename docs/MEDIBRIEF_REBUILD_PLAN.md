@@ -5,6 +5,7 @@
 > **Branch:** `agent/phase-1-clinical-foundation`  
 > **Started:** 2026-07-30  
 > **Current phase:** Phase 1 — Clinical Foundation  
+> **Current implementation focus:** Slice 4 — connect current UI flows to the confirmed clinical record and candidate review workflow  
 > **Primary focus:** Clinical correctness, durable structured records, traceability, and safe human review.  
 > **Explicitly out of scope for this roadmap:** Security hardening and regulatory certification.
 
@@ -206,18 +207,35 @@ Status: `[-] In progress`
 
 ## P1.4 — Migration, backup, and compatibility
 
-Status: `[ ] Not started`
+Status: `[x] Complete`
 
 - [x] Define the new clinical-record and export-format versions.
-- [ ] Build a migration from the current patient metadata and observation store.
-- [ ] Convert legacy diagnosis and allergy strings into clearly marked legacy records.
-- [ ] Preserve legacy chat history and uploaded document references.
-- [ ] Preserve existing observations and identify their limited provenance.
-- [ ] Never silently mark migrated AI-extracted facts as fully verified.
-- [x] Add strict validation schemas for the new record and export format.
-- [ ] Continue importing the previous backup format.
-- [ ] Export all clinical resources, provenance, candidates, and amendments.
-- [ ] Add migration failure reporting with no partial destructive write.
+- [x] Define and validate portable MediBrief backup v2.
+- [x] Build deterministic migration from current patient metadata and observation state.
+- [x] Convert legacy diagnosis and allergy strings into clearly marked candidate records.
+- [x] Preserve legacy chat history and uploaded document references.
+- [x] Preserve existing observations with original values and explicit limited provenance.
+- [x] Preserve age and weight without inventing date of birth or measurement dates.
+- [x] Never silently mark migrated AI-extracted facts as fully verified.
+- [x] Add strict validation schemas for the new record and backup formats.
+- [x] Continue importing the previous v4.2 backup format.
+- [x] Export all clinical resources, provenance, candidates, amendments, chats, and compatibility state.
+- [x] Embed available uploaded-file payloads in backup v2 and explicitly list missing payloads.
+- [x] Strip non-portable temporary object URLs while retaining stable file references.
+- [x] Add pre-apply validation, state snapshots, asset snapshots, and rollback on restore failure.
+- [x] Run idempotent legacy migration after encrypted stores rehydrate.
+- [x] Keep old stores intact during the dual-read compatibility period.
+
+### P1.4 implementation notes
+
+- Migrated diagnosis, allergy, code-status, age, weight, and legacy observation records use `verificationStatus: candidate`.
+- Uploaded-document existence metadata is confirmed, while the clinical content inside the document still requires review.
+- Deterministic migrated IDs make repeated unlock-time migration idempotent.
+- Legacy v4.2 backups are converted into a fully validated v2 envelope in memory before live state changes.
+- A v4.2 backup cannot contain document blobs; matching local storage IDs are reused when present and unresolved assets are reported.
+- Backup v2 includes all referenced assets that are still available in the local IndexedDB asset vault.
+- The importer never deletes unrelated local assets during restore.
+- See `docs/architecture/BACKUP_V2_AND_LEGACY_MIGRATION.md` for the complete format and transaction design.
 
 ## P1.5 — Correct misleading clinical semantics
 
@@ -247,9 +265,11 @@ Status: `[ ] Not started`
 - [ ] Add legacy backup import tests.
 - [ ] Add no-silent-data-loss migration tests.
 - [ ] Add terminology/label tests for suggestion versus execution states.
-- [ ] Add full repository build and type-check validation to each Phase 1 implementation slice.
+- [ ] Add full repository type-check validation to each Phase 1 implementation slice.
 
-### Validation already performed during P1.2
+### Validation already performed
+
+#### P1.2
 
 - Isolated strict TypeScript compilation of the new clinical-record module.
 - Lifecycle smoke tests for patient initialization and resource creation.
@@ -261,7 +281,15 @@ Status: `[ ] Not started`
 - Entered-in-error transition and reason requirement.
 - Resource queries, unknown-date behavior, partial-date overlap, and deterministic timeline sorting.
 
-These checks provide implementation evidence for the slice, but they do not replace the repository-integrated test runner required by P1.6.
+#### P1.4
+
+- The branch deploy-preview build completed successfully after the migration, backup, asset, SecurityGate, and roster integration changes.
+- Backup v2 schema cross-checks patient IDs, clinical-record ownership, active patient identity, patient-scoped map keys, and asset accounting.
+- Migration is additive and deterministic; old stores are not deleted or rewritten.
+- Restore validates the prepared object again immediately before mutation.
+- Store and overwritten-asset snapshots are restored when a synchronous apply step fails.
+
+These checks provide implementation evidence for the slices, but they do not replace the repository-integrated automated test runner and full `tsc --noEmit` validation required by P1.6.
 
 ---
 
@@ -308,11 +336,12 @@ Status: `[x] Complete`
 ## Slice 3 — Legacy migration and backup v2
 
 - Migrate old patient metadata and observations.
-- Add backward-compatible import.
-- Export the new aggregate.
-- Fail without partial destructive writes when migration cannot complete.
+- Add backward-compatible v4.2 import.
+- Export the complete new aggregate and compatibility state.
+- Include portable uploaded-file payloads when available.
+- Fail without partial destructive writes when validation or apply cannot complete.
 
-Status: `[ ] Not started`
+Status: `[x] Complete`
 
 ## Slice 4 — Connect current UI to the new record
 
@@ -320,7 +349,7 @@ Status: `[ ] Not started`
 - Keep compatibility adapters during transition.
 - Introduce the generic candidate review interface.
 
-Status: `[ ] Not started`
+Status: `[-] In progress`
 
 ## Slice 5 — Durable notes, tasks, and appointments
 
@@ -356,6 +385,11 @@ Status: `[ ] Not started`
 | 2026-07-30 | Deduplicate candidates only when stable source identity is available. | Similar facts from different documents may represent separate events and must not be merged silently. |
 | 2026-07-30 | Protect reviewed clinical history from hard deletion. | Confirmed records require amendment or entered-in-error handling, while rejected assertions remain useful provenance. |
 | 2026-07-30 | Fail on unsupported clinical persistence versions. | Medical data must not be guessed through an implicit migration; version migrations must be explicit and testable. |
+| 2026-07-30 | Migrate legacy AI-derived facts as candidates. | Legacy state does not preserve enough assertion or review provenance to call those facts confirmed. |
+| 2026-07-30 | Preserve age as a snapshot and weight as an undated observation. | Deriving date of birth or measurement time would manufacture clinical information. |
+| 2026-07-30 | Include available binary assets directly in backup v2. | A portable personal-health backup should restore the original uploaded documents, not only their metadata. |
+| 2026-07-30 | Account explicitly for every referenced asset. | Missing files must be reported rather than silently represented as successfully backed up. |
+| 2026-07-30 | Validate and prepare the complete restore before mutating live stores. | This prevents malformed or partially migrated backup content from destructively replacing working local state. |
 | 2026-07-30 | Keep security work outside this clinical rebuild roadmap. | The current project request is focused on medical completeness and correctness for a local personal application. |
 
 ---
@@ -368,15 +402,16 @@ Status: `[ ] Not started`
 | 2026-07-30 | P1.0 | Added the old/new data-flow architecture, resource lifecycle, invariants, transition strategy, and compatibility inventory. | Branch diff inspected against `main`. | `docs: describe clinical record foundation architecture` |
 | 2026-07-30 | P1.1 / Slice 1 | Added schema/version constants, full clinical resource interfaces, provenance, assertion context, unknown/partial dates, original/normalized quantities, strict Zod schemas, factories, and barrel exports. | Files remained isolated from existing UI behavior; branch diff inspected. | `feat: add clinical record foundation` |
 | 2026-07-30 | P1.2 / Slice 2 | Added the patient-scoped versioned store, typed lifecycle actions, amendment history, protected review states, strict persisted-record validation, source/date/status queries, timeline sorting, and conservative candidate deduplication. Connected the store to post-unlock hydration. | Isolated strict TypeScript compilation and lifecycle/query smoke tests passed. Full repository validation remains tracked in P1.6. | `feat: add versioned clinical record store` |
+| 2026-07-30 | P1.4 / Slice 3 | Added deterministic legacy migration, candidate conversion, portable backup v2, legacy v4.2 import, binary asset export/restore, restore rollback, unlock-time migration, and roster backup integration. | Deploy-preview build succeeded; schema and transaction paths reviewed. Full automated migration tests remain tracked in P1.6. | `feat: add legacy migration and backup v2` |
 
 ---
 
 # Open questions and deferred choices
 
-These do not block the completed store slice and can be resolved during migration and UI integration.
+These do not block the completed migration/backup slice and can be resolved during UI integration.
 
 - Whether to adopt official FHIR TypeScript definitions later or keep the smaller application-owned subset.
 - Whether OpenMed will run through a local FastAPI sidecar first or a browser/WebGPU path.
 - Whether the existing alert store should become a dedicated advisory store or be replaced by tasks plus transient notices.
 - Whether terminology coding will initially be optional free text plus coding suggestions or require a local terminology bundle.
-- Whether backup v2 should contain document blobs directly or retain a separate manifest plus blob export.
+- Whether the first candidate-review surface should be a global inbox, a patient-scoped drawer, or both.
