@@ -1,28 +1,30 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { ChatMode as ChatModeEnum } from '../../types';
-import Header from '../../components/Header';
-import ImageViewer from '../../components/ImageViewer';
 import {
     DocumentTextIcon,
     EyeIcon,
     ShieldCheckIcon,
     WifiOffIcon,
 } from '../../components/icons';
-import { scrubPII } from '../../utils/piiScrubber';
+import Header from '../../components/Header';
+import ImageViewer from '../../components/ImageViewer';
 import { useFileDragAndDrop } from '../../hooks/useFileDragAndDrop';
 import { useLiveSession } from '../../hooks/useLiveSession';
 import { useSecurityLock } from '../../hooks/useSecurityLock';
+import { ChatMode as ChatModeEnum } from '../../types';
+import { scrubPII } from '../../utils/piiScrubber';
 import { useAuditStore } from '../audit/useAuditStore';
 import CDSSContainer from '../cdss/CDSSContainer';
+import { CLINICAL_RULES_DISABLED_REASON } from '../cdss/rulesEngine';
 import InputBar from '../chat/components/InputBar';
 import MessageList from '../chat/components/MessageList';
 import { useChatOrchestrator } from '../chat/hooks/useChatOrchestrator';
-import { LabReport } from '../chat/schemas';
+import type { LabReport } from '../chat/schemas';
 import { useChatStore } from '../chat/stores/useChatStore';
 import LabVerificationModal from '../clinical-analysis/components/LabVerificationModal';
 import { useClinicalStore } from '../clinical-analysis/stores/useClinicalStore';
 import ClinicalCandidateReview from '../clinical-record/components/ClinicalCandidateReview';
+import { createProposedAppointmentRecord } from '../clinical-record/durableActions';
 import { createUnknownClinicalDate } from '../clinical-record/factories';
 import type {
     ClinicalDate,
@@ -40,7 +42,6 @@ import { useSettingsStore } from '../settings/useSettingsStore';
 import { useUIStore } from '../ui/UIContext';
 import BioMetricBackground from './BioMetricBackground';
 import DisclaimerModal from '../../components/DisclaimerModal';
-import { evaluateClinicalSafety } from '../cdss/rulesEngine';
 
 const useOnlineStatus = () => {
     const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -85,6 +86,11 @@ const clinicalDateToDateTime = (date: ClinicalDate): string | undefined =>
         ? `${date.value}T00:00:00.000Z`
         : undefined;
 
+const displayRequestValue = (value: unknown): string =>
+    typeof value === 'string' && value.trim()
+        ? value.trim()
+        : 'Unknown';
+
 const MainLayout: React.FC = () => {
     const activePatientId = usePatientStore(state => state.activePatientId);
     const activePatient = usePatientStore(
@@ -95,12 +101,8 @@ const MainLayout: React.FC = () => {
     const initializeChat = useChatStore(
         state => state.actions.initializeChat,
     );
-
     const ingestObservations = useClinicalStore(
         state => state.actions.ingestObservations,
-    );
-    const updateAlerts = useClinicalStore(
-        state => state.actions.updateAlerts,
     );
     const clinicalRecordActions = useClinicalRecordStore(
         state => state.actions,
@@ -168,18 +170,61 @@ const MainLayout: React.FC = () => {
 
     const handleLiveToolCall = useCallback((
         toolName: string,
-        args: any,
+        args: Record<string, unknown>,
     ) => {
-        if (toolName === 'scheduleAppointment') {
-            const { date, time, notes } = args;
-            const content = `✅ **ACTION EXECUTED: Appointment Scheduled**\n\n**Date:** ${date}\n**Time:** ${time}\n${notes ? `**Notes:** ${notes}` : ''}`;
+        if (toolName !== 'scheduleAppointment') return;
+
+        clinicalRecordActions.initializePatientRecord({
+            patientId: activePatientId,
+            displayName: activePatient?.name
+                || `Patient ${activePatientId.slice(0, 4)}`,
+        });
+        const { record, warnings } = createProposedAppointmentRecord({
+            patientId: activePatientId,
+            date: args.date,
+            time: args.time,
+            notes: args.notes,
+            createdBy: 'Local user',
+        });
+        const result = clinicalRecordActions.addResource(record);
+
+        if (!result.ok) {
             addMessage(activePatientId, {
                 role: 'model',
-                content,
-                displayContent: content,
+                content: `⚠️ **Appointment request not saved**\n${result.message || 'The local appointment proposal could not be created.'}`,
             });
+            return;
         }
-    }, [addMessage, activePatientId]);
+
+        logEvent(
+            'APPOINTMENT_PROPOSAL_CREATED',
+            activePatientId,
+            'Saved a proposed appointment request to the structured patient record.',
+            'USER',
+            {
+                appointmentId: record.id,
+                requestedDate: displayRequestValue(args.date),
+                requestedTime: displayRequestValue(args.time),
+                warnings,
+            },
+        );
+
+        const warningText = warnings.length > 0
+            ? `\n\n**Needs review:**\n${warnings.map(warning => `- ${warning}`).join('\n')}`
+            : '';
+        const content = `📅 **Appointment request saved**\n\n**Requested date:** ${displayRequestValue(args.date)}\n**Requested time:** ${displayRequestValue(args.time)}\n${args.notes ? `**Notes:** ${displayRequestValue(args.notes)}\n` : ''}**Status:** Proposed — not booked\n\nThis local record does not confirm that a clinic accepted or scheduled the appointment.${warningText}\n\n**Record ID:** ${record.id}`;
+        addMessage(activePatientId, {
+            role: 'model',
+            content,
+            displayContent: content,
+        });
+    }, [
+        activePatient,
+        activePatientId,
+        addMessage,
+        clinicalRecordActions,
+        logEvent,
+    ]);
 
     const {
         isLive,
@@ -265,7 +310,7 @@ const MainLayout: React.FC = () => {
         const clinicalDate = parseReviewedClinicalDate(verifiedReport.date);
         const legacyEffectiveDateTime = clinicalDateToDateTime(clinicalDate);
 
-        const reviewedLabs = verifiedReport.labs.map((lab: any) => {
+        const reviewedLabs = verifiedReport.labs.map(lab => {
             const rawValue = Number.parseFloat(
                 String(lab.value).replace(/[^0-9.-]/g, ''),
             );
@@ -290,7 +335,7 @@ const MainLayout: React.FC = () => {
             };
         }).filter(Boolean) as Array<{
             id: string;
-            lab: any;
+            lab: LabReport['labs'][number];
             rawValue: number;
             rangeMatch: RegExpMatchArray | null;
             normalized: ReturnType<typeof normalizeValue>;
@@ -438,10 +483,6 @@ const MainLayout: React.FC = () => {
         });
 
         if (newLegacyObservations.length > 0) {
-            const previousLegacyObservations = useClinicalStore
-                .getState()
-                .data[activePatientId]?.observations || [];
-
             ingestObservations(activePatientId, newLegacyObservations);
             clinicalRecordActions.initializePatientRecord({
                 patientId: activePatientId,
@@ -461,27 +502,13 @@ const MainLayout: React.FC = () => {
                     reportDate: clinicalDate.value,
                     reportDatePrecision: clinicalDate.precision,
                     observationIds: newClinicalObservations.map(item => item.id),
+                    automatedRulesEnabled: false,
                 },
             );
 
-            evaluateClinicalSafety([
-                ...previousLegacyObservations,
-                ...newLegacyObservations,
-            ]).then(alerts => {
-                if (alerts.length > 0) {
-                    updateAlerts(activePatientId, alerts);
-                    logEvent(
-                        'ALERT_TRIGGERED',
-                        activePatientId,
-                        `Generated ${alerts.length} automated advisories from reviewed lab data.`,
-                        'SYSTEM',
-                    );
-                }
-            });
-
             addMessage(activePatientId, {
                 role: 'model',
-                content: `✅ **Reviewed lab data saved**\nAdded ${newClinicalObservations.length} numeric result${newClinicalObservations.length === 1 ? '' : 's'} to the structured patient record.${clinicalDate.value ? '' : ' The report date remains explicitly unknown.'}`,
+                content: `✅ **Reviewed lab data saved**\nAdded ${newClinicalObservations.length} numeric result${newClinicalObservations.length === 1 ? '' : 's'} to the structured patient record.${clinicalDate.value ? '' : ' The report date remains explicitly unknown.'}\n\n${CLINICAL_RULES_DISABLED_REASON}`,
             });
         }
 
@@ -494,7 +521,6 @@ const MainLayout: React.FC = () => {
         ingestObservations,
         logEvent,
         uiDispatch,
-        updateAlerts,
     ]);
 
     const handleCancelVerification = useCallback(() => {
