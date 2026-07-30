@@ -93,8 +93,8 @@ Status: `[ ] Not started`
 - [x] Create a dedicated Phase 1 branch.
 - [x] Add this living roadmap.
 - [x] Record the current clinical-data limitations.
-- [ ] Add an architecture note describing the old and new record flows.
-- [ ] Add a compatibility inventory of components consuming the current stores.
+- [x] Add an architecture note describing the old and new record flows.
+- [x] Add a compatibility inventory of components consuming the current stores.
 
 ### Current baseline limitations
 
@@ -110,52 +110,52 @@ Status: `[ ] Not started`
 
 ## P1.1 — Shared clinical domain model
 
-Status: `[-] In progress`
+Status: `[x] Complete`
 
 ### Foundation contracts
 
-- [ ] Add versioned record-schema constants.
-- [ ] Add common identifiers and timestamps.
-- [ ] Add `RecordSource` and source-document references.
-- [ ] Add `ClinicalProvenance` metadata.
-- [ ] Add `VerificationStatus`:
+- [x] Add versioned record-schema constants.
+- [x] Add common identifiers and timestamps.
+- [x] Add `RecordSource` and source-document references.
+- [x] Add `ClinicalProvenance` metadata.
+- [x] Add `VerificationStatus`:
   - `candidate`
   - `confirmed`
   - `rejected`
   - `entered-in-error`
-- [ ] Add assertion context:
+- [x] Add assertion context:
   - polarity/negation
   - certainty
   - temporality
   - experiencer
-- [ ] Add amendment and correction metadata.
-- [ ] Add original-versus-normalized value contracts.
+- [x] Add amendment and correction metadata.
+- [x] Add original-versus-normalized value contracts.
 
 ### Core resources
 
-- [ ] Expand the patient profile with date of birth and optional identifiers.
-- [ ] Add `EncounterRecord`.
-- [ ] Add `ConditionRecord`.
-- [ ] Add `AllergyIntoleranceRecord`.
-- [ ] Add `MedicationRecord`.
-- [ ] Add `ObservationRecord`.
-- [ ] Add `DiagnosticReportRecord`.
-- [ ] Add `SpecimenRecord`.
-- [ ] Add `ProcedureRecord`.
-- [ ] Add `ImmunizationRecord`.
-- [ ] Add `AppointmentRecord`.
-- [ ] Add `ClinicalTaskRecord`.
-- [ ] Add `CarePlanRecord`.
-- [ ] Expand `DocumentReferenceRecord`.
-- [ ] Add `ClinicalNoteRecord` with draft/final/amended status.
+- [x] Expand the patient profile with date of birth and optional identifiers.
+- [x] Add `EncounterRecord`.
+- [x] Add `ConditionRecord`.
+- [x] Add `AllergyIntoleranceRecord`.
+- [x] Add `MedicationRecord`.
+- [x] Add `ObservationRecord`.
+- [x] Add `DiagnosticReportRecord`.
+- [x] Add `SpecimenRecord`.
+- [x] Add `ProcedureRecord`.
+- [x] Add `ImmunizationRecord`.
+- [x] Add `AppointmentRecord`.
+- [x] Add `ClinicalTaskRecord`.
+- [x] Add `CarePlanRecord`.
+- [x] Expand `DocumentReferenceRecord`.
+- [x] Add `ClinicalNoteRecord` with draft/final/amended status.
 
 ### Design requirements
 
-- [ ] No model should require an AI-generated interpretation to be useful.
-- [ ] Resources must support manual entry without a source document.
-- [ ] Extracted resources must preserve source document, page/section, and text offsets when available.
-- [ ] Date fields must support unknown or partial dates without substituting the current date.
-- [ ] Resource types must be serializable and schema-validated.
+- [x] No model should require an AI-generated interpretation to be useful.
+- [x] Resources support manual entry without a source document.
+- [x] Extracted resources preserve source document, page/section, and text offsets when available.
+- [x] Date fields support unknown or partial dates without substituting the current date.
+- [x] Resource types are serializable and schema-validated.
 
 ## P1.2 — Versioned clinical record store
 
@@ -177,26 +177,26 @@ Status: `[ ] Not started`
 Status: `[ ] Not started`
 
 - [ ] Create a generic `ClinicalCandidate` contract.
-- [ ] Store candidate resources separately from confirmed resources or clearly distinguish them by verification status.
-- [ ] Add source preview metadata.
+- [x] Store candidate resources separately from confirmed summaries through `verificationStatus`.
+- [x] Add source preview metadata.
 - [ ] Require explicit confirmation before candidates affect the patient summary.
 - [ ] Support edit-before-confirm.
 - [ ] Support reject with an optional reason.
-- [ ] Support later correction of a confirmed resource.
-- [ ] Record extraction engine and version.
-- [ ] Record confidence without treating it as clinical certainty.
+- [x] Support later correction metadata for a confirmed resource.
+- [x] Record extraction engine and version.
+- [x] Record confidence without treating it as clinical certainty.
 
 ## P1.4 — Migration, backup, and compatibility
 
 Status: `[ ] Not started`
 
-- [ ] Define a new backup format version.
+- [x] Define the new clinical record and export format versions.
 - [ ] Build a migration from the current patient metadata and observation store.
 - [ ] Convert legacy diagnosis/allergy strings into clearly marked legacy records.
 - [ ] Preserve legacy chat history and uploaded document references.
 - [ ] Preserve existing observations and identify their limited provenance.
 - [ ] Never silently mark migrated AI-extracted facts as fully verified.
-- [ ] Add strict import validation for the new format.
+- [x] Add strict validation schemas for the new record and export format.
 - [ ] Continue importing the previous backup format.
 - [ ] Export all clinical resources, provenance, candidates, and amendments.
 - [ ] Add migration failure reporting with no partial destructive write.
@@ -261,7 +261,7 @@ These slices are intentionally small enough to review and validate independently
 - Add Zod schemas for the domain.
 - Do not change current UI behavior yet.
 
-Status: `[-] In progress`
+Status: `[x] Complete`
 
 ## Slice 2 — New clinical record store
 
@@ -313,6 +313,8 @@ Status: `[ ] Not started`
 | 2026-07-30 | Use FHIR-inspired internal models without requiring a FHIR server. | This improves consistency and future interoperability while keeping the local application lightweight. |
 | 2026-07-30 | Treat OpenMed as a candidate-extraction layer, not the medical record or autonomous decision maker. | It provides useful local NLP and context extraction, but facts still require review and durable application-owned storage. |
 | 2026-07-30 | Preserve original values alongside normalized values. | Normalization must never destroy source truth or prevent later correction. |
+| 2026-07-30 | Represent partial and unknown clinical dates with a dedicated value-plus-precision type. | It prevents invented dates while supporting year-only, month-only, day, and unknown source values. |
+| 2026-07-30 | Use resource-level `verificationStatus` for candidate lifecycle. | Candidate and confirmed resources keep one consistent shape while remaining distinguishable in queries and summaries. |
 | 2026-07-30 | Keep security work outside this clinical rebuild roadmap. | The current project request is focused on medical completeness and correctness for a local personal application. |
 
 ---
@@ -322,16 +324,17 @@ Status: `[ ] Not started`
 | Date | Phase / slice | Work completed | Validation | Commit |
 |---|---|---|---|---|
 | 2026-07-30 | P1.0 | Created `agent/phase-1-clinical-foundation` and added the living clinical rebuild plan. | Repository file created on the dedicated branch. | `docs: add MediBrief clinical rebuild plan` |
+| 2026-07-30 | P1.0 | Added the old/new data-flow architecture, resource lifecycle, invariants, transition strategy, and compatibility inventory. | Branch diff inspected against `main`. | `docs: describe clinical record foundation architecture` |
+| 2026-07-30 | P1.1 / Slice 1 | Added schema/version constants, full clinical resource interfaces, provenance, assertion context, unknown/partial dates, original/normalized quantities, strict Zod schemas, factories, and barrel exports. | All files are isolated from existing UI behavior; branch diff inspected. Full repository type-check remains part of P1.6. | `feat: add clinical record foundation` |
 
 ---
 
 # Open questions and deferred choices
 
-These do not block Slice 1 and can be resolved while implementation progresses.
+These do not block the completed domain slice and can be resolved while the store is implemented.
 
 - Whether the internal resource aggregate should remain in Zustand or use a repository/service abstraction around IndexedDB.
 - Whether to adopt the official FHIR TypeScript definitions later or keep a smaller application-owned subset.
-- Whether partial dates should use a dedicated structured type or ISO-like strings plus precision metadata.
 - Whether OpenMed will run through a local FastAPI sidecar first or a browser/WebGPU path.
 - Whether the existing alert store should be replaced with tasks and advisories or retained as a separate transient UI layer.
 - Whether terminology coding will initially be optional free text plus coding suggestions or require a local terminology bundle.
