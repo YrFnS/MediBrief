@@ -1,12 +1,14 @@
-name: Phase 1 Clinical Validation
+name: MediBrief Clinical Validation
 
 on:
   pull_request:
     branches:
       - main
+      - agent/phase-1-clinical-foundation
   push:
     branches:
       - agent/phase-1-clinical-foundation
+      - agent/phase-2-personal-health-record
 
 permissions:
   contents: read
