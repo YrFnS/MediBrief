@@ -4,8 +4,8 @@
 >
 > **Branch:** `agent/phase-1-clinical-foundation`  
 > **Started:** 2026-07-30  
-> **Current phase:** Phase 1 — Clinical Foundation  
-> **Current implementation focus:** P1.6 — repository-integrated tests and acceptance evidence  
+> **Phase 1 completed:** 2026-07-30  
+> **Current phase:** Phase 2 — Personal Health Record Interface  
 > **Primary focus:** Clinical correctness, durable structured records, traceability, and safe human review  
 > **Explicitly outside this roadmap:** Security hardening and regulatory certification
 
@@ -48,7 +48,7 @@ The target product should provide:
 
 **Goal:** Replace the observation-only and string-based patient model with a versioned, traceable clinical record while preserving the current application shell.
 
-Status: `[-] In progress`
+Status: `[x] Complete`
 
 ## Phase 2 — Personal Health Record Interface
 
@@ -285,81 +285,79 @@ Status: `[x] Complete`
 - `medicationLabelReviewService.ts` performs label lookup without dose arithmetic or a binary safety verdict.
 - `dosageVerifier.ts` remains only as a deprecated compatibility wrapper.
 - The ambient scribe requires explicit user save and writes a durable reviewed SOAP note.
-- The image viewer now says `Medical Image Viewer` and explicitly describes its limited controls.
+- The image viewer says `Medical Image Viewer` and explicitly describes its limited controls.
 - See `docs/architecture/DURABLE_ACTIONS_AND_SAFE_SEMANTICS.md`.
 
 ## P1.6 — Tests and acceptance evidence
 
-Status: `[-] In progress`
+Status: `[x] Complete`
 
-- [ ] Add a repository test runner and test scripts.
-- [ ] Add domain-schema validation tests.
-- [ ] Add clinical-record store CRUD tests.
-- [ ] Add persistence-version and hydration tests.
-- [ ] Add unknown and partial date tests.
-- [ ] Add provenance and amendment-preservation tests.
-- [ ] Add candidate confirmation and rejection tests.
-- [ ] Add confirmed-only selector tests.
-- [ ] Add legacy migration and v4.2 import tests.
-- [ ] Add backup-v2 round-trip and rollback tests.
-- [ ] Add no-silent-data-loss migration tests.
-- [ ] Add source-document resolution and missing-asset tests.
-- [ ] Add durable appointment, task, and note tests.
-- [ ] Add semantic-label tests for proposed versus booked, task versus order, and acknowledged versus completed.
-- [ ] Add medication label-review limitation tests.
-- [ ] Add disabled-rule regression tests.
-- [ ] Add image-viewer terminology tests.
-- [ ] Run full repository `tsc --noEmit`.
-- [ ] Run the production build and automated suite from the repository test runner.
-- [ ] Resolve any remaining compatibility defects discovered by the tests.
-- [ ] Update this roadmap and the architecture notes with final acceptance evidence.
+- [x] Add a repository test runner and test scripts.
+- [x] Add domain-schema validation tests.
+- [x] Add clinical-record store CRUD tests.
+- [x] Add persistence-version and hydration tests.
+- [x] Add unknown and partial date tests.
+- [x] Add provenance and amendment-preservation tests.
+- [x] Add candidate confirmation and rejection tests.
+- [x] Add conservative duplicate-candidate tests.
+- [x] Add confirmed-only selector tests.
+- [x] Add legacy migration and v4.2 import tests.
+- [x] Add backup-v2 validation, round-trip, missing-asset, and rollback tests.
+- [x] Add no-silent-data-loss and migration-idempotency tests.
+- [x] Add source-document resolution and preview-behavior tests.
+- [x] Add durable appointment, task, and note tests.
+- [x] Add chat-independence tests for durable records.
+- [x] Add semantic-label tests for proposed versus booked, task versus order, and acknowledged versus completed.
+- [x] Add medication label-review limitation tests.
+- [x] Add disabled-rule regression tests.
+- [x] Add image-viewer terminology tests.
+- [x] Add a GitHub Actions validation workflow.
+- [x] Run full repository `tsc --noEmit`.
+- [x] Run the complete automated test suite.
+- [x] Run the production Vite build.
+- [x] Resolve compatibility defects discovered by the new pipeline.
+- [x] Record final acceptance evidence.
 
-### Validation evidence already collected
+### Final P1.6 evidence
 
-#### P1.2
+GitHub Actions completed the repository validation pipeline successfully on Node.js 24:
 
-- Isolated strict TypeScript compilation of the clinical-record module.
-- Lifecycle smoke tests for initialization, creation, review transitions, amendment history, protected records, unknown dates, queries, and timeline sorting.
+- TypeScript: `tsc --noEmit` passed.
+- Test files: **14 of 14 passed**.
+- Tests: **56 of 56 passed**.
+- Production build: `vite build` passed.
+- Production modules transformed: **986**.
+- Final workflow steps for install, type-check, tests, and build all succeeded.
 
-#### P1.3
+The new tests discovered and helped correct:
 
-- Netlify deploy-preview build passed after confirmed-only selectors, candidate review, source preview, extraction routing, HUD integration, and reviewed-observation writes.
-- The HUD no longer reads legacy strings as confirmed facts.
-- The review queue removes resources after confirmation or rejection while preserving history.
+- overly optional Zod-inferred backup types under the repository compiler settings;
+- backup advisory schemas that lagged behind corrected task and validation semantics;
+- source-document resolution logic that needed a testable pure boundary;
+- a stale medication-review wording assertion.
 
-#### P1.4
+The production build still reports non-blocking bundle-size and mixed static/dynamic import warnings. Those are performance concerns rather than Phase 1 clinical-record correctness failures and should be handled in a separate optimization workstream.
 
-- Netlify deploy-preview build passed after migration, backup, asset, security-gate, and roster integration.
-- Backup validation cross-checks patient ownership, active identity, patient-scoped maps, and asset accounting.
-- Restore validates again before mutation and restores snapshots on synchronous apply failure.
-
-#### P1.5
-
-- Netlify deploy-preview build passed after durable notes, appointment proposals, advisory tasks, disabled rules, medication label-only review, image-viewer terminology, and prompt-boundary changes.
-- Existing unvalidated legacy advisories no longer render in the active advisory UI.
-- Reviewed lab rows no longer trigger the disabled deterministic rules.
-- The hard-coded medication dose-limit file was removed.
-
-These checks are implementation evidence, but they do not replace the repository-integrated automated suite required to finish P1.6.
+See `docs/architecture/PHASE_1_ACCEPTANCE_EVIDENCE.md` for the complete coverage map and final evidence.
 
 ---
 
 # Phase 1 acceptance criteria
 
-Phase 1 is complete only when all of the following are true:
+- [x] MediBrief persists structured conditions, allergies, medications, encounters, observations, reports, procedures, immunizations, appointments, documents, notes, tasks, and care plans.
+- [x] Extracted facts can remain candidates until confirmed or rejected.
+- [x] Confirmed resources preserve provenance and amendment history.
+- [x] Unknown dates remain explicitly unknown.
+- [x] Legacy data migrates without silent loss.
+- [x] Backup and restore use strict versioned validation.
+- [x] Chat is no longer the only durable representation of notes, appointments, tasks, or actions.
+- [x] Proposed, booked, ordered, acknowledged, and completed states are not conflated.
+- [x] Misleading `executed`, `PACS`, and medication `safe/verified` claims are removed where unsupported.
+- [x] Unvalidated clinical-rule conclusions remain disabled.
+- [x] Repository type-check, production build, and Phase 1 automated tests pass.
+- [x] Roadmap and architecture documentation match the implemented system.
 
-1. MediBrief persists structured conditions, allergies, medications, encounters, observations, reports, procedures, immunizations, appointments, documents, notes, tasks, and care plans.
-2. Extracted facts can remain candidates until confirmed or rejected.
-3. Confirmed resources preserve provenance and amendment history.
-4. Unknown dates remain explicitly unknown.
-5. Legacy data migrates without silent loss.
-6. Backup and restore use strict versioned validation.
-7. Chat is no longer the only durable representation of notes, appointments, tasks, or actions.
-8. Proposed, booked, ordered, acknowledged, and completed states are not conflated.
-9. Misleading `executed`, `PACS`, and medication `safe/verified` claims are removed where unsupported.
-10. Unvalidated clinical-rule conclusions remain disabled.
-11. The repository type-check, production build, and Phase 1 automated test suite pass.
-12. The roadmap and architecture documentation match the implemented system.
+**Phase 1 status: accepted and complete.**
 
 ---
 
@@ -412,22 +410,13 @@ Status: `[x] Complete`
 
 ## Slice 6 — Safe semantics and acceptance tests
 
-Status: `[-] In progress`
+Status: `[x] Complete`
 
-Completed:
-
-- [x] Remove execution and booking overclaims.
-- [x] Disable unsupported deterministic conclusions.
-- [x] Replace medication safety claims with label lookup boundaries.
-- [x] Correct image-viewer terminology.
-- [x] Align AI prompts with the local personal-record product.
-
-Remaining:
-
-- [ ] Add repository-integrated regression coverage.
-- [ ] Run full type-check and build validation.
-- [ ] Resolve test-discovered defects.
-- [ ] Produce final Phase 1 acceptance evidence.
+- Accurate action, medication, image, and advisory terminology
+- Disabled unsupported conclusions
+- Repository-integrated regression suite
+- Type-check and production-build validation
+- Final acceptance evidence
 
 ---
 
@@ -461,6 +450,8 @@ Remaining:
 | 2026-07-30 | Treat openFDA as label retrieval only. | Label presence or absence of a boxed-warning field cannot validate a patient regimen. |
 | 2026-07-30 | Remove the hard-coded medication dose-limit table. | It lacked frequency, route, indication, formulation, and patient context. |
 | 2026-07-30 | Label the current viewer as a basic medical-image viewer, not PACS. | It does not parse DICOM studies, series, metadata, or clinical windowing. |
+| 2026-07-30 | Use explicit application interfaces at validated backup boundaries. | Zod runtime validation remains authoritative while TypeScript contracts stay non-optional and usable. |
+| 2026-07-30 | Add repository-integrated CI as a Phase 1 acceptance gate. | Clinical migrations and semantics require repeatable type-check, test, and build evidence. |
 | 2026-07-30 | Keep security work outside this clinical rebuild roadmap. | The requested work is medical completeness and correctness for a local personal app. |
 
 ---
@@ -477,16 +468,36 @@ Remaining:
 | 2026-07-30 | P1.3 / Slice 4 | Added confirmed-only views, candidate review, source preview, candidate extraction routing, and reviewed lab writes. | Deploy preview passed. | `feat: add candidate review and confirmed views` |
 | 2026-07-30 | P1.5 / Slice 5 | Added durable reviewed notes, appointment proposals, advisory tasks, and acknowledgement semantics. | Deploy preview passed. | `feat: add durable clinical actions` |
 | 2026-07-30 | P1.5 / Slice 6 semantics | Disabled unvalidated rules, removed dose limits, changed medication review to label-only, corrected viewer and AI semantics. | Deploy preview passed. | `fix: correct clinical semantics` |
+| 2026-07-30 | P1.6 / Slice 6 validation | Added Vitest, fake IndexedDB, 14 regression files, 56 tests, source helpers, stricter backup types, and GitHub Actions validation. | `tsc --noEmit`, all 56 tests, and production build passed in CI. | `test: complete Phase 1 acceptance suite` |
+| 2026-07-30 | Phase 1 acceptance | Recorded complete coverage and accepted all Phase 1 criteria. | GitHub Actions validation green. | `docs: close phase 1 clinical foundation` |
 
 ---
 
+# Phase 2 starting point
+
+Phase 2 should build the complete personal-health-record interface on the validated Phase 1 domain rather than adding more chat-only capabilities.
+
+Recommended initial order:
+
+1. Personal-record navigation and route structure.
+2. Patient overview and emergency summary.
+3. Unified longitudinal timeline.
+4. Conditions, allergies, and medication lists.
+5. Labs and diagnostic-report views.
+6. Visits, notes, procedures, and immunizations.
+7. Appointments and task management.
+8. Document library and source-linked review.
+9. Print and export views.
+10. Mobile and accessibility refinement.
+
 # Current open questions and deferred choices
 
-These do not block the P1.6 test work:
+These do not block Phase 1 acceptance:
 
 - Whether to adopt official FHIR TypeScript definitions later or retain the smaller application-owned subset.
 - Whether OpenMed will first run through a local FastAPI sidecar or browser/WebGPU runtime.
 - Whether transient advisories should eventually move to a dedicated advisory store.
 - Whether terminology coding initially remains optional free text plus suggestions or ships with a local terminology bundle.
 - Whether a global review inbox should complement the patient-scoped review queue.
-- When to remove the dual-written legacy observation store after compatibility tests pass.
+- When to remove the dual-written legacy observation store after compatibility confidence is sufficient.
+- How to split the large production bundle without disrupting the local-first workflow.
