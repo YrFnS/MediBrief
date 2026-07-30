@@ -90,6 +90,8 @@ Status: `[ ] Not started`
 
 ## P1.0 — Planning and baseline
 
+Status: `[x] Complete`
+
 - [x] Create a dedicated Phase 1 branch.
 - [x] Add this living roadmap.
 - [x] Record the current clinical-data limitations.
@@ -151,7 +153,7 @@ Status: `[x] Complete`
 
 ### Design requirements
 
-- [x] No model should require an AI-generated interpretation to be useful.
+- [x] No model requires an AI-generated interpretation to be useful.
 - [x] Resources support manual entry without a source document.
 - [x] Extracted resources preserve source document, page/section, and text offsets when available.
 - [x] Date fields support unknown or partial dates without substituting the current date.
@@ -159,40 +161,56 @@ Status: `[x] Complete`
 
 ## P1.2 — Versioned clinical record store
 
-Status: `[ ] Not started`
+Status: `[x] Complete`
 
-- [ ] Introduce a new patient-scoped clinical record aggregate.
-- [ ] Keep clinical resources separate from UI-only alerts.
-- [ ] Add typed CRUD actions for every resource collection.
-- [ ] Add candidate confirmation/rejection actions.
-- [ ] Add correction/amendment actions without overwriting history.
-- [ ] Add resource lookup by patient, source, type, status, and date.
-- [ ] Add stable sorting for patient timelines.
-- [ ] Add duplicate-candidate detection that does not merge unrelated records.
-- [ ] Add versioned persistence and hydration.
-- [ ] Preserve the existing security-gate hydration flow.
+- [x] Introduce a new patient-scoped clinical record aggregate.
+- [x] Keep clinical resources separate from UI-only alerts.
+- [x] Add typed CRUD actions for every resource collection.
+- [x] Add candidate confirmation and rejection actions.
+- [x] Add correction and amendment actions without overwriting history.
+- [x] Add resource lookup by patient, source, type, verification status, and clinical date.
+- [x] Add stable sorting for patient timelines.
+- [x] Add conservative duplicate-candidate detection that does not merge unrelated records.
+- [x] Add versioned persistence and strict hydration validation.
+- [x] Preserve the existing security-gate hydration flow.
+- [x] Protect confirmed, rejected, and entered-in-error history from hard deletion.
+- [x] Require a reason before marking a resource entered in error.
+
+### P1.2 implementation notes
+
+- The store uses `records: Record<patientId, PatientClinicalRecord>`.
+- Patient timelines default to confirmed resources.
+- Unknown clinical dates remain unknown and are not placed inside date-range queries using `recordedAt`.
+- Duplicate detection requires a stable source document location or external identifier.
+- Similar facts from separate source documents remain separate assertions.
+- Every write validates the resulting resource and complete patient aggregate.
+- The store persists through the existing encrypted IndexedDB adapter and rehydrates only after setup or successful unlock.
 
 ## P1.3 — Candidate review and provenance workflow
 
-Status: `[ ] Not started`
+Status: `[-] In progress`
 
-- [ ] Create a generic `ClinicalCandidate` contract.
-- [x] Store candidate resources separately from confirmed summaries through `verificationStatus`.
+- [x] Use the shared clinical-resource shape as the generic candidate contract.
+- [x] Distinguish candidates from confirmed facts through `verificationStatus`.
 - [x] Add source preview metadata.
-- [ ] Require explicit confirmation before candidates affect the patient summary.
-- [ ] Support edit-before-confirm.
-- [ ] Support reject with an optional reason.
-- [x] Support later correction metadata for a confirmed resource.
+- [x] Add explicit confirm and reject lifecycle actions.
+- [x] Support edit-before-confirm through candidate amendments.
+- [x] Support rejection with an optional review reason.
+- [x] Support later correction of a confirmed resource without destroying history.
 - [x] Record extraction engine and version.
 - [x] Record confidence without treating it as clinical certainty.
+- [x] Exclude candidates from the default confirmed timeline.
+- [ ] Add a reusable candidate-review interface.
+- [ ] Ensure the HUD and patient summaries read confirmed resources only.
+- [ ] Add source-document preview navigation from the review interface.
 
 ## P1.4 — Migration, backup, and compatibility
 
 Status: `[ ] Not started`
 
-- [x] Define the new clinical record and export format versions.
+- [x] Define the new clinical-record and export-format versions.
 - [ ] Build a migration from the current patient metadata and observation store.
-- [ ] Convert legacy diagnosis/allergy strings into clearly marked legacy records.
+- [ ] Convert legacy diagnosis and allergy strings into clearly marked legacy records.
 - [ ] Preserve legacy chat history and uploaded document references.
 - [ ] Preserve existing observations and identify their limited provenance.
 - [ ] Never silently mark migrated AI-extracted facts as fully verified.
@@ -208,18 +226,18 @@ Status: `[ ] Not started`
 - [ ] Replace `ACTION EXECUTED` language when no real action record is created.
 - [ ] Represent suggested actions as suggestions.
 - [ ] Represent acknowledgements as acknowledgements.
-- [ ] Create durable tasks/appointments instead of chat-only confirmations.
+- [ ] Create durable tasks and appointments instead of chat-only confirmations.
 - [ ] Rename the current image viewer from PACS terminology unless DICOM support is implemented.
 - [ ] Replace `Verified Safe` medication language with an accurate coverage statement.
 - [ ] Separate FDA-label retrieval from medication-regimen validation.
 - [ ] Remove or disable overclaiming deterministic clinical rules pending validation.
-- [ ] Ensure unknown report dates remain unknown.
+- [ ] Ensure unknown report dates remain unknown throughout current ingestion flows.
 
 ## P1.6 — Tests and acceptance evidence
 
 Status: `[ ] Not started`
 
-- [ ] Add a test runner and test scripts.
+- [ ] Add a repository test runner and test scripts.
 - [ ] Add schema validation tests.
 - [ ] Add store CRUD tests.
 - [ ] Add persistence migration tests.
@@ -229,7 +247,21 @@ Status: `[ ] Not started`
 - [ ] Add legacy backup import tests.
 - [ ] Add no-silent-data-loss migration tests.
 - [ ] Add terminology/label tests for suggestion versus execution states.
-- [ ] Add build and type-check validation to each Phase 1 implementation slice.
+- [ ] Add full repository build and type-check validation to each Phase 1 implementation slice.
+
+### Validation already performed during P1.2
+
+- Isolated strict TypeScript compilation of the new clinical-record module.
+- Lifecycle smoke tests for patient initialization and resource creation.
+- Candidate duplicate detection from the same source.
+- Protection against false deduplication across independent documents.
+- Candidate confirmation and rejection transitions.
+- Edit-before-confirm and confirmed-resource amendment history.
+- Protection of reviewed history from hard deletion.
+- Entered-in-error transition and reason requirement.
+- Resource queries, unknown-date behavior, partial-date overlap, and deterministic timeline sorting.
+
+These checks provide implementation evidence for the slice, but they do not replace the repository-integrated test runner required by P1.6.
 
 ---
 
@@ -268,14 +300,17 @@ Status: `[x] Complete`
 - Add patient-scoped resource collections.
 - Add typed CRUD and verification actions.
 - Add persistence versioning.
+- Add resource queries, timeline ordering, and conservative candidate deduplication.
+- Join the existing post-unlock hydration flow.
 
-Status: `[ ] Not started`
+Status: `[x] Complete`
 
 ## Slice 3 — Legacy migration and backup v2
 
 - Migrate old patient metadata and observations.
 - Add backward-compatible import.
 - Export the new aggregate.
+- Fail without partial destructive writes when migration cannot complete.
 
 Status: `[ ] Not started`
 
@@ -283,6 +318,7 @@ Status: `[ ] Not started`
 
 - Read confirmed allergies, conditions, observations, and demographics from the new record.
 - Keep compatibility adapters during transition.
+- Introduce the generic candidate review interface.
 
 Status: `[ ] Not started`
 
@@ -290,7 +326,7 @@ Status: `[ ] Not started`
 
 - Save scribe output as notes.
 - Save appointment requests as appointment records.
-- Save suggested/acknowledged actions without claiming execution.
+- Save suggested and acknowledged actions without claiming execution.
 
 Status: `[ ] Not started`
 
@@ -298,7 +334,7 @@ Status: `[ ] Not started`
 
 - Correct rule and medication labels.
 - Disable unsupported automatic conclusions.
-- Add focused regression coverage.
+- Add focused regression coverage and repository-integrated validation.
 
 Status: `[ ] Not started`
 
@@ -314,7 +350,12 @@ Status: `[ ] Not started`
 | 2026-07-30 | Treat OpenMed as a candidate-extraction layer, not the medical record or autonomous decision maker. | It provides useful local NLP and context extraction, but facts still require review and durable application-owned storage. |
 | 2026-07-30 | Preserve original values alongside normalized values. | Normalization must never destroy source truth or prevent later correction. |
 | 2026-07-30 | Represent partial and unknown clinical dates with a dedicated value-plus-precision type. | It prevents invented dates while supporting year-only, month-only, day, and unknown source values. |
-| 2026-07-30 | Use resource-level `verificationStatus` for candidate lifecycle. | Candidate and confirmed resources keep one consistent shape while remaining distinguishable in queries and summaries. |
+| 2026-07-30 | Use resource-level `verificationStatus` instead of a parallel candidate data model. | Candidates and confirmed records keep one consistent structure while remaining easy to filter and validate. |
+| 2026-07-30 | Use a patient-scoped Zustand aggregate backed by the existing encrypted IndexedDB adapter. | It fits the current local architecture while preserving a clear boundary that can later be wrapped by a repository service. |
+| 2026-07-30 | Keep advisories and UI alerts outside the durable clinical-resource aggregate. | A warning or recommendation is not automatically a confirmed patient fact. |
+| 2026-07-30 | Deduplicate candidates only when stable source identity is available. | Similar facts from different documents may represent separate events and must not be merged silently. |
+| 2026-07-30 | Protect reviewed clinical history from hard deletion. | Confirmed records require amendment or entered-in-error handling, while rejected assertions remain useful provenance. |
+| 2026-07-30 | Fail on unsupported clinical persistence versions. | Medical data must not be guessed through an implicit migration; version migrations must be explicit and testable. |
 | 2026-07-30 | Keep security work outside this clinical rebuild roadmap. | The current project request is focused on medical completeness and correctness for a local personal application. |
 
 ---
@@ -325,16 +366,17 @@ Status: `[ ] Not started`
 |---|---|---|---|---|
 | 2026-07-30 | P1.0 | Created `agent/phase-1-clinical-foundation` and added the living clinical rebuild plan. | Repository file created on the dedicated branch. | `docs: add MediBrief clinical rebuild plan` |
 | 2026-07-30 | P1.0 | Added the old/new data-flow architecture, resource lifecycle, invariants, transition strategy, and compatibility inventory. | Branch diff inspected against `main`. | `docs: describe clinical record foundation architecture` |
-| 2026-07-30 | P1.1 / Slice 1 | Added schema/version constants, full clinical resource interfaces, provenance, assertion context, unknown/partial dates, original/normalized quantities, strict Zod schemas, factories, and barrel exports. | All files are isolated from existing UI behavior; branch diff inspected. Full repository type-check remains part of P1.6. | `feat: add clinical record foundation` |
+| 2026-07-30 | P1.1 / Slice 1 | Added schema/version constants, full clinical resource interfaces, provenance, assertion context, unknown/partial dates, original/normalized quantities, strict Zod schemas, factories, and barrel exports. | Files remained isolated from existing UI behavior; branch diff inspected. | `feat: add clinical record foundation` |
+| 2026-07-30 | P1.2 / Slice 2 | Added the patient-scoped versioned store, typed lifecycle actions, amendment history, protected review states, strict persisted-record validation, source/date/status queries, timeline sorting, and conservative candidate deduplication. Connected the store to post-unlock hydration. | Isolated strict TypeScript compilation and lifecycle/query smoke tests passed. Full repository validation remains tracked in P1.6. | `feat: add versioned clinical record store` |
 
 ---
 
 # Open questions and deferred choices
 
-These do not block the completed domain slice and can be resolved while the store is implemented.
+These do not block the completed store slice and can be resolved during migration and UI integration.
 
-- Whether the internal resource aggregate should remain in Zustand or use a repository/service abstraction around IndexedDB.
-- Whether to adopt the official FHIR TypeScript definitions later or keep a smaller application-owned subset.
+- Whether to adopt official FHIR TypeScript definitions later or keep the smaller application-owned subset.
 - Whether OpenMed will run through a local FastAPI sidecar first or a browser/WebGPU path.
-- Whether the existing alert store should be replaced with tasks and advisories or retained as a separate transient UI layer.
+- Whether the existing alert store should become a dedicated advisory store or be replaced by tasks plus transient notices.
 - Whether terminology coding will initially be optional free text plus coding suggestions or require a local terminology bundle.
+- Whether backup v2 should contain document blobs directly or retain a separate manifest plus blob export.
