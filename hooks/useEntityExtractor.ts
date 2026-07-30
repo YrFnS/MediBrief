@@ -155,14 +155,9 @@ export const useEntityExtractor = () => {
         const documentId = extractionSource.documentId
             || (file.storageId ? `document-${file.storageId}` : undefined)
             || `untracked-document:${file.file.name}:${file.file.size}`;
+        const now = new Date().toISOString();
 
         try {
-            const entities = await extractEntitiesFromUpload(file, {
-                signal: controller.signal,
-                apiKey: geminiApiKey || process.env.API_KEY || '',
-            });
-            if (controller.signal.aborted) return;
-
             const patient = usePatientStore.getState().patients[patientId];
             clinicalRecordActions.initializePatientRecord({
                 patientId,
@@ -175,14 +170,18 @@ export const useEntityExtractor = () => {
                             ? 'other'
                             : undefined,
             });
-
-            const now = new Date().toISOString();
             ensureDocumentReference({
                 patientId,
                 documentId,
                 file,
                 now,
             });
+
+            const entities = await extractEntitiesFromUpload(file, {
+                signal: controller.signal,
+                apiKey: geminiApiKey || process.env.API_KEY || '',
+            });
+            if (controller.signal.aborted) return;
 
             entities.diagnosis.forEach(diagnosis => {
                 const clean = diagnosis.trim();
