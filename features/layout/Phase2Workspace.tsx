@@ -66,6 +66,13 @@ const LockedView: React.FC<{ onUnlock: () => void }> = ({ onUnlock }) => (
     </div>
 );
 
+const VIEW_TITLES: Record<PersonalRecordView, string> = {
+    overview: 'Overview',
+    timeline: 'Timeline',
+    emergency: 'Emergency Summary',
+    assistant: 'Assistant',
+};
+
 const Phase2Workspace: React.FC = () => {
     const [view, setView] = useState<PersonalRecordView>('overview');
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -87,6 +94,13 @@ const Phase2Workspace: React.FC = () => {
     );
     const { isLocked, isBlurred, unlock } = useSecurityLock();
     const isOnline = useOnlineStatus();
+
+    React.useEffect(() => {
+        const patientLabel = activePatient?.name
+            ? ` — ${activePatient.name}`
+            : '';
+        document.title = `${VIEW_TITLES[view]}${patientLabel} | MediBrief`;
+    }, [activePatient?.name, view]);
 
     React.useEffect(() => {
         const handleResize = () => {
