@@ -5,21 +5,21 @@
 > **Branch:** `agent/phase-2-personal-health-record`  
 > **Base:** `agent/phase-1-clinical-foundation`  
 > **Started:** 2026-07-31  
-> **Current focus:** Slice 1 — record navigation, overview, emergency summary, and longitudinal timeline
+> **Current focus:** Slice 2 — Conditions, Allergies, Medications, and Labs/Diagnostic Reports
 
 ## Product goal
 
-Phase 2 makes the structured clinical record understandable and useful without requiring the AI assistant. Patient-facing views must use confirmed, patient-applicable resources by default and clearly label unknown or incomplete data.
+Phase 2 makes the structured clinical record understandable and useful without requiring the AI assistant. Patient-facing views use confirmed, patient-applicable resources by default and clearly label unknown or incomplete data.
 
 ## Principles
 
-- The personal record must remain usable without an AI API key.
-- Confirmed facts, pending candidates, rejected assertions, and entered-in-error records must never be visually conflated.
+- The personal record remains usable without an AI API key.
+- Confirmed facts, pending candidates, rejected assertions, and entered-in-error records are never visually conflated.
 - An empty section means no confirmed information is available; it does not prove the absence of a condition, allergy, medication, procedure, or immunization.
 - Unknown event dates remain unknown and appear in a separate undated timeline group.
 - Emergency summaries are generated deterministically from confirmed structured data.
-- Chat remains an assistant surface, not the primary navigation model or medical record.
-- Every view should work with sparse records and grow naturally as more resources are added.
+- Chat is an assistant surface, not the primary navigation model or medical record.
+- Every view supports sparse records and grows naturally as resources are added.
 
 ---
 
@@ -27,50 +27,80 @@ Phase 2 makes the structured clinical record understandable and useful without r
 
 ## P2.0 — Personal-record shell and navigation
 
-Status: `[-] In progress`
+Status: `[x] Complete`
 
 - [x] Create the dedicated Phase 2 branch from the accepted Phase 1 head.
 - [x] Add this living Phase 2 plan.
-- [ ] Add top-level record navigation for Overview, Timeline, Emergency Summary, and Assistant.
-- [ ] Make Overview the default application destination.
-- [ ] Keep assistant-specific controls out of record-only views.
-- [ ] Allow the local record to open and remain usable without an AI API key.
-- [ ] Preserve the current patient roster, HUD, candidate review, settings, and assistant flows.
+- [x] Add top-level record navigation for Overview, Timeline, Emergency Summary, and Assistant.
+- [x] Make Overview the default application destination.
+- [x] Keep assistant-specific controls out of record-only views.
+- [x] Allow the local record to open and remain usable without an AI API key.
+- [x] Preserve the patient roster, HUD, candidate review, settings, validated advisories, and assistant flows.
+- [x] Keep the record usable while offline.
+- [x] Update the primary header, page title, and web-app metadata to personal-health-record language.
+
+### P2.0 implementation notes
+
+- `features/layout/Phase2Workspace.tsx` owns the top-level destination.
+- The assistant opens the existing assistant layout only when a provider key is available.
+- Without a key, only the assistant workspace is gated; the medical record remains available.
+- The main header identifies MediBrief as a local personal health record.
 
 ## P2.1 — Patient overview
 
-Status: `[ ] Not started`
+Status: `[x] Complete`
 
-- [ ] Add a patient identity and record-completeness summary.
-- [ ] Show confirmed active conditions, allergies, and medications.
-- [ ] Show confirmed vital snapshots only when a clinical date is known.
-- [ ] Show pending appointments and follow-up tasks without calling proposals bookings or orders.
-- [ ] Show recent confirmed timeline events.
-- [ ] Show clear data-gap states instead of unsafe negative assumptions.
-- [ ] Surface the pending candidate count and route users to the existing review workflow.
+- [x] Add a patient identity and record-completeness summary.
+- [x] Show confirmed active conditions, allergies, and medications.
+- [x] Show confirmed vital snapshots only when a clinical date is known through the confirmed-only HUD.
+- [x] Show pending appointment proposals and follow-up tasks without calling them bookings or orders.
+- [x] Show recent confirmed timeline events.
+- [x] Show clear data-gap states instead of unsafe negative assumptions.
+- [x] Surface the pending candidate count and keep the existing review workflow directly accessible.
+- [x] Add deterministic record metrics for results, documents, notes, and follow-up.
+
+### P2.1 implementation notes
+
+- Empty allergy data displays `Allergy status unknown`.
+- Empty condition and medication sections say that no active record is confirmed; they do not claim absence.
+- The overview is generated by pure confirmed-only view models and does not require AI.
 
 ## P2.2 — Longitudinal timeline
 
-Status: `[ ] Not started`
+Status: `[x] Complete`
 
-- [ ] Build one deterministic timeline across every structured clinical resource type.
-- [ ] Use clinical dates when known.
-- [ ] Group unknown-date resources separately rather than positioning them as clinical events on their storage date.
-- [ ] Add resource-type filters.
-- [ ] Add text search over resource labels and details.
-- [ ] Preserve source type and verification context in timeline entries.
-- [ ] Support sparse and empty records.
+- [x] Build one deterministic timeline across every structured clinical resource type except the patient profile.
+- [x] Use clinical dates when known.
+- [x] Group unknown-date resources separately rather than positioning them as clinical events on their storage date.
+- [x] Add resource-type filters.
+- [x] Add text search over resource labels, details, status, source, and tags.
+- [x] Preserve source type and verification context in timeline entries.
+- [x] Add source-document preview when provenance links to a local document.
+- [x] Support sparse and empty records.
+
+### P2.2 implementation notes
+
+- Undated records display `Clinical date unknown`.
+- Storage time remains visible only as provenance and is explicitly not treated as the event date.
+- Dated events use deterministic reverse-chronological sorting.
 
 ## P2.3 — Emergency summary
 
-Status: `[ ] Not started`
+Status: `[x] Complete`
 
-- [ ] Build a deterministic confirmed-only emergency summary.
-- [ ] Include identity, identifiers, date of birth, sex, blood type, language, and contact details when available.
-- [ ] Include active allergies, medications, conditions, code status, and recent dated vitals.
-- [ ] Label missing allergy, medication, condition, and code-status data as unknown or unavailable.
-- [ ] Add a clean printable representation.
-- [ ] State that the summary reflects locally confirmed records and may be incomplete.
+- [x] Build a deterministic confirmed-only emergency summary.
+- [x] Include identity, identifiers, date of birth, age, sex, blood type, language, and contact details when available.
+- [x] Include active allergies, medications, conditions, code status, and recent dated vitals.
+- [x] Label missing allergy, medication, condition, and code-status data as unknown or unavailable.
+- [x] Add a clean local printable representation.
+- [x] State that the summary reflects locally confirmed records and may be incomplete.
+- [x] Exclude pending candidates until reviewed.
+
+### P2.3 implementation notes
+
+- The emergency summary does not call an AI model.
+- Printing opens a local print document and does not upload the record.
+- Candidate count and missing-data limitations remain explicit.
 
 ## P2.4 — First-class clinical modules
 
@@ -100,15 +130,17 @@ Status: `[ ] Not started`
 
 ## P2.6 — Search, export, accessibility, and acceptance evidence
 
-Status: `[ ] Not started`
+Status: `[-] In progress`
 
-- [ ] Add cross-record search and filters.
-- [ ] Add patient-summary export.
+- [ ] Add cross-record search beyond the timeline.
+- [ ] Add a complete patient-summary export.
 - [ ] Add keyboard and screen-reader navigation checks.
 - [ ] Add responsive layout regression coverage.
-- [ ] Add view-model and confirmed-only UI tests.
-- [ ] Run repository type-check, automated tests, and production build.
-- [ ] Record final Phase 2 acceptance evidence.
+- [x] Add record-home view-model and confirmed-only tests.
+- [x] Add record-first startup and semantic regression guards.
+- [x] Extend GitHub Actions validation to the Phase 2 branch and stacked PR.
+- [x] Run repository type-check, automated tests, and production build for Slice 1.
+- [ ] Record final Phase 2 acceptance evidence after every Phase 2 slice is complete.
 
 ---
 
@@ -116,15 +148,31 @@ Status: `[ ] Not started`
 
 ## Slice 1 — Record home
 
-Status: `[-] In progress`
+Status: `[x] Complete`
 
-- Personal-record navigation
-- Patient overview
-- Longitudinal timeline
-- Emergency summary
-- Assistant as a secondary workspace
-- Local record access without an AI key
-- Focused regression coverage
+- [x] Personal-record navigation
+- [x] Patient overview
+- [x] Longitudinal timeline
+- [x] Emergency summary
+- [x] Assistant as a secondary workspace
+- [x] Local record access without an AI key
+- [x] Local record access while offline
+- [x] Focused regression coverage
+- [x] Repository type-check, tests, and production build
+
+### Slice 1 validation
+
+The first complete Phase 2 validation run passed:
+
+- TypeScript: `tsc --noEmit` passed.
+- Test files: **16 of 16 passed**.
+- Tests: **64 of 64 passed**.
+- Production build: `vite build` passed.
+- Production modules transformed: **998**.
+
+The build still reports the pre-existing non-blocking bundle-size, mixed-import, and runtime stylesheet warnings. These remain a separate performance workstream.
+
+See `docs/architecture/PHASE_2_RECORD_HOME.md` for the data-flow, view, and uncertainty rules.
 
 ## Slice 2 — Core clinical lists
 
@@ -178,10 +226,12 @@ Status: `[ ] Not started`
 
 | Date | Decision | Reason |
 |---|---|---|
-| 2026-07-31 | Build Phase 2 as a stacked branch based on the completed Phase 1 head. | Phase 2 depends directly on the new structured record while keeping the completed Phase 1 PR independently reviewable. |
-| 2026-07-31 | Make the record overview the default destination and keep the assistant as one workspace. | A local personal health record must remain useful without AI access and should not make chat the primary medical-record interface. |
+| 2026-07-31 | Build Phase 2 as a stacked branch based on the completed Phase 1 head. | Phase 2 depends directly on the structured record while keeping the completed Phase 1 PR independently reviewable. |
+| 2026-07-31 | Make the record overview the default destination and keep the assistant as one workspace. | A local personal health record must remain useful without AI access and should not make chat the primary interface. |
 | 2026-07-31 | Use deterministic view models over confirmed resources. | Overview, timeline, and emergency information should not require AI generation or introduce new clinical assertions. |
 | 2026-07-31 | Separate clinically undated events from dated timeline entries. | Sorting an unknown clinical event by its storage timestamp could falsely imply when it occurred. |
+| 2026-07-31 | Keep the existing assistant layout behind the Assistant destination for the first slice. | This preserves working chat, live, upload, and scribe features while the record-first shell is introduced incrementally. |
+| 2026-07-31 | Print the emergency summary locally from deterministic HTML. | The summary should be available without a network or AI provider and should not transmit patient data. |
 
 ---
 
@@ -190,3 +240,19 @@ Status: `[ ] Not started`
 | Date | Slice | Work completed | Validation | Commit label |
 |---|---|---|---|---|
 | 2026-07-31 | P2.0 / Slice 1 | Created the Phase 2 branch and living implementation plan. | Branch created from the accepted Phase 1 head. | `docs: add Phase 2 personal health record plan` |
+| 2026-07-31 | P2.0–P2.3 / Slice 1 | Added record-first navigation, overview, timeline, emergency summary, optional assistant access, personal-record metadata, and deterministic view models. | Repository type-check passed; 16/16 test files and 64/64 tests passed; production build passed with 998 modules transformed. | `feat: add personal health record home` |
+| 2026-07-31 | P2.6 / Slice 1 | Added view-model tests, semantic regression guards, and Phase 2 CI coverage. | GitHub Actions completed type-check, test, and build steps successfully. | `test: validate personal record home` |
+
+---
+
+# Current open questions and deferred choices
+
+These do not block the completed record-home slice:
+
+- Whether to adopt official FHIR TypeScript definitions later or retain the smaller application-owned subset.
+- Whether OpenMed will first run through a local FastAPI sidecar or browser/WebGPU runtime.
+- Whether transient advisories should eventually move to a dedicated advisory store.
+- Whether terminology coding initially remains optional free text plus suggestions or ships with a local terminology bundle.
+- Whether a global review inbox should complement the patient-scoped review queue.
+- When to remove the dual-written legacy observation store after compatibility tests pass.
+- Whether the assistant should later become an embedded panel inside the record shell instead of temporarily reusing the existing full assistant layout.
