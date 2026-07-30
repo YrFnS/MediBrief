@@ -1,354 +1,289 @@
-
+import { Modality, Type } from '@google/genai';
 import { ChatMode } from './types';
-import { Type, Modality } from '@google/genai';
 
 export const WELCOME_CONTENT = {
-    title: "MediBrief C.I.L.",
-    subtitle: "Clinical Intelligence Layer v5.1",
-    introduction: "System initialized. Acting as your primary safety and data synthesis layer. I am designed to:",
+    title: 'MediBrief',
+    subtitle: 'Local Personal Health Record Assistant',
+    introduction: 'Organize medical documents and review AI-assisted candidate information before it enters your confirmed record.',
     features: [
-        { icon: "🛡️", text: "Enforce Protocol: Active allergy & contraindication scanning" },
-        { icon: "⚖️", text: "Truth Verification: Auto-verification via NIH/CDC/PubMed" },
-        { icon: "🧠", text: "Synthesize Data: Transform raw charts into structured briefings" },
-        { icon: "👁️", text: "Visual Intelligence: Native analysis of X-Rays, EKGs, and wounds" },
-        { icon: "💊", text: "Pharmacology: Interaction matrices & dosage verification" },
-        { icon: "📡", text: "Live Telemetry: Hands-free voice consult & dictation" }
+        { icon: '📁', text: 'Documents: Keep reports and images linked to their source records' },
+        { icon: '✅', text: 'Human Review: Confirm, edit, or reject extracted candidate facts' },
+        { icon: '📈', text: 'Trends: View confirmed, dated observations without inventing missing dates' },
+        { icon: '📝', text: 'Notes: Save reviewed SOAP notes as durable local records' },
+        { icon: '💊', text: 'Medication Information: Retrieve limited label and source information without claiming regimen safety' },
+        { icon: '🎙️', text: 'Voice and Scribe: Draft local records that remain subject to user review' },
     ],
     getStarted: {
-        title: "Standard Operating Procedure:",
+        title: 'Suggested workflow:',
         steps: [
-            "Ingest patient data (PDF/Images) for analysis",
-            "Verify safety alerts before order entry",
-            "Execute /brief to generate handoff artifacts"
-        ]
+            'Upload a medical document or enter information manually',
+            'Review extracted candidates against the original source',
+            'Confirm only the facts you want in the structured patient record',
+        ],
     },
-    closing: "Clinical Intelligence Layer active. Awaiting input."
+    closing: 'Ready for local record review and organization.',
 };
 
+export const HELP_COMMAND_RESPONSE = `🔧 **MediBrief Command Reference**
 
-export const HELP_COMMAND_RESPONSE = `🔧 **Clinical Intelligence Layer // Command Reference**
+**Core functions:**
+- \`/brief\` - Create a reviewable summary from the available record context.
+- \`/patient [ID]\` - Summarize the selected patient context.
+- \`/drugs [names]\` - Retrieve an evidence-linked interaction summary. This is not a regimen-safety verdict.
+- \`/export\` - Export the current briefing to PDF.
+- \`/help\` - Show this reference.
 
-**Core Functions:**
-- \`/brief\` - Execute Shift Briefing generation (JSON -> PDF).
-- \`/patient [ID]\` - Synthesize patient-specific timeline.
-- \`/drugs [name]\` - Execute pharmacology safety check (Returns Matrix).
-- \`/export\` - Serialize current state to PDF.
-- \`/help\` - Display this protocol reference.
+**Important boundaries:**
+- Extracted facts are candidates until a person confirms them.
+- Missing dates stay unknown.
+- Web sources are references, not automatic proof that a claim applies to a patient.
+- Appointment tools save local proposals only; they do not contact or book with a clinic.
+- Automated deterministic clinical conclusions are currently disabled pending protocol validation.
 
-**Safety Protocols (Always Active):**
-- **Epistemic Humility:** The system is instructed to admit ignorance rather than guess.
-- **Truth Verification:** All medical facts are cross-referenced with live search results.
-- **Critical Alerts:** Conflicts trigger immediate "STOP" warnings in Red.
-
-**Intelligence Modes:**
-- **Normal:** Balanced synthesis with Search Grounding enabled.
-- **Deep Analysis:** Gemini Pro reasoning + Search for complex differentials.
-- **Live:** Real-time voice conversation with auditory safety alerts.
-- **Ambient Scribe:** Passive listening mode that generates structured SOAP notes.`;
-
-// --- Tool Definitions ---
+**Modes:**
+- **Normal:** General document and record assistance.
+- **Deep Analysis:** More detailed reasoning with source lookup.
+- **Live:** Voice interaction and local appointment proposals.
+- **Ambient Scribe:** Drafts editable SOAP sections for explicit user review and save.`;
 
 const scheduleAppointmentFunctionDeclaration = {
-  name: 'scheduleAppointment',
-  parameters: {
-    type: Type.OBJECT,
-    description: 'Schedules a patient appointment for a follow-up.',
-    properties: {
-      patientId: { type: Type.STRING, description: 'The unique identifier for the patient.' },
-      date: { type: Type.STRING, description: 'The date of the appointment, e.g., "2024-08-15".' },
-      time: { type: Type.STRING, description: 'The time of the appointment in 24-hour format, e.g., "14:30".' },
-      notes: { type: Type.STRING, description: 'Optional notes for the appointment.' },
+    name: 'scheduleAppointment',
+    parameters: {
+        type: Type.OBJECT,
+        description: 'Saves a proposed appointment request in the local MediBrief record. It does not contact a clinic, reserve a time, or confirm a booking.',
+        properties: {
+            patientId: {
+                type: Type.STRING,
+                description: 'The local patient-context identifier.',
+            },
+            date: {
+                type: Type.STRING,
+                description: 'Requested date in YYYY-MM-DD format when known.',
+            },
+            time: {
+                type: Type.STRING,
+                description: 'Requested local time in 24-hour HH:MM format when known.',
+            },
+            notes: {
+                type: Type.STRING,
+                description: 'Optional notes for the local appointment proposal.',
+            },
+        },
+        required: ['patientId', 'date', 'time'],
     },
-    required: ['patientId', 'date', 'time'],
-  },
 };
 
 const updateSoapNoteFunctionDeclaration = {
     name: 'updateSoapNote',
     parameters: {
         type: Type.OBJECT,
-        description: 'Updates the structured SOAP note based on the ongoing consultation.',
+        description: 'Updates the visible draft SOAP fields. The user must review and explicitly save the note before it becomes a durable local record.',
         properties: {
-            subjective: { type: Type.STRING, description: 'Patient symptoms, complaints, and history.' },
-            objective: { type: Type.STRING, description: 'Physical findings, vital signs, and observations.' },
-            assessment: { type: Type.STRING, description: 'Diagnosis and differential diagnoses.' },
-            plan: { type: Type.STRING, description: 'Treatment plan, medications, and follow-up.' }
+            subjective: {
+                type: Type.STRING,
+                description: 'Symptoms, complaints, and history stated in the conversation.',
+            },
+            objective: {
+                type: Type.STRING,
+                description: 'Measurements, findings, and observations stated in the conversation.',
+            },
+            assessment: {
+                type: Type.STRING,
+                description: 'Assessments or differentials explicitly discussed, preserving uncertainty.',
+            },
+            plan: {
+                type: Type.STRING,
+                description: 'Plans, medications, tests, and follow-up explicitly discussed.',
+            },
         },
-        required: ['subjective', 'objective', 'assessment', 'plan']
-    }
+        required: ['subjective', 'objective', 'assessment', 'plan'],
+    },
 };
-
-// --- Model Configs ---
 
 export const MODEL_CONFIGS = {
-  [ChatMode.Standard]: {
-    model: 'gemini-flash-lite-latest', // Updated to gemini-flash-lite-latest
-    config: {
-        tools: [{ googleSearch: {} }], 
-    },
-    description: "Standard clinical synthesis with Search verification.",
-    contextLimit: 30 // Keep last 30 text turns (High Context)
-  },
-  [ChatMode.Deep]: {
-    model: 'gemini-3.1-pro-preview',
-    config: {
-      // CRITICAL: maxOutputTokens MUST be set when using thinkingBudget
-      // We set it to 64k to allow room for the 8k thinking budget + long responses
-      maxOutputTokens: 65536, 
-      thinkingConfig: { thinkingBudget: 8192 },
-      tools: [{ googleSearch: {} }],
-    },
-    description: "Deep reasoning with literature verification (High Compute).",
-    contextLimit: 10 // Keep last 10 text turns (Focused Context to save cost/latency)
-  },
-  [ChatMode.Live]: {
-    model: 'gemini-2.5-flash-native-audio-preview-12-2025',
-    config: {
-      responseModalities: [Modality.AUDIO],
-      outputAudioTranscription: {},
-      inputAudioTranscription: {},
-      speechConfig: {
-        voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } }
-      },
-      tools: [{ functionDeclarations: [scheduleAppointmentFunctionDeclaration] }],
-    },
-    description: "Real-time voice conversation with the AI assistant.",
-    contextLimit: 6 // Keep last 6 turns (Low Latency)
-  },
-  [ChatMode.Scribe]: {
-    model: 'gemini-2.5-flash-native-audio-preview-12-2025',
-    config: {
-        responseModalities: [Modality.AUDIO], // Required by model, but we suppress playback
-        inputAudioTranscription: {}, // Enable Input Transcription for Log
-        speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } }
+    [ChatMode.Standard]: {
+        model: 'gemini-flash-lite-latest',
+        config: {
+            tools: [{ googleSearch: {} }],
         },
-        tools: [{ functionDeclarations: [updateSoapNoteFunctionDeclaration] }],
+        description: 'General record and document assistance with web grounding.',
+        contextLimit: 30,
     },
-    description: "Passive ambient listening. Generates SOAP notes automatically.",
-    contextLimit: 0 // Stateless stream
-  }
+    [ChatMode.Deep]: {
+        model: 'gemini-3.1-pro-preview',
+        config: {
+            maxOutputTokens: 65536,
+            thinkingConfig: { thinkingBudget: 8192 },
+            tools: [{ googleSearch: {} }],
+        },
+        description: 'Detailed reasoning with literature lookup.',
+        contextLimit: 10,
+    },
+    [ChatMode.Live]: {
+        model: 'gemini-2.5-flash-native-audio-preview-12-2025',
+        config: {
+            responseModalities: [Modality.AUDIO],
+            outputAudioTranscription: {},
+            inputAudioTranscription: {},
+            speechConfig: {
+                voiceConfig: {
+                    prebuiltVoiceConfig: { voiceName: 'Zephyr' },
+                },
+            },
+            tools: [{
+                functionDeclarations: [scheduleAppointmentFunctionDeclaration],
+            }],
+        },
+        description: 'Voice assistance with local-only appointment proposals.',
+        contextLimit: 6,
+    },
+    [ChatMode.Scribe]: {
+        model: 'gemini-2.5-flash-native-audio-preview-12-2025',
+        config: {
+            responseModalities: [Modality.AUDIO],
+            inputAudioTranscription: {},
+            speechConfig: {
+                voiceConfig: {
+                    prebuiltVoiceConfig: { voiceName: 'Kore' },
+                },
+            },
+            tools: [{
+                functionDeclarations: [updateSoapNoteFunctionDeclaration],
+            }],
+        },
+        description: 'Silent SOAP-note drafting for explicit user review.',
+        contextLimit: 0,
+    },
 };
 
-// SYSTEM INSTRUCTION: REBRANDED FOR CLINICAL INTELLIGENCE LAYER WITH TRUTH PROTOCOL
-export const SYSTEM_INSTRUCTION = `You are the MediBrief Clinical Intelligence Layer (CIL).
-You are NOT a simple chatbot. You are a sophisticated data synthesis and safety overlay for healthcare professionals.
+export const SYSTEM_INSTRUCTION = `You are the MediBrief local personal health-record assistant.
 
-**CORE DIRECTIVE: TRUTH ABOVE ALL**
-1.  **EPISTEMIC HUMILITY:** You must NEVER invent, guess, or hallucinate medical facts, citations, or dosages.
-2.  **ADMIT UNCERTAINTY:** If you do not know the answer with 100% certainty, you MUST state: "I do not have sufficient information to verify this."
-3.  **MANDATORY VERIFICATION:** If asked about specific guidelines, dosages, drug interactions, or recent medical events, you **MUST** use the \`googleSearch\` tool to find credible sources.
-4.  **STRICT SOURCE FILTERING:** When using \`googleSearch\`, you MUST prioritize and explicitly filter for **Official Medical Authorities**. 
-    *   **Allowed Domains:** \`nih.gov\`, \`cdc.gov\`, \`fda.gov\`, \`who.int\`, \`nhs.uk\`, \`pubmed.ncbi.nlm.nih.gov\`, \`mayoclinic.org\`, \`medscape.com\`, \`upodate.com\`.
-    *   **Academic/Journals:** NEJM, Lancet, JAMA, Nature Medicine.
-    *   **Clinical Societies:** AHA, ACC, KDIGO, ADA, IDSA.
-    *   **PROHIBITED:** Do not use or cite general news sites (CNN, Fox), health blogs, wikis, or commercial forums (Reddit).
+**ROLE AND BOUNDARIES**
+- Help organize, extract, summarize, and explain medical information.
+- Do not present yourself as a clinician, hospital order-entry system, autonomous decision maker, or source of confirmed diagnosis.
+- A statement from an uploaded file or AI extraction is a candidate fact until the user reviews it.
+- Preserve uncertainty, negation, historical context, family-history context, original values, and unknown dates.
+- Never invent a missing date, result, diagnosis, allergy, dose, source, or completed action.
 
-**🚨 MANDATORY SAFETY LAYER**
-Before generating ANY response, you must execute a "Safety Scan":
-*   **SCAN:** Check conversation history and uploaded files for Allergies, Chronic Conditions, and Code Status.
-*   **VERIFY:** If the user discusses medications or treatments, cross-reference with the scan results.
-*   **BLOCK:** If a critical contraindication is found (e.g., Anaphylactic Allergy), you MUST stop and issue a **CRITICAL SAFETY WARNING**.
-    *   *Text Mode:* Use a blockquote starting with "🛑 CRITICAL SAFETY WARNING".
-    *   *Audio Mode:* Speak "CRITICAL SAFETY WARNING" clearly and authoritatively.
+**SOURCES**
+- Use web search for current guidelines, medication information, interactions, and claims that need external support.
+- Prefer official regulators, public-health authorities, peer-reviewed literature, and recognized clinical organizations.
+- Describe sources accurately. A preferred domain does not prove that a claim applies to this patient.
+- Never fabricate citations.
 
-**💊 PHARMACOLOGY CHAIN-OF-VERIFICATION**
-When discussing any medication dosage:
-1.  **SEARCH FIRST**: You are PROHIBITED from providing dosage advice without first running a Google Search to confirm the standard range for the patient's context (age, condition). Use queries like \`"drug name" dosage site:dailymed.nlm.nih.gov\`.
-2.  **EXPLICIT FORMATTING**: You must format drug mentions as: "**[Drug Name] [Amount][Unit]**" (e.g., "**Acetaminophen 500mg**").
-3.  **EXTERNAL GUARDRAIL**: This formatting allows our external Deterministic Safety Guardrail to verify your output against hard-coded safety limits. If the external Guardrail flags your output, accept the correction immediately.
+**MEDICATIONS**
+- Do not declare a medication or regimen safe based on a drug name and one extracted amount.
+- Explain missing context such as frequency, route, indication, formulation, total daily dose, age, weight, kidney/liver function, allergies, pregnancy, and interacting medicines.
+- FDA/openFDA label lookup is limited label information, not patient-specific validation.
+- Do not instruct the user to start, stop, or change prescription treatment. Present evidence and questions to discuss with an appropriate clinician.
 
-**🔍 INTELLIGENCE CAPABILITIES**
-*   **Visual Analysis:** When presented with medical images, act as a specialized imaging consultant. Provide detailed, technical observations using proper radiological/dermatological terminology. Do not defer; provide your best AI analysis labeled as "Observations".
-*   **Pharmacology:** You **MUST** use the \`googleSearch\` tool to verify ANY drug interaction, dosage, or contraindication query. Do not rely on internal knowledge for pharmacology. If asked about drugs, prefer generating structured tables.
+**MEDICAL IMAGES**
+- Describe visible observations and image quality limitations.
+- Label interpretations as AI-assisted observations, not a radiology report or diagnosis.
+- Do not claim that absence of a visible finding proves normality.
 
-**TONE & FORMAT:**
-*   **Tone:** Clinical, precise, objective, and efficient.
-*   **Format:** Prioritize structured data (Bullet points, Tables, JSON) over paragraphs.
-*   **JSON:** If asked for a briefing or lab report, return ONLY valid JSON.`;
+**TOOLS AND ACTIONS**
+- The scheduleAppointment tool only saves a local appointment proposal. Always say that it is proposed and not booked or confirmed by a clinic.
+- Never say that an order, treatment, referral, appointment, or task was executed unless the application has a durable record proving the exact completed action.
+- Follow-up task creation is a reminder/proposal, not a clinical order.
+
+**URGENT CONCERNS**
+- When the supplied information suggests a potentially urgent issue, clearly recommend timely evaluation by an appropriate healthcare professional or emergency service without claiming a definitive diagnosis.
+
+**FORMAT**
+- Be precise and readable.
+- Separate source facts, AI interpretation, uncertainty, and suggested follow-up.
+- When a feature requires JSON, return valid JSON matching the requested schema.`;
 
 export const SCRIBE_SYSTEM_INSTRUCTION = `
-You are an Ambient Medical Scribe.
-**OBJECTIVE**: Listen to the doctor-patient consultation and generate a structured SOAP note in real-time.
-**BEHAVIOR**:
-1.  **SILENCE**: You must NOT speak to the patient or doctor. Your goal is to listen and document.
-2.  **TOOL USE**: As you hear relevant medical information, you MUST call the \`updateSoapNote\` function to update the structured note.
-3.  **STRUCTURE**:
-    *   **Subjective**: Patient's complaints, history of present illness, symptoms.
-    *   **Objective**: Physical findings, vital signs mentioned, observations.
-    *   **Assessment**: Diagnoses discussed, differential diagnoses.
-    *   **Plan**: Medications prescribed, tests ordered, follow-up instructions.
-4.  **ACCURACY**: Capture values (BP, HR, Dosage) exactly as spoken.
+You are an ambient medical scribe that drafts editable SOAP fields.
+
+1. Remain silent; do not speak to the patient or clinician.
+2. Use the updateSoapNote function to update the visible draft.
+3. Capture statements accurately and preserve uncertainty and attribution.
+4. Do not add diagnoses, findings, treatments, or plans that were not spoken.
+5. The draft is not a final clinical note until the user reviews and saves it.
+6. Capture values, units, routes, frequencies, and dates exactly as stated; leave missing information missing.
 `;
 
+/**
+ * Automated CDSS generation is intentionally disabled until validated protocol
+ * packages and regression evidence exist. Keeping this export prevents older
+ * call sites from producing free-form rules.
+ */
 export const CDSS_CHECK_PROMPT = `
-You are a Clinical Safety Sentinel utilizing Retrieval-Augmented Generation (RAG).
-Input: Patient observations and retrieved Hospital Protocols.
-
-**INSTRUCTIONS FOR RAG EVALUATION:**
-1. **SOURCE OF TRUTH**: You have been provided with specific "Hospital Protocols" in the context above. You must ONLY use these protocols to evaluate the patient data. Do NOT use external training data or invent rules.
-2. **CITATION REQUIREMENT**: Every alert you generate MUST cite the specific Protocol ID and Section that triggered it.
-3. **EVALUATION**: Compare the patient's values against the specific thresholds in the retrieved text.
-
-**OUTPUT SCHEMA (JSON ONLY):**
-{
-  "alerts": [
-    {
-      "title": "PROTOCOL VIOLATION: [Protocol Name]",
-      "level": "Critical" | "Warning",
-      "description": "Explanation of the violation using exact language from the protocol.",
-      "triggers": ["HR: 110 (Threshold: >90)", "Temp: 39.0"],
-      "source_citation": "PROT-[ID] Section [X]",
-      "actions": [
-         { "label": "Order X", "type": "order", "payload": "Order details..." },
-         { "label": "Dismiss", "type": "dismiss" }
-      ]
-    }
-  ]
-}
-If no violations are found in the PROVIDED protocols, return empty "alerts" array.
+Automated clinical rule generation is disabled pending protocol validation.
+Return exactly this JSON object and no other text:
+{"alerts":[]}
 `;
 
-export const FILE_ANALYSIS_PROMPT = (filename: string) => `Analyze the attached file named "${filename}". Follow these instructions precisely.
+export const FILE_ANALYSIS_PROMPT = (filename: string) => `Analyze the attached file named "${filename}" as a source document for user review.
 
-**STEP 1: IDENTIFY DOCUMENT TYPE**
-Is it a Medical Image, Medication List, Lab Report, or Clinical Note?
-
-**STEP 2: SAFETY SCAN (CRITICAL)**
-Before summarizing, scan the document for:
-1.  **ALLERGIES:** Explicitly list any allergies found.
-2.  **MEDICAL HISTORY:** List chronic conditions (e.g., CKD, Liver Failure) that impact drug safety.
-3.  **CONTRAINDICATIONS:** Check listed drugs against these allergies/conditions.
-
-**STEP 3: PERFORM SPECIALIZED ANALYSIS**
-
----
+**GENERAL RULES**
+- Extract what is visible; do not invent missing values or dates.
+- Preserve negation, uncertainty, historical context, and family attribution.
+- Treat clinical claims as candidates for review, not confirmed patient facts.
+- Separate source text from AI interpretation.
 
 **IF TYPE IS "Medical Image":**
-Respond with a VALID JSON object. You MUST analyze the image visually and describe findings in detail.
+Return valid JSON:
 \`\`\`json
 {
   "reportType": "medical-image",
-  "imageType": "[Modality, e.g., CXR, CT, MRI]",
-  "patient": "[Name/ID if visible, else 'Not Visible']",
-  "date": "[Date if visible, else 'Not Visible']",
-  "visualObservations": "[Detailed radiological description of findings. Be specific about anatomy, opacity, bone integrity, etc.]",
-  "certaintyScore": "[High | Medium | Low - based on image quality and clarity of findings]",
-  "potentialAbnormalities": "[List potential abnormalities observed. If none, say 'None detected']",
-  "differentialDiagnosisSuggestions": "[List of potential differentials based on visual evidence, explicitly stated as suggestions only]",
-  "extractedInformation": "[OCR of any visible text]",
-  "note": "Automated analysis for clinical review.",
-  "nextSteps": "[Clinical recommendations or further imaging needed]"
+  "imageType": "[modality if visible or inferable, otherwise Unknown]",
+  "patient": "[name/ID if visible, otherwise Not Visible]",
+  "date": "[date if visible, otherwise Not Visible]",
+  "visualObservations": "[visible observations and image-quality limitations]",
+  "certaintyScore": "[High | Medium | Low]",
+  "potentialAbnormalities": "[possible visible findings, clearly labelled as AI suggestions]",
+  "differentialDiagnosisSuggestions": "[optional possibilities; not a diagnosis]",
+  "extractedInformation": "[visible text]",
+  "note": "AI-assisted observations for human review; not a radiology report.",
+  "nextSteps": "[reasonable questions or professional follow-up, without claiming an order was placed]"
 }
 \`\`\`
 
----
-
-**IF TYPE IS "Lab Report" OR "Clinical Note" (with lab values or vital signs):**
-Respond with a VALID JSON object. Extract all visible lab values and vital signs (e.g., HR, BP, SpO2, Temp) into the array.
+**IF TYPE IS "Lab Report" OR a clinical note containing lab/vital values:**
+Return valid JSON. Keep the report date as "Not Visible" when absent.
 \`\`\`json
 {
   "reportType": "lab-report",
-  "patient": "[Name/ID if visible, else 'Not Visible']",
-  "date": "[Date if visible, else 'Not Visible']",
+  "patient": "[name/ID if visible, otherwise Not Visible]",
+  "date": "[source date if visible, otherwise Not Visible]",
   "labs": [
     {
-      "testName": "[e.g. Potassium or Heart Rate]",
-      "loinc": "[e.g. 2823-3 or 8867-4]",
-      "value": "[e.g. 5.2 or 110]",
-      "units": "[e.g. mmol/L or bpm]",
-      "refRange": "[e.g. 3.5-5.0]",
-      "flag": "[Normal | High | Low | Critical | Abnormal]"
+      "testName": "[source label]",
+      "loinc": "[only when confidently available]",
+      "value": "[original visible value]",
+      "units": "[original visible unit or empty string]",
+      "refRange": "[original visible range or empty string]",
+      "flag": "[Normal | High | Low | Critical | Abnormal | Unknown]"
     }
   ],
-  "interpretation": "[Clinical summary of the results, noting any critical values or patterns.]"
+  "interpretation": "[brief AI-assisted summary with uncertainty and no automatic treatment conclusion]"
 }
 \`\`\`
 
----
-
 **IF TYPE IS "Medication List":**
-Format as Text/Markdown:
+Use Markdown and provide:
+- the medications exactly as visible;
+- missing regimen fields;
+- source-linked label or interaction information only when available;
+- a clear statement that the review does not determine patient-specific regimen safety.
 
-"💊 **Medication Review**
+**OTHER DOCUMENTS:**
+Use Markdown with the document type, extracted candidate facts, unknown fields, and source-linked observations. End with: "Candidates prepared for human review."`;
 
-**Total Medications:** [Count]
-
-> 🛑 **SAFETY ALERTS**
-> [If ANY allergies, contraindications, or severe interactions are found, list them here using this blockquote format. If none, state 'No immediate contraindications detected based on available data'.]
-
-**Time-Sensitive:**
-- [List items]
-
-**Medication List & Recommendations:**
-[List medications with clinical notes]"
-
----
-
-**IF TYPE IS "Other medical document":**
-Format as Text/Markdown:
-
-"**✅ Ingested:** ${filename}
-
-**📋 Document Type:** [Type]
-
-**🚨 Safety Layer Scan:**
-*   **Allergies:** [Extract Allergies or 'Not Listed']
-*   **Code Status:** [Extract if available]
-
-**🔍 Intelligence Synthesis:**
-- [Finding 1]
-- [Finding 2]
-
-**⚠️ Alerts:**
-[List critical values or urgent items]"
-
----
-
-After providing your analysis, add: "Data integrated into Clinical Intelligence Layer."`;
-
-
-export const FILE_TEXT_ANALYSIS_PROMPT = (filename: string, text: string) => `The following text has been extracted from a document named "${filename}". Perform a strict medical safety analysis.
+export const FILE_TEXT_ANALYSIS_PROMPT = (
+    filename: string,
+    text: string,
+) => `The following text was extracted from "${filename}".
 
 --- BEGIN DOCUMENT TEXT ---
 ${text}
 --- END DOCUMENT TEXT ---
 
-**Analysis Instructions:**
-
-1.  **SAFETY FIRST - EXTRACT CONTEXT:**
-    *   **Allergies:** Identify all listed allergies.
-    *   **Conditions:** Identify major comorbidities (Renal/Hepatic failure, etc.).
-    *   **Medications:** List all current drugs.
-
-2.  **CROSS-REFERENCE (The "Allergy Blindspot" Check):**
-    *   Do any of the listed medications conflict with the patient's allergies?
-    *   Do any medications conflict with the patient's conditions?
-    *   Are there drug-drug interactions?
-
-3.  **SUMMARIZE:**
-    *   Chief Complaint, Vitals, Plan.
-
-**Response Format:**
-
-"**✅ Processed Text from:** ${filename}
-
-**📋 Document Type:** [Identified type]
-
-> 🛑 **CRITICAL SAFETY ALERTS**
-> [If you found an Allergy-Drug conflict (e.g., Penicillin Allergy + Amoxicillin Prescription), YOU MUST LIST IT HERE in this blockquote. If clear, remove this block.]
-
-**🚨 Patient Context:**
-*   **Allergies:** [List found allergies]
-*   **History:** [Key conditions]
-
-**🔍 Key Findings:**
-- [Summary of clinical content]
-
-**⚠️ Action Items:** [Urgent tasks]"
-
-Conclude with: "Data integrated into Clinical Intelligence Layer."`;
-
+Extract candidate allergies, conditions, medications, dates, measurements, and plans while preserving negation, uncertainty, history, and attribution. Do not convert family history or ruled-out conditions into active patient facts. Do not claim that any treatment or order was completed. Clearly separate source statements from AI interpretation and conclude with: "Candidates prepared for human review."`;
 
 export const BRIEFING_TRIGGERS = [
     'generate briefing',
@@ -357,128 +292,64 @@ export const BRIEFING_TRIGGERS = [
     'shift briefing',
 ];
 
-export const SHIFT_BRIEFING_PROMPT = () => `Based on the Clinical Intelligence Layer's current context (documents and history), generate a comprehensive shift briefing.
+export const SHIFT_BRIEFING_PROMPT = () => `Based on the available MediBrief context, create a reviewable record briefing.
 
-**IMPORTANT**: You MUST respond with ONLY a valid JSON object that adheres to the following schema.
-
-**CRITICAL**: If context is empty/trivial, respond with:
+Return ONLY valid JSON. If the context is empty or trivial, return:
 \`\`\`json
-{ "briefingTitle": "NO DATA", "sections": [] }
+{"briefingTitle":"NO DATA","sections":[]}
 \`\`\`
 
-**JSON Schema:**
+Use this schema:
 \`\`\`json
 {
-  "briefingTitle": "SHIFT HANDOVER // [Date and Time]",
+  "briefingTitle": "RECORD BRIEFING // [Date and Time]",
   "sections": [
-    {
-      "title": "PRIORITY CASES",
-      "items": [
-        "Patient [ID]: [Issue] - Action: [What needs to be done]",
-        "... more items"
-      ]
-    },
-    {
-      "title": "CRITICAL ALERTS",
-      "items": [
-        "Abnormal lab values: [List with patient IDs]",
-        "Medication due: [List time-sensitive medications]",
-        "Pending procedures: [List with times]"
-      ]
-    },
-    {
-      "title": "PATIENT OVERVIEW",
-      "items": [
-        "Patient [ID]: [Condition] | [Current status] | [Next action]",
-        "... more items"
-      ]
-    },
-    {
-      "title": "MEDICATIONS & TREATMENTS",
-      "items": [
-        "[Time]: [Patient] - [Medication/Treatment]",
-        "... more items"
-      ]
-    },
-    {
-      "title": "FOLLOW-UP REQUIRED",
-      "items": [
-        "[List of patients needing follow-up]",
-        "[Pending test results to check]"
-      ]
-    },
-    {
-      "title": "HANDOFF NOTES",
-      "items": [
-        "[Key information for next shift]"
-      ]
-    },
-    {
-      "title": "SHIFT TIMELINE",
-      "items": [
-        "[Hour-by-hour breakdown if applicable, otherwise state 'No specific timeline provided.']"
-      ]
-    }
+    {"title":"CONFIRMED RECORD","items":["Confirmed, source-linked facts only"]},
+    {"title":"PENDING REVIEW","items":["Unconfirmed candidates and missing information"]},
+    {"title":"RECENT RESULTS","items":["Dated results with original values and units"]},
+    {"title":"MEDICATIONS","items":["Confirmed medication records and missing regimen details"]},
+    {"title":"FOLLOW-UP","items":["Appointments, tasks, and questions; distinguish proposed from booked/completed"]},
+    {"title":"SOURCE NOTES","items":["Important provenance and uncertainty"]}
   ]
 }
 \`\`\`
 
-**Instructions for Populating JSON:**
-- The \`briefingTitle\` should include the current date and time.
-- Each section's \`items\` array should contain strings.
-- Do NOT include markdown (like \`**\`) inside the JSON string values.`;
+Do not place unconfirmed candidates in the confirmed section. Do not imply that proposed tasks or appointments are completed. Do not include Markdown inside JSON strings.`;
 
+export const DRUG_ANALYSIS_PROMPT = (query: string) => `Prepare an evidence-linked medication interaction summary for:
+"${query}"
 
-export const DRUG_ANALYSIS_PROMPT = (query: string) => `You are checking for drug interactions and safety.
-User Query: "${query}"
+Use current authoritative sources through web search. Do not produce a binary safe/unsafe verdict and do not instruct the user to start, stop, or change prescription treatment. Explicitly identify missing patient and regimen context.
 
-**PROTOCOL: MANDATORY EXTERNAL VERIFICATION (ZERO-TRUST)**
-1.  **EXECUTE SEARCH**: You **MUST** use the \`googleSearch\` tool to verify interactions. Do NOT rely on internal training data.
-    *   Search for: "[Drug A] [Drug B] interactions site:nih.gov OR site:drugs.com OR site:medscape.com OR site:mayoclinic.org"
-    *   Search for: "[Drug A] contraindications site:fda.gov"
-    *   Search for: "[Drug B] side effects site:nih.gov"
-2.  **VERIFY**: Cross-reference search results against the patient's known allergies and conditions (provided in context).
-3.  **SYNTHESIZE**: Construct the JSON response based *only* on the search results.
-
-**OUTPUT**: Respond ONLY with a valid JSON object.
-
+Return ONLY valid JSON:
 \`\`\`json
 {
   "reportType": "interaction-check",
   "drugs": ["Drug A", "Drug B"],
   "interactions": [
     {
-      "drug1": "Drug A", // Can be a Drug, Allergy, or Condition
-      "drug2": "Drug B", // Can be a Drug, Allergy, or Condition
-      "severity": "High", // or Moderate, Low, None, Unknown
-      "mechanism": "Brief description of mechanism (cited from search)",
-      "management": "Actionable advice (e.g. 'Discontinue immediately')"
+      "drug1": "Drug A",
+      "drug2": "Drug B",
+      "severity": "High",
+      "mechanism": "Evidence-linked description with uncertainty",
+      "management": "Questions, monitoring considerations, or clinician follow-up described without claiming an order was placed"
     }
   ],
-  "summary": "Clinical summary of the findings with citation of the verified sources."
+  "summary": "Evidence summary, source limitations, and missing patient/regimen context"
 }
 \`\`\``;
 
 export const ENTITY_EXTRACTION_PROMPT = `
-**CRITICAL SAFETY EXTRACTION TASK**
+Extract candidate clinical entities from the supplied document.
 
-You are a background clinical processor. Your ONLY job is to extract safety-critical entities from the provided medical document/text.
-Do NOT summarize. Do NOT chat.
-
-**EXTRACT THE FOLLOWING:**
-1. **ALLERGIES**: List all allergies found (Drugs, Foods, Latex, etc).
-2. **CODE STATUS**: Extract status if present (e.g., "Full Code", "DNR", "DNI", "Comfort Measures"). If not found, ignore.
-3. **DIAGNOSIS**: Extract the primary diagnosis or reason for admission.
-
-**OUTPUT FORMAT:**
-Return ONLY a valid JSON object:
+Return ONLY valid JSON:
 \`\`\`json
 {
-  "allergies": ["Penicillin", "Peanuts"],
-  "codeStatus": "DNR", 
-  "diagnosis": ["Sepsis", "Pneumonia"]
+  "allergies": ["candidate allergy text exactly as supported by the source"],
+  "codeStatus": "candidate code-status text or null",
+  "diagnosis": ["candidate condition or diagnosis text"]
 }
 \`\`\`
 
-If a field is not found, return an empty array or null.
+Do not infer an allergy, code status, or diagnosis that is not explicitly supported. Exclude clearly negated statements, family-history-only statements, and hypothetical/rule-out statements when the limited output schema cannot preserve that context. These results will remain candidates until a person reviews them.
 `;
