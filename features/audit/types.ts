@@ -1,4 +1,3 @@
-
 export type AuditEventType =
     | 'SYSTEM_INIT'
     | 'PATIENT_ACCESS'
@@ -7,7 +6,11 @@ export type AuditEventType =
     | 'ALERT_ACTION'
     | 'DOSAGE_CHECK'
     | 'BRIEFING_GENERATED'
-    | 'EXPORT_PDF';
+    | 'EXPORT_PDF'
+    | 'CLINICAL_CANDIDATE_CONFIRMED'
+    | 'CLINICAL_CANDIDATE_REJECTED'
+    | 'CLINICAL_RESOURCE_AMENDED'
+    | 'CLINICAL_SOURCE_VIEWED';
 
 export type AuditActor = 'AI' | 'USER' | 'SYSTEM';
 
