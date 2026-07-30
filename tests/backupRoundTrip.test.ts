@@ -8,6 +8,7 @@ import {
     MediBriefBackupV2Schema,
     prepareMediBriefBackupImport,
     useClinicalRecordStore,
+    type MediBriefBackupV2,
 } from '../features/clinical-record';
 import type { PatientMetadata } from '../features/patient-management/types';
 import { usePatientStore } from '../features/patient-management/usePatientStore';
@@ -137,7 +138,7 @@ describe('backup v2 transaction', () => {
                 },
                 missingStorageIds: [],
             },
-        });
+        }) as unknown as MediBriefBackupV2;
 
         const originalPut = blobStorage.putFile.bind(blobStorage);
         vi.spyOn(blobStorage, 'putFile')
