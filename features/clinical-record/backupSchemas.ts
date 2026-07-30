@@ -1,4 +1,9 @@
 import { z } from 'zod';
+import type { GroundingSource } from '../../types';
+import type { StoredFile } from '../../services/blobStorageService';
+import type { CDSSAlert } from '../cdss/types';
+import type { ClinicalDataStore } from '../fhir/types';
+import type { PatientMetadata } from '../patient-management/types';
 import {
     LEGACY_MEDIBRIEF_BACKUP_VERSION,
     MEDIBRIEF_BACKUP_FORMAT,
@@ -8,6 +13,7 @@ import {
     ClinicalRecordExportSchema,
     IsoDateTimeSchema,
 } from './schemas';
+import type { ClinicalRecordExport } from './types';
 
 const PatientStatusSchema = z.enum([
     'Stable',
@@ -154,7 +160,7 @@ const BackupClinicalDataStoreSchema = z.object({
 
 const BackupCDSSActionSchema = z.object({
     label: z.string(),
-    type: z.enum(['order', 'dismiss', 'acknowledge']),
+    type: z.enum(['create-task', 'order', 'dismiss', 'acknowledge']),
     payload: z.string().optional(),
 }).strict();
 
@@ -167,6 +173,8 @@ const BackupCDSSAlertSchema = z.object({
     timestamp: z.number().finite(),
     triggers: z.array(z.string()),
     actions: z.array(BackupCDSSActionSchema),
+    validationStatus: z.enum(['validated', 'unvalidated-legacy']).optional(),
+    sourceCitation: z.string().optional(),
 }).strict();
 
 export const BackupStoredFileSchema = z.object({
@@ -208,25 +216,39 @@ export const BackupLegacyClinicalStateSchema = z.object({
     ),
 }).strict();
 
-const collectStorageIds = (backup: {
-    patients: Record<string, z.infer<typeof BackupPatientMetadataSchema>>;
-    chats: Record<string, z.infer<typeof BackupChatMessageSchema>[]>;
-    clinicalRecords: z.infer<typeof ClinicalRecordExportSchema>;
-}): Set<string> => {
+type AssetReferenceShape = {
+    patients?: Record<string, {
+        documents?: Array<{ storageId?: string }>;
+    }>;
+    chats?: Record<string, Array<{
+        filePreview?: { storageId?: string };
+    }>>;
+    clinicalRecords?: {
+        records?: Record<string, {
+            resources?: {
+                documents?: Array<{ storageId?: string }>;
+            };
+        }>;
+    };
+};
+
+const collectStorageIds = (backup: AssetReferenceShape): Set<string> => {
     const storageIds = new Set<string>();
 
-    Object.values(backup.patients).forEach(patient => {
-        patient.documents.forEach(document => storageIds.add(document.storageId));
+    Object.values(backup.patients || {}).forEach(patient => {
+        (patient.documents || []).forEach(document => {
+            if (document.storageId) storageIds.add(document.storageId);
+        });
     });
-    Object.values(backup.chats).flat().forEach(message => {
+    Object.values(backup.chats || {}).flat().forEach(message => {
         if (message.filePreview?.storageId) {
             storageIds.add(message.filePreview.storageId);
         }
     });
-    Object.values(backup.clinicalRecords.records).forEach(record => {
-        record.resources.documents.forEach(document =>
-            storageIds.add(document.storageId),
-        );
+    Object.values(backup.clinicalRecords?.records || {}).forEach(record => {
+        (record.resources?.documents || []).forEach(document => {
+            if (document.storageId) storageIds.add(document.storageId);
+        });
     });
 
     return storageIds;
@@ -336,9 +358,51 @@ export const LegacyBackupV4_2Schema = z.object({
     patients: z.record(z.string(), LegacyPatientContextSchema),
 }).passthrough();
 
-export type BackupPatientMetadata = z.infer<typeof BackupPatientMetadataSchema>;
-export type BackupChatMessage = z.infer<typeof BackupChatMessageSchema>;
-export type BackupStoredFile = z.infer<typeof BackupStoredFileSchema>;
-export type BackupLegacyClinicalState = z.infer<typeof BackupLegacyClinicalStateSchema>;
-export type MediBriefBackupV2 = z.infer<typeof MediBriefBackupV2Schema>;
-export type LegacyBackupV4_2 = z.infer<typeof LegacyBackupV4_2Schema>;
+export type BackupPatientMetadata = PatientMetadata;
+
+export interface BackupChatMessage {
+    role: 'user' | 'model';
+    content: string;
+    displayContent?: string;
+    filePreview?: {
+        name: string;
+        type: string;
+        storageId?: string;
+    };
+    sources?: GroundingSource[];
+}
+
+export type BackupStoredFile = StoredFile;
+
+export interface BackupLegacyClinicalState {
+    data: Record<string, ClinicalDataStore>;
+    alerts: Record<string, CDSSAlert[]>;
+    dismissalHistory: Record<string, Record<string, number>>;
+}
+
+export interface MediBriefBackupV2 {
+    format: typeof MEDIBRIEF_BACKUP_FORMAT;
+    version: typeof MEDIBRIEF_BACKUP_VERSION;
+    exportedAt: string;
+    activePatientId: string;
+    patients: Record<string, PatientMetadata>;
+    chats: Record<string, BackupChatMessage[]>;
+    legacyClinical: BackupLegacyClinicalState;
+    clinicalRecords: ClinicalRecordExport;
+    assets: {
+        files: Record<string, StoredFile>;
+        missingStorageIds: string[];
+    };
+}
+
+export interface LegacyPatientContext extends PatientMetadata {
+    chatHistory: BackupChatMessage[];
+    clinicalData?: ClinicalDataStore;
+    activeAlerts?: CDSSAlert[];
+}
+
+export interface LegacyBackupV4_2 {
+    version: typeof LEGACY_MEDIBRIEF_BACKUP_VERSION;
+    activePatientId: string;
+    patients: Record<string, LegacyPatientContext>;
+}
