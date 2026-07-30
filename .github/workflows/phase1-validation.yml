@@ -1,0 +1,39 @@
+name: Phase 1 Clinical Validation
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - agent/phase-1-clinical-foundation
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Type-check, tests, and production build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Run automated tests
+        run: npm run test:run
+
+      - name: Build production application
+        run: npm run build:app
