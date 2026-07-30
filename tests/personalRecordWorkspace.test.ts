@@ -45,6 +45,6 @@ describe('Phase 2 personal record workspace', () => {
         expect(timeline).toContain('not as the event date');
         expect(emergency).toContain('Allergy status unknown');
         expect(emergency).not.toContain('NKDA');
-        expect(emergency).toContain('confirmed structured records');
+        expect(emergency).toContain('local confirmed record');
     });
 });
