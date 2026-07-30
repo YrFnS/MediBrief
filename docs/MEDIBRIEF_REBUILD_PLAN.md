@@ -5,7 +5,7 @@
 > **Branch:** `agent/phase-1-clinical-foundation`  
 > **Started:** 2026-07-30  
 > **Current phase:** Phase 1 — Clinical Foundation  
-> **Current implementation focus:** Slice 4 — connect current UI flows to the confirmed clinical record and candidate review workflow  
+> **Next implementation focus:** P1.5 — correct misleading clinical semantics and create durable actions  
 > **Primary focus:** Clinical correctness, durable structured records, traceability, and safe human review.  
 > **Explicitly out of scope for this roadmap:** Security hardening and regulatory certification.
 
@@ -189,7 +189,7 @@ Status: `[x] Complete`
 
 ## P1.3 — Candidate review and provenance workflow
 
-Status: `[-] In progress`
+Status: `[x] Complete`
 
 - [x] Use the shared clinical-resource shape as the generic candidate contract.
 - [x] Distinguish candidates from confirmed facts through `verificationStatus`.
@@ -201,9 +201,24 @@ Status: `[-] In progress`
 - [x] Record extraction engine and version.
 - [x] Record confidence without treating it as clinical certainty.
 - [x] Exclude candidates from the default confirmed timeline.
-- [ ] Add a reusable candidate-review interface.
-- [ ] Ensure the HUD and patient summaries read confirmed resources only.
-- [ ] Add source-document preview navigation from the review interface.
+- [x] Add a reusable patient-scoped candidate-review interface.
+- [x] Ensure the HUD and active-patient summary read confirmed resources only.
+- [x] Add source-document preview navigation from the review interface.
+- [x] Stop the current entity extractor from directly merging facts into legacy patient strings.
+- [x] Register uploaded files as confirmed document references while keeping extracted clinical claims as candidates.
+- [x] Add audit events for candidate edits, confirmation, rejection, and source viewing.
+
+### P1.3 implementation notes
+
+- `features/clinical-record/selectors.ts` centralizes confirmed-only summary rules.
+- Negated, family-history, and hypothetical assertions do not appear as current patient facts.
+- The HUD reads confirmed allergies, conditions, code status, and dated observations from the structured record.
+- When no allergy is confirmed, the HUD displays `Allergy status unknown`; it does not infer `NKDA`.
+- Candidate review supports resource-specific edits, review comments, confirmation, rejection, and source preview.
+- Images, PDFs, text, and JSON sources can be previewed from the local asset vault; unsupported formats remain downloadable.
+- Uploaded-document existence is confirmed because the user selected the file, but extracted diagnoses, allergies, and code status remain candidates.
+- Reviewed numeric lab rows now also write confirmed `ObservationRecord` resources while the legacy observation store remains temporarily active for compatibility.
+- See `docs/architecture/CANDIDATE_REVIEW_AND_CONFIRMED_VIEWS.md` for the full view and review contract.
 
 ## P1.4 — Migration, backup, and compatibility
 
@@ -249,7 +264,7 @@ Status: `[ ] Not started`
 - [ ] Replace `Verified Safe` medication language with an accurate coverage statement.
 - [ ] Separate FDA-label retrieval from medication-regimen validation.
 - [ ] Remove or disable overclaiming deterministic clinical rules pending validation.
-- [ ] Ensure unknown report dates remain unknown throughout current ingestion flows.
+- [ ] Ensure unknown report dates remain unknown throughout every current ingestion and display path.
 
 ## P1.6 — Tests and acceptance evidence
 
@@ -264,6 +279,8 @@ Status: `[ ] Not started`
 - [ ] Add candidate confirmation/rejection tests.
 - [ ] Add legacy backup import tests.
 - [ ] Add no-silent-data-loss migration tests.
+- [ ] Add confirmed-only selector tests.
+- [ ] Add source-document resolution and missing-asset tests.
 - [ ] Add terminology/label tests for suggestion versus execution states.
 - [ ] Add full repository type-check validation to each Phase 1 implementation slice.
 
@@ -280,6 +297,14 @@ Status: `[ ] Not started`
 - Protection of reviewed history from hard deletion.
 - Entered-in-error transition and reason requirement.
 - Resource queries, unknown-date behavior, partial-date overlap, and deterministic timeline sorting.
+
+#### P1.3 / Slice 4
+
+- Netlify deploy-preview build completed successfully after adding confirmed-only selectors, the candidate review surface, source-document preview, extraction candidate routing, HUD integration, and reviewed-observation dual writes.
+- The HUD no longer reads legacy allergy, diagnosis, code-status, or observation values as confirmed facts.
+- The review queue is patient-scoped and excludes reviewed resources automatically after confirmation or rejection.
+- Source preview retains metadata when the underlying local file is missing.
+- Newly extracted facts no longer mutate legacy patient entity strings.
 
 #### P1.4
 
@@ -348,8 +373,10 @@ Status: `[x] Complete`
 - Read confirmed allergies, conditions, observations, and demographics from the new record.
 - Keep compatibility adapters during transition.
 - Introduce the generic candidate review interface.
+- Add source-document preview and candidate audit events.
+- Route new extraction output into candidates rather than legacy strings.
 
-Status: `[-] In progress`
+Status: `[x] Complete`
 
 ## Slice 5 — Durable notes, tasks, and appointments
 
@@ -390,6 +417,10 @@ Status: `[ ] Not started`
 | 2026-07-30 | Include available binary assets directly in backup v2. | A portable personal-health backup should restore the original uploaded documents, not only their metadata. |
 | 2026-07-30 | Account explicitly for every referenced asset. | Missing files must be reported rather than silently represented as successfully backed up. |
 | 2026-07-30 | Validate and prepare the complete restore before mutating live stores. | This prevents malformed or partially migrated backup content from destructively replacing working local state. |
+| 2026-07-30 | Confirm uploaded-document existence separately from document-derived clinical claims. | The file upload is a user action, while extracted diagnoses, allergies, and other assertions still require clinical review. |
+| 2026-07-30 | Centralize confirmed-only patient-summary rules in selectors. | HUDs and future record views must apply the same verification and assertion-context rules. |
+| 2026-07-30 | Never infer `NKDA` from an empty confirmed allergy list. | Missing or unreviewed allergy information means unknown, not no known drug allergies. |
+| 2026-07-30 | Use a patient-scoped review queue first. | It keeps source review tied to the active record while leaving a future global inbox possible. |
 | 2026-07-30 | Keep security work outside this clinical rebuild roadmap. | The current project request is focused on medical completeness and correctness for a local personal application. |
 
 ---
@@ -403,15 +434,16 @@ Status: `[ ] Not started`
 | 2026-07-30 | P1.1 / Slice 1 | Added schema/version constants, full clinical resource interfaces, provenance, assertion context, unknown/partial dates, original/normalized quantities, strict Zod schemas, factories, and barrel exports. | Files remained isolated from existing UI behavior; branch diff inspected. | `feat: add clinical record foundation` |
 | 2026-07-30 | P1.2 / Slice 2 | Added the patient-scoped versioned store, typed lifecycle actions, amendment history, protected review states, strict persisted-record validation, source/date/status queries, timeline sorting, and conservative candidate deduplication. Connected the store to post-unlock hydration. | Isolated strict TypeScript compilation and lifecycle/query smoke tests passed. Full repository validation remains tracked in P1.6. | `feat: add versioned clinical record store` |
 | 2026-07-30 | P1.4 / Slice 3 | Added deterministic legacy migration, candidate conversion, portable backup v2, legacy v4.2 import, binary asset export/restore, restore rollback, unlock-time migration, and roster backup integration. | Deploy-preview build succeeded; schema and transaction paths reviewed. Full automated migration tests remain tracked in P1.6. | `feat: add legacy migration and backup v2` |
+| 2026-07-30 | P1.3 / Slice 4 | Added confirmed-only selectors and HUD, patient-scoped candidate review, source-file preview, candidate audit events, candidate-only entity extraction, uploaded-document registration, and confirmed structured writes from the current lab review flow. | Netlify deploy-preview build succeeded at the completed Slice 4 head. Repository-integrated tests remain tracked in P1.6. | `feat: add candidate review and confirmed views` |
 
 ---
 
 # Open questions and deferred choices
 
-These do not block the completed migration/backup slice and can be resolved during UI integration.
+These do not block the completed candidate-review and confirmed-view slice.
 
 - Whether to adopt official FHIR TypeScript definitions later or keep the smaller application-owned subset.
 - Whether OpenMed will run through a local FastAPI sidecar first or a browser/WebGPU path.
 - Whether the existing alert store should become a dedicated advisory store or be replaced by tasks plus transient notices.
 - Whether terminology coding will initially be optional free text plus coding suggestions or require a local terminology bundle.
-- Whether the first candidate-review surface should be a global inbox, a patient-scoped drawer, or both.
+- Whether a future global review inbox should complement the current patient-scoped queue.
