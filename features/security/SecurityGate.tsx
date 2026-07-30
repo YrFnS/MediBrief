@@ -42,12 +42,21 @@ const SecurityGate: React.FC<{ children: React.ReactNode }> = ({ children }) => 
 
         // Allow the loading state to paint before key derivation begins.
         setTimeout(async () => {
-            const success = await encryptionService.unlock(pin);
-            if (success) {
+            try {
+                const success = await encryptionService.unlock(pin);
+                if (!success) {
+                    setError('Invalid PIN. Access Denied.');
+                    setIsLoading(false);
+                    return;
+                }
+
                 await rehydrateEncryptedStores();
                 setIsUnlocked(true);
-            } else {
-                setError('Invalid PIN. Access Denied.');
+            } catch (unlockError) {
+                console.error('Failed to hydrate encrypted stores:', unlockError);
+                setError(
+                    'The PIN was accepted, but the local clinical vault could not be loaded. No stored data was changed.',
+                );
                 setIsLoading(false);
             }
         }, 100);
@@ -67,9 +76,17 @@ const SecurityGate: React.FC<{ children: React.ReactNode }> = ({ children }) => 
         setError(null);
         setIsLoading(true);
         setTimeout(async () => {
-            await encryptionService.setup(pin);
-            await rehydrateEncryptedStores();
-            setIsUnlocked(true);
+            try {
+                await encryptionService.setup(pin);
+                await rehydrateEncryptedStores();
+                setIsUnlocked(true);
+            } catch (setupError) {
+                console.error('Failed to initialize encrypted stores:', setupError);
+                setError(
+                    'The local clinical vault could not be initialized. No clinical record was imported.',
+                );
+                setIsLoading(false);
+            }
         }, 100);
     };
 
