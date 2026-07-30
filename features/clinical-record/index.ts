@@ -1,6 +1,7 @@
 export * from './backupSchemas';
 export * from './backupService';
 export * from './constants';
+export * from './durableActions';
 export * from './factories';
 export * from './legacyMigration';
 export * from './resourceUtils';
