@@ -3,6 +3,7 @@ import { encryptionService } from '../../services/encryptionService';
 import { useAuditStore } from '../audit/useAuditStore';
 import { useChatStore } from '../chat/stores/useChatStore';
 import { useClinicalStore } from '../clinical-analysis/stores/useClinicalStore';
+import { migrateCurrentLegacyStores } from '../clinical-record/backupService';
 import { useClinicalRecordStore } from '../clinical-record/useClinicalRecordStore';
 import { usePatientStore } from '../patient-management/usePatientStore';
 import {
@@ -19,6 +20,11 @@ const rehydrateEncryptedStores = async (): Promise<void> => {
         useClinicalRecordStore.persist.rehydrate(),
         useAuditStore.persist.rehydrate(),
     ]);
+
+    // Build or complete the versioned clinical record only after every legacy
+    // store has been decrypted. The migration is deterministic, additive, and
+    // writes the complete validated record map in one store update.
+    migrateCurrentLegacyStores();
 };
 
 const SecurityGate: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -55,7 +61,7 @@ const SecurityGate: React.FC<{ children: React.ReactNode }> = ({ children }) => 
             } catch (unlockError) {
                 console.error('Failed to hydrate encrypted stores:', unlockError);
                 setError(
-                    'The PIN was accepted, but the local clinical vault could not be loaded. No stored data was changed.',
+                    'The PIN was accepted, but the local clinical vault could not be loaded or migrated. No legacy data was removed.',
                 );
                 setIsLoading(false);
             }
@@ -83,7 +89,7 @@ const SecurityGate: React.FC<{ children: React.ReactNode }> = ({ children }) => 
             } catch (setupError) {
                 console.error('Failed to initialize encrypted stores:', setupError);
                 setError(
-                    'The local clinical vault could not be initialized. No clinical record was imported.',
+                    'The local clinical vault could not be initialized. No legacy data was removed or partially imported.',
                 );
                 setIsLoading(false);
             }
