@@ -7,5 +7,6 @@ export * from './legacyMigration';
 export * from './resourceUtils';
 export * from './schemas';
 export * from './selectors';
+export * from './sourceDocuments';
 export * from './types';
 export * from './useClinicalRecordStore';
