@@ -10,6 +10,7 @@ import { createUnknownClinicalDate } from '../features/clinical-record/factories
 import type {
     AllergyIntoleranceRecord,
     ConditionRecord,
+    DocumentReferenceRecord,
     ObservationRecord,
     RecordSource,
 } from '../features/clinical-record/types';
@@ -81,6 +82,56 @@ const baseCandidate = ({
     tags: ['ai-extracted', 'needs-review'],
 });
 
+const ensureDocumentReference = ({
+    patientId,
+    documentId,
+    file,
+    now,
+}: {
+    patientId: string;
+    documentId: string;
+    file: UploadedFile;
+    now: string;
+}): void => {
+    const actions = useClinicalRecordStore.getState().actions;
+    const record = actions.getPatientRecord(patientId);
+    const existing = record?.resources.documents.find(document =>
+        document.id === documentId
+        || (!!file.storageId && document.storageId === file.storageId),
+    );
+    if (existing || !file.storageId) return;
+
+    const document: DocumentReferenceRecord = {
+        id: documentId,
+        patientId,
+        resourceType: 'DocumentReference',
+        verificationStatus: 'confirmed',
+        recordedAt: now,
+        provenance: {
+            source: {
+                kind: 'manual',
+                description: 'File uploaded by the user for local medical-document review.',
+            },
+            createdAt: now,
+            updatedAt: now,
+            confirmation: {
+                reviewedAt: now,
+                reason: 'The local file upload was explicitly initiated by the user.',
+            },
+        },
+        amendments: [],
+        tags: ['uploaded-document'],
+        status: 'current',
+        storageId: file.storageId,
+        fileName: file.file.name,
+        mimeType: file.type || file.file.type || 'application/octet-stream',
+        uploadedAt: now,
+        relatedResources: [],
+        description: 'Locally stored source document. Clinical facts extracted from it remain candidates until reviewed.',
+    };
+    actions.addResource(document);
+};
+
 export const useEntityExtractor = () => {
     const clinicalRecordActions = useClinicalRecordStore(state => state.actions);
     const geminiApiKey = useSettingsStore(state => state.geminiApiKey);
@@ -102,7 +153,7 @@ export const useEntityExtractor = () => {
         abortControllerRef.current = controller;
 
         const documentId = extractionSource.documentId
-            || file.storageId
+            || (file.storageId ? `document-${file.storageId}` : undefined)
             || `untracked-document:${file.file.name}:${file.file.size}`;
 
         try {
@@ -126,6 +177,12 @@ export const useEntityExtractor = () => {
             });
 
             const now = new Date().toISOString();
+            ensureDocumentReference({
+                patientId,
+                documentId,
+                file,
+                now,
+            });
 
             entities.diagnosis.forEach(diagnosis => {
                 const clean = diagnosis.trim();
