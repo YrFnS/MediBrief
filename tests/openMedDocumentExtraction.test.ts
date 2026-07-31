@@ -56,10 +56,10 @@ const documentResponse = {
         {
             page_number: 2,
             start: 24,
-            end: 60,
+            end: 59,
             method: 'ocr',
             word_count: 6,
-            character_count: 36,
+            character_count: 35,
             engine: 'tesseract',
             average_confidence: 0.92,
             minimum_confidence: 0.88,
@@ -118,7 +118,7 @@ const contextResponse = {
                 end: 14,
                 direction: 'forward',
             }],
-            section: { label: 'unsectioned', start: 0, end: 60 },
+            section: { label: 'unsectioned', start: 0, end: 59 },
             experiencer_evidence: { source: 'default' },
         },
         {
@@ -134,7 +134,7 @@ const contextResponse = {
                 experiencer: 'patient',
             },
             cues: [],
-            section: { label: 'unsectioned', start: 0, end: 60 },
+            section: { label: 'unsectioned', start: 0, end: 59 },
             experiencer_evidence: { source: 'default' },
             medication_sig: {
                 raw: 'Take albuterol 2 puffs twice daily.',
