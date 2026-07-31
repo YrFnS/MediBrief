@@ -8,5 +8,7 @@ export { default as PersonalRecordNavigation } from './components/PersonalRecord
 export * from './coreModuleTypes';
 export * from './coreModuleViewModels';
 export * from './longitudinalModuleViewModels';
+export * from './planningModuleTypes';
+export * from './planningModuleViewModels';
 export * from './types';
 export * from './viewModels';
