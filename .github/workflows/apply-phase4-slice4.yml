@@ -1,6 +1,16 @@
 name: Apply Phase 4 Slice 4
 
 on:
+  pull_request:
+    branches:
+      - agent/phase-3-openmed-extraction
+    types:
+      - opened
+      - reopened
+      - synchronize
+    paths:
+      - scripts/apply_phase4_slice4.py
+      - .github/workflows/apply-phase4-slice4.yml
   push:
     branches:
       - agent/phase-4-diagnostic-report-pipeline
