@@ -70,6 +70,7 @@ const VIEW_TITLES: Record<PersonalRecordView, string> = {
     overview: 'Overview',
     'health-data': 'Health Data',
     timeline: 'Timeline',
+    search: 'Search & Export',
     emergency: 'Emergency Summary',
     assistant: 'Assistant',
 };
@@ -128,6 +129,7 @@ const Phase2Workspace: React.FC = () => {
                 <button
                     type="button"
                     onClick={() => setView('overview')}
+                    aria-label="Return from the assistant to the patient record overview"
                     className="fixed right-3 top-16 z-50 flex items-center gap-2 rounded-full border border-blue-200 bg-white/95 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-blue-700 shadow-lg backdrop-blur-md transition-colors hover:bg-blue-50 dark:border-blue-800 dark:bg-slate-950/95 dark:text-blue-300"
                 >
                     <ActivityIcon className="h-3.5 w-3.5" />
@@ -139,6 +141,12 @@ const Phase2Workspace: React.FC = () => {
 
     return (
         <div className="relative flex h-[100dvh] overflow-hidden bg-slate-50 font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+            <a
+                href="#patient-record-content"
+                className="sr-only fixed left-3 top-3 z-[100] rounded-lg bg-slate-950 px-4 py-3 text-sm font-bold text-white shadow-xl focus:not-sr-only"
+            >
+                Skip to patient record content
+            </a>
             <BioMetricBackground />
             <DisclaimerModal />
             <SettingsModal
@@ -170,7 +178,11 @@ const Phase2Workspace: React.FC = () => {
                     />
 
                     {!isOnline && (
-                        <div className="z-40 flex items-center justify-center gap-2 bg-emerald-600 px-4 py-1.5 text-center text-[10px] font-bold uppercase tracking-wider text-white shadow-sm">
+                        <div
+                            role="status"
+                            aria-live="polite"
+                            className="z-40 flex items-center justify-center gap-2 bg-emerald-600 px-4 py-1.5 text-center text-[10px] font-bold uppercase tracking-wider text-white shadow-sm"
+                        >
                             <WifiOffIcon className="h-3.5 w-3.5" />
                             <span>Offline — local record remains available</span>
                         </div>
@@ -186,35 +198,43 @@ const Phase2Workspace: React.FC = () => {
                         pendingCandidates={pendingCandidates}
                     />
 
-                    {activePatient && view === 'overview' && (
-                        <ClinicalCandidateReview patientId={activePatient.id} />
-                    )}
+                    <main
+                        id="patient-record-content"
+                        role="tabpanel"
+                        aria-labelledby={`patient-record-tab-${view}`}
+                        tabIndex={-1}
+                        className="flex min-h-0 min-w-0 flex-1 flex-col outline-none"
+                    >
+                        {activePatient && view === 'overview' && (
+                            <ClinicalCandidateReview patientId={activePatient.id} />
+                        )}
 
-                    <CDSSContainer />
+                        <CDSSContainer />
 
-                    {!activePatient ? (
-                        <div className="flex flex-1 items-center justify-center p-6">
-                            <div className="max-w-md rounded-3xl border border-dashed border-slate-300 bg-white p-8 text-center dark:border-slate-700 dark:bg-slate-950/80">
-                                <ActivityIcon className="mx-auto h-10 w-10 text-slate-300 dark:text-slate-600" />
-                                <h1 className="mt-3 text-lg font-bold text-slate-900 dark:text-white">
-                                    Select or create a patient
-                                </h1>
-                                <p className="mt-2 text-sm leading-relaxed text-slate-500 dark:text-slate-400">
-                                    The personal health record is patient-scoped. Use the roster to choose the record you want to review.
-                                </p>
+                        {!activePatient ? (
+                            <div className="flex flex-1 items-center justify-center p-6">
+                                <div className="max-w-md rounded-3xl border border-dashed border-slate-300 bg-white p-8 text-center dark:border-slate-700 dark:bg-slate-950/80">
+                                    <ActivityIcon className="mx-auto h-10 w-10 text-slate-300 dark:text-slate-600" />
+                                    <h1 className="mt-3 text-lg font-bold text-slate-900 dark:text-white">
+                                        Select or create a patient
+                                    </h1>
+                                    <p className="mt-2 text-sm leading-relaxed text-slate-500 dark:text-slate-400">
+                                        The personal health record is patient-scoped. Use the roster to choose the record you want to review.
+                                    </p>
+                                </div>
                             </div>
-                        </div>
-                    ) : view === 'assistant' ? (
-                        <AssistantAccessPrompt
-                            onOpenSettings={() => setIsSettingsOpen(true)}
-                        />
-                    ) : (
-                        <PersonalHealthRecordShell
-                            patientId={activePatient.id}
-                            view={view}
-                            onNavigate={setView}
-                        />
-                    )}
+                        ) : view === 'assistant' ? (
+                            <AssistantAccessPrompt
+                                onOpenSettings={() => setIsSettingsOpen(true)}
+                            />
+                        ) : (
+                            <PersonalHealthRecordShell
+                                patientId={activePatient.id}
+                                view={view}
+                                onNavigate={setView}
+                            />
+                        )}
+                    </main>
                 </div>
             </div>
 
