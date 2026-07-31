@@ -3,6 +3,7 @@ import type { UploadedFile } from '../types';
 import {
     extractLocalTextFromUpload,
     extractOpenMedCandidatesFromUpload,
+    getOpenMedContextEvidence,
     mapOpenMedEntitiesToCandidates,
 } from '../features/openmed';
 import { useClinicalRecordStore } from '../features/clinical-record';
@@ -34,6 +35,76 @@ const extractionSettings = {
     medicationModel: 'pharma_detection_superclinical',
     keepAlive: '10m',
 };
+
+const openMedResponse = ({
+    text,
+    modelName,
+}: {
+    text: string;
+    modelName: string;
+}) => ({
+    text,
+    model_name: modelName,
+    version: '2.0.0',
+    entities: modelName.includes('disease')
+        ? [{
+            text: 'Asthma',
+            label: 'DISEASE',
+            confidence: 0.97,
+            start: 0,
+            end: 6,
+        }]
+        : [{
+            text: 'albuterol',
+            label: 'DRUG',
+            confidence: 0.94,
+            start: 20,
+            end: 29,
+        }],
+});
+
+const contextResponse = (text: string) => ({
+    text,
+    engine: 'OpenMed clinical ConText',
+    engine_version: '2.0.0',
+    bridge_version: '1',
+    language: 'en',
+    evaluated_at: '2026-07-31T12:00:01.000Z',
+    results: [
+        {
+            id: 'condition:0:6:0',
+            kind: 'condition',
+            text: 'Asthma',
+            start: 0,
+            end: 6,
+            assertion: {
+                polarity: 'affirmed',
+                certainty: 'certain',
+                temporality: 'recent',
+                experiencer: 'patient',
+            },
+            cues: [],
+            section: { label: 'unsectioned', start: 0, end: text.length },
+            experiencer_evidence: { source: 'default' },
+        },
+        {
+            id: 'medication:20:29:1',
+            kind: 'medication',
+            text: 'albuterol',
+            start: 20,
+            end: 29,
+            assertion: {
+                polarity: 'affirmed',
+                certainty: 'certain',
+                temporality: 'recent',
+                experiencer: 'patient',
+            },
+            cues: [],
+            section: { label: 'unsectioned', start: 0, end: text.length },
+            experiencer_evidence: { source: 'default' },
+        },
+    ],
+});
 
 describe('OpenMed local text intake', () => {
     it('decodes supported text locally while preserving exact character positions', () => {
@@ -94,34 +165,19 @@ describe('OpenMed extraction orchestration and clinical mapping', () => {
         useClinicalRecordStore.setState({ records: {} });
     });
 
-    it('runs specialized disease and medication models and maps exact source spans', async () => {
+    it('runs NER, enriches assertion context, and keeps exact source provenance', async () => {
         const text = 'Asthma treated with albuterol.';
-        const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
-            const body = JSON.parse(String(init?.body)) as {
-                model_name: string;
-                text: string;
-            };
-            const entities = body.model_name.includes('disease')
-                ? [{
-                    text: 'Asthma',
-                    label: 'DISEASE',
-                    confidence: 0.97,
-                    start: 0,
-                    end: 6,
-                }]
-                : [{
-                    text: 'albuterol',
-                    label: 'DRUG',
-                    confidence: 0.94,
-                    start: 20,
-                    end: 29,
-                }];
-            return new Response(JSON.stringify({
-                text: body.text,
-                model_name: body.model_name,
-                version: '2.0.0',
-                entities,
-            }), { status: 200 });
+        const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+            const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+            if (url.endsWith('/medibrief/context')) {
+                return new Response(JSON.stringify(contextResponse(text)), {
+                    status: 200,
+                });
+            }
+            return new Response(JSON.stringify(openMedResponse({
+                text: String(body.text),
+                modelName: String(body.model_name),
+            })), { status: 200 });
         });
         vi.stubGlobal('fetch', fetchMock);
 
@@ -131,10 +187,12 @@ describe('OpenMed extraction orchestration and clinical mapping', () => {
         });
 
         expect(result.status).toBe('success');
+        expect(result.contextStatus).toBe('applied');
+        expect(result.contextAppliedCount).toBe(2);
         expect(result.entities).toHaveLength(2);
         expect(result.entities.map(entity => entity.kind))
             .toEqual(['condition', 'medication']);
-        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(fetchMock).toHaveBeenCalledTimes(3);
 
         const candidates = mapOpenMedEntitiesToCandidates({
             patientId: 'patient-1',
@@ -149,15 +207,16 @@ describe('OpenMed extraction orchestration and clinical mapping', () => {
             candidate.resourceType === 'Condition');
         expect(condition).toMatchObject({
             verificationStatus: 'candidate',
+            clinicalStatus: 'active',
             effective: {
                 value: null,
                 precision: 'unknown',
             },
             assertion: {
-                polarity: 'unknown',
-                certainty: 'unknown',
-                temporality: 'unknown',
-                experiencer: 'unknown',
+                polarity: 'affirmed',
+                certainty: 'certain',
+                temporality: 'current',
+                experiencer: 'patient',
             },
             provenance: {
                 source: {
@@ -177,6 +236,15 @@ describe('OpenMed extraction orchestration and clinical mapping', () => {
                     confidence: 0.97,
                 },
             },
+            tags: expect.arrayContaining([
+                'openmed-extracted',
+                'openmed-context',
+            ]),
+        });
+        expect(condition && getOpenMedContextEvidence(condition)).toMatchObject({
+            engine: 'OpenMed clinical ConText',
+            bridgeVersion: '1',
+            assertion: { temporality: 'recent' },
         });
 
         const actions = useClinicalRecordStore.getState().actions;
@@ -193,6 +261,79 @@ describe('OpenMed extraction orchestration and clinical mapping', () => {
         expect(firstWrite.status).toBe('created');
         expect(duplicateWrite.status).toBe('duplicate');
         expect(actions.getTimeline('patient-1')).toEqual([]);
+    });
+
+    it('retains candidate NER with unknown context when the optional bridge is unavailable', async () => {
+        const text = 'Asthma treated with albuterol.';
+        vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+            const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+            if (url.endsWith('/medibrief/context')) {
+                return new Response(JSON.stringify({ detail: 'Not Found' }), {
+                    status: 404,
+                });
+            }
+            return new Response(JSON.stringify(openMedResponse({
+                text: String(body.text),
+                modelName: String(body.model_name),
+            })), { status: 200 });
+        }));
+
+        const result = await extractOpenMedCandidatesFromUpload({
+            file: upload({ name: 'visit.txt', type: 'text/plain', text }),
+            settings: extractionSettings,
+        });
+
+        expect(result.status).toBe('success');
+        expect(result.contextStatus).toBe('unavailable');
+        expect(result.entities.every(entity => entity.context === undefined)).toBe(true);
+        expect(result.warnings.join(' ')).toContain('unknown assertion context');
+
+        const candidates = mapOpenMedEntitiesToCandidates({
+            patientId: 'patient-1',
+            documentId: 'document-1',
+            fileName: 'visit.txt',
+            entities: result.entities,
+            now: '2026-07-31T12:00:00.000Z',
+        });
+        expect(candidates[0].assertion).toEqual({
+            polarity: 'unknown',
+            certainty: 'unknown',
+            temporality: 'unknown',
+            experiencer: 'unknown',
+        });
+    });
+
+    it('skips the English-only context bridge for non-Latin clinical text', async () => {
+        const text = 'المريض لديه ربو.';
+        const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
+            const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+            return new Response(JSON.stringify({
+                text: body.text,
+                model_name: body.model_name,
+                version: '2.0.0',
+                entities: [{
+                    text: 'ربو',
+                    label: 'DISEASE',
+                    confidence: 0.9,
+                    start: 13,
+                    end: 16,
+                }],
+            }), { status: 200 });
+        });
+        vi.stubGlobal('fetch', fetchMock);
+
+        const result = await extractOpenMedCandidatesFromUpload({
+            file: upload({ name: 'arabic.txt', type: 'text/plain', text }),
+            settings: {
+                ...extractionSettings,
+                medicationModel: '',
+            },
+        });
+
+        expect(result.status).toBe('success');
+        expect(result.contextStatus).toBe('skipped-language');
+        expect(result.entities[0].context).toBeUndefined();
+        expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 
     it('returns unavailable without creating invented output when every local model fails', async () => {
