@@ -1,3 +1,5 @@
+import type { OpenMedContextResult } from './contextTypes';
+
 export type ClinicalExtractionMode = 'auto' | 'openmed' | 'gemini';
 
 export interface OpenMedClientConfig {
@@ -56,6 +58,7 @@ export interface OpenMedCandidateEntity extends OpenMedEntity {
     kind: OpenMedCandidateKind;
     modelName: string;
     engineVersion?: string;
+    context?: OpenMedContextResult;
 }
 
 export type LocalTextExtractionStatus =
@@ -83,12 +86,20 @@ export type OpenMedExtractionStatus =
     | 'unavailable'
     | 'aborted';
 
+export type OpenMedContextApplicationStatus =
+    | 'not-requested'
+    | 'applied'
+    | 'unavailable'
+    | 'skipped-language';
+
 export interface OpenMedExtractionResult {
     status: OpenMedExtractionStatus;
     entities: OpenMedCandidateEntity[];
     warnings: string[];
     text?: string;
     serviceVersion?: string;
+    contextStatus?: OpenMedContextApplicationStatus;
+    contextAppliedCount?: number;
 }
 
 export interface OpenMedExtractionSettings {
