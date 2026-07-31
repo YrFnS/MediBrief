@@ -5,6 +5,10 @@ import {
     XCircleIcon,
 } from '../../components/icons';
 import { ChatMode } from '../../types';
+import type {
+    OpenMedOcrEngine,
+    OpenMedOcrMode,
+} from '../openmed/documentTypes';
 import { normalizeOpenMedBaseUrl } from '../openmed/openMedClient';
 import type { ClinicalExtractionMode } from '../openmed/types';
 import OpenMedContextBridgeStatus from './OpenMedContextBridgeStatus';
@@ -48,6 +52,20 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     const [tempFallback, setTempFallback] = useState(
         settings.allowGeminiExtractionFallback,
     );
+    const [tempDocumentExtractionEnabled, setTempDocumentExtractionEnabled] =
+        useState(settings.openMedDocumentExtractionEnabled);
+    const [tempOcrMode, setTempOcrMode] = useState<OpenMedOcrMode>(
+        settings.openMedOcrMode,
+    );
+    const [tempOcrEngine, setTempOcrEngine] = useState<OpenMedOcrEngine>(
+        settings.openMedOcrEngine,
+    );
+    const [tempOcrLanguages, setTempOcrLanguages] = useState(
+        settings.openMedOcrLanguages,
+    );
+    const [tempOcrResolution, setTempOcrResolution] = useState(
+        settings.openMedOcrResolution,
+    );
     const [saveError, setSaveError] = useState<string | null>(null);
 
     useEffect(() => {
@@ -63,6 +81,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
         setTempTimeoutMs(settings.openMedTimeoutMs);
         setTempKeepAlive(settings.openMedKeepAlive);
         setTempFallback(settings.allowGeminiExtractionFallback);
+        setTempDocumentExtractionEnabled(
+            settings.openMedDocumentExtractionEnabled,
+        );
+        setTempOcrMode(settings.openMedOcrMode);
+        setTempOcrEngine(settings.openMedOcrEngine);
+        setTempOcrLanguages(settings.openMedOcrLanguages);
+        setTempOcrResolution(settings.openMedOcrResolution);
         setSaveError(null);
     }, [isOpen]);
 
@@ -85,6 +110,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                 );
                 return;
             }
+            if (tempDocumentExtractionEnabled && tempOcrLanguages.length === 0) {
+                setSaveError('At least one OCR language code is required.');
+                return;
+            }
         }
 
         settings.setGeminiApiKey(tempGeminiKey.trim());
@@ -100,6 +129,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
         settings.setOpenMedTimeoutMs(tempTimeoutMs);
         settings.setOpenMedKeepAlive(tempKeepAlive.trim());
         settings.setAllowGeminiExtractionFallback(tempFallback);
+        settings.setOpenMedDocumentExtractionEnabled(
+            tempDocumentExtractionEnabled,
+        );
+        settings.setOpenMedOcrMode(tempOcrMode);
+        settings.setOpenMedOcrEngine(tempOcrEngine);
+        settings.setOpenMedOcrLanguages(tempOcrLanguages);
+        settings.setOpenMedOcrResolution(tempOcrResolution);
         onClose();
     };
 
@@ -245,6 +281,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                         timeoutMs={tempTimeoutMs}
                         keepAlive={tempKeepAlive}
                         allowGeminiFallback={tempFallback}
+                        documentExtractionEnabled={tempDocumentExtractionEnabled}
+                        ocrMode={tempOcrMode}
+                        ocrEngine={tempOcrEngine}
+                        ocrLanguages={tempOcrLanguages}
+                        ocrResolution={tempOcrResolution}
                         onExtractionModeChange={setTempExtractionMode}
                         onBaseUrlChange={setTempOpenMedBaseUrl}
                         onDiseaseModelChange={setTempDiseaseModel}
@@ -253,6 +294,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                         onTimeoutMsChange={setTempTimeoutMs}
                         onKeepAliveChange={setTempKeepAlive}
                         onAllowGeminiFallbackChange={setTempFallback}
+                        onDocumentExtractionEnabledChange={setTempDocumentExtractionEnabled}
+                        onOcrModeChange={setTempOcrMode}
+                        onOcrEngineChange={setTempOcrEngine}
+                        onOcrLanguagesChange={setTempOcrLanguages}
+                        onOcrResolutionChange={setTempOcrResolution}
                     />
 
                     {tempExtractionMode !== 'gemini' && (
