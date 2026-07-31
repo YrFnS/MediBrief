@@ -29,30 +29,71 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Apply Slice 4 patch
-        run: python scripts/apply_phase4_slice4.py
-
-      - name: Remove temporary patch machinery
-        run: rm scripts/apply_phase4_slice4.py .github/workflows/apply-phase4-slice4.yml
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 24
 
-      - name: Install dependencies
-        run: npm install --no-audit --no-fund
+      - name: Apply and validate Slice 4
+        id: validate
+        shell: bash
+        run: |
+          set +e
+          log=/tmp/phase4-slice4-validation.log
+          : > "$log"
 
-      - name: Type-check
-        run: npm run typecheck
+          run_step() {
+            label="$1"
+            shift
+            {
+              echo
+              echo "===== $label ====="
+              "$@"
+            } >> "$log" 2>&1
+            return $?
+          }
 
-      - name: Run automated tests
-        run: npm run test:run
+          run_step "Apply patch" python scripts/apply_phase4_slice4.py
+          exit_code=$?
 
-      - name: Build production application
-        run: npm run build:app
+          if [ "$exit_code" -eq 0 ]; then
+            rm scripts/apply_phase4_slice4.py .github/workflows/apply-phase4-slice4.yml
+            run_step "Install dependencies" npm install --no-audit --no-fund
+            exit_code=$?
+          fi
+          if [ "$exit_code" -eq 0 ]; then
+            run_step "Type-check" npm run typecheck
+            exit_code=$?
+          fi
+          if [ "$exit_code" -eq 0 ]; then
+            run_step "Automated tests" npm run test:run
+            exit_code=$?
+          fi
+          if [ "$exit_code" -eq 0 ]; then
+            run_step "Production build" npm run build:app
+            exit_code=$?
+          fi
+
+          cat "$log"
+          echo "exit_code=$exit_code" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Publish failure diagnostics only
+        if: steps.validate.outputs.exit_code != '0'
+        shell: bash
+        run: |
+          git reset --hard HEAD
+          cp /tmp/phase4-slice4-validation.log scripts/phase4_slice4_failure.log
+          git config user.name "MediBrief automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add scripts/phase4_slice4_failure.log
+          git commit -m "chore: record phase 4 slice 4 validation failure"
+          git push origin HEAD:agent/phase-4-diagnostic-report-pipeline
+          exit 1
 
       - name: Commit and push validated Slice 4
+        if: steps.validate.outputs.exit_code == '0'
+        shell: bash
         run: |
           git config user.name "MediBrief automation"
           git config user.email "actions@users.noreply.github.com"
