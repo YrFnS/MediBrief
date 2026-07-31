@@ -28,4 +28,6 @@ The acceptance run must include:
 - all Vitest suites, including diagnostic conflict and workspace contracts;
 - production Vite build.
 
+The PR description is the release record for the immutable validated head, workflow run, test totals, and remaining non-blocking dependency or bundle observations. Acceptance evidence must describe what was measured and must not turn synthetic fixtures into claims of real-world clinical accuracy.
+
 Bundle-size, dependency-maintenance, mixed-import, and runtime stylesheet warnings remain separate performance/dependency workstreams and do not weaken the clinical correctness boundary above.
