@@ -9,6 +9,7 @@ import {
 import { useSecurityLock } from '../../hooks/useSecurityLock';
 import CDSSContainer from '../cdss/CDSSContainer';
 import ClinicalCandidateReview from '../clinical-record/components/ClinicalCandidateReview';
+import ClinicalContextReview from '../clinical-record/components/ClinicalContextReview';
 import { selectCandidateResources } from '../clinical-record/selectors';
 import { useClinicalRecordStore } from '../clinical-record/useClinicalRecordStore';
 import HeadsUpDisplay from '../hud/HeadsUpDisplay';
@@ -206,7 +207,10 @@ const Phase2Workspace: React.FC = () => {
                         className="flex min-h-0 min-w-0 flex-1 flex-col outline-none"
                     >
                         {activePatient && view === 'overview' && (
-                            <ClinicalCandidateReview patientId={activePatient.id} />
+                            <>
+                                <ClinicalContextReview patientId={activePatient.id} />
+                                <ClinicalCandidateReview patientId={activePatient.id} />
+                            </>
                         )}
 
                         <CDSSContainer />
