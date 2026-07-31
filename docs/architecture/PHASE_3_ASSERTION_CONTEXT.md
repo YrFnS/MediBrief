@@ -8,7 +8,7 @@ Slice 2 adds:
 
 - scoped negation;
 - certainty and hypothetical language;
-- historical/current temporality;
+- historical temporality;
 - patient, family, and other experiencer evidence;
 - clinical section priors;
 - medication dose, route, frequency, PRN condition, and duration parsing;
@@ -22,7 +22,7 @@ It does not automatically confirm a condition or medication. It also does not ad
 
 OpenMed 2.0 exposes named-entity recognition through the standard REST `/analyze` endpoint.
 
-Its clinical context capabilities are provided by Python helpers including:
+Its clinical context capabilities are Python helpers, including:
 
 - `scan_context_cues()`;
 - `assert_context_axes()`;
@@ -61,37 +61,18 @@ POST /medibrief/context
 
 The browser therefore uses one loopback origin and one CORS policy.
 
-## Request contract
+## Request and response validation
 
-The context request contains the exact source text and only spans already accepted by the NER response validator:
-
-```json
-{
-  "text": "No evidence of pneumonia.",
-  "language": "en",
-  "spans": [
-    {
-      "id": "condition:15:24:0",
-      "kind": "condition",
-      "label": "DISEASE",
-      "text": "pneumonia",
-      "start": 15,
-      "end": 24
-    }
-  ]
-}
-```
+The context request contains the exact source text and only spans already accepted by the NER response validator.
 
 The bridge rejects:
 
 - blank source text;
-- missing IDs;
+- missing span IDs;
 - unsupported span kinds;
 - non-integer or invalid offsets;
 - spans outside the source text;
 - supplied entity text that does not exactly match its offsets.
-
-## Response contract
 
 Each result preserves:
 
@@ -99,7 +80,7 @@ Each result preserves:
 - kind;
 - exact source text;
 - original start and end offsets;
-- assertion axes;
+- raw OpenMed assertion axes;
 - scoped cue text, category, direction, and offsets;
 - detected section and offsets;
 - experiencer evidence source and cue offsets;
@@ -109,30 +90,44 @@ Each result preserves:
 - language;
 - evaluation timestamp.
 
-The TypeScript client validates all of those boundaries again. Changed spans, duplicate IDs, missing results, invalid cue offsets, source mismatches, and malformed payloads fail closed.
+The TypeScript client validates those boundaries again. Changed spans, duplicate IDs, missing results, invalid cue offsets, source mismatches, and malformed payloads fail closed.
 
-## Assertion mapping
+## Raw context versus candidate assertion
 
-OpenMed axis values map into MediBrief candidate assertion fields as follows:
+OpenMed deliberately defaults an unmodified span to:
 
-| OpenMed | MediBrief |
+```text
+affirmed · certain · recent · patient
+```
+
+Those values are useful review hints but are not positive evidence. A document containing the word `asthma` does not, by itself, prove a current, certain patient diagnosis.
+
+MediBrief therefore keeps two representations:
+
+1. **Raw OpenMed context evidence** — retained with engine, version, cues, sections, offsets, and timestamp.
+2. **Conservative candidate assertion** — copies only evidence-backed signals and leaves the rest unknown.
+
+### Evidence-backed mapping
+
+| OpenMed evidence | MediBrief candidate axis |
 |---|---|
-| `affirmed` | `affirmed` |
-| `negated` | `negated` |
-| `certain` | `certain` |
-| `uncertain` | `uncertain` |
-| `recent` | `current` |
-| `historical` | `historical` |
-| `hypothetical` | `hypothetical` |
-| `patient` | `patient` |
-| `family` | `family` |
-| `other` | `other` |
+| scoped negation cue and `negated` output | `polarity: negated` |
+| uncertainty or hypothetical cue and `uncertain` output | `certainty: uncertain` |
+| historical cue or Past Medical History/History section | `temporality: historical` |
+| hypothetical cue | `temporality: hypothetical` |
+| family/other cue or section prior | matching non-default experiencer |
+| default `affirmed` | `polarity: unknown` |
+| default `certain` | `certainty: unknown` |
+| default `recent` | `temporality: unknown` |
+| default `patient` | `experiencer: unknown` |
 
-When the bridge is unavailable or language routing skips the context layer, all four MediBrief axes remain `unknown`.
+Condition candidates keep `clinicalStatus: unknown` until the user reviews the source. Slice 2 does not auto-suggest `active` merely because OpenMed returned its default `recent` value.
 
-A current affirmed patient condition can receive a suggested `active` candidate status. Historical patient conditions can receive a suggested `inactive` candidate status. Negated, hypothetical, family, other, or unresolved assertions keep an unknown condition status.
+Every resource remains:
 
-These are candidate suggestions, not confirmed medical facts.
+```text
+verificationStatus: candidate
+```
 
 ## Separate provenance
 
@@ -155,7 +150,7 @@ This preserves:
 - context engine and version;
 - bridge version;
 - evaluation time;
-- assertion output;
+- raw assertion output;
 - cue and section offsets;
 - experiencer evidence;
 - parsed medication sig.
@@ -164,7 +159,7 @@ The separation prevents context output from being attributed to the NER model an
 
 ## Medication evidence
 
-The bridge parses a clause-bounded window around each medication span. It also prevents a medication's window from crossing into the next detected medication span.
+The bridge parses a clause-bounded window around each medication span and prevents one medication's window from crossing into the next medication span.
 
 Recognized values may include:
 
@@ -192,7 +187,7 @@ Medication sig parsing does not validate:
 
 ## Review workflow
 
-The Overview screen now has two related but distinct controls:
+The Overview screen has two related but distinct controls:
 
 1. **OpenMed context review** — inspect cues, sections, experiencer attribution, medication sig, and correct the four assertion axes.
 2. **Clinical candidate review** — edit the clinical fact and perform the existing confirm or reject action.
@@ -202,7 +197,6 @@ The context panel intentionally contains no `confirmCandidate` or `rejectCandida
 Saving a context correction:
 
 - amends the candidate;
-- requires no hard deletion;
 - preserves previous assertion values;
 - records a reason and audit event;
 - leaves `verificationStatus: candidate` unchanged.
@@ -225,7 +219,7 @@ Slice 2 context application is limited to English text in MediBrief.
 
 A conservative script gate skips the context call for non-Latin clinical text. Those candidates retain unknown assertion axes.
 
-This avoids applying an English context model to Arabic clinical text and keeps Arabic clinical-NER claims separate from Arabic PII support.
+This avoids applying an English context layer to Arabic clinical text and keeps Arabic clinical-NER claims separate from Arabic PII support.
 
 The final Phase 3 language slice will replace this conservative gate with measured routing evidence.
 
@@ -253,7 +247,7 @@ This gate protects deterministic regressions. It does not estimate performance o
 
 ### Allergies
 
-A drug mention plus a reaction word is not sufficient to establish a confirmed allergy. The current verified integration surface does not expose a dedicated allergy relationship endpoint with measured evidence. OpenMed allergy candidates are therefore not created in Slice 2.
+A drug mention plus a reaction word is not sufficient to establish an allergy. The verified integration surface does not expose a dedicated allergy relationship endpoint with measured evidence. OpenMed allergy candidates are therefore not created in Slice 2.
 
 ### Code status
 
@@ -263,7 +257,7 @@ Both domains remain explicit Phase 3 work rather than being implemented through 
 
 ## Validation scope
 
-Repository validation now includes:
+Repository validation includes:
 
 - Python bridge unit tests;
 - bridge route smoke tests;
@@ -273,8 +267,8 @@ Repository validation now includes:
 - NER-plus-context orchestration tests;
 - context-unavailable degradation tests;
 - non-Latin skip tests;
-- candidate-only mapping tests;
+- candidate-only and evidence-backed mapping tests;
 - context provenance persistence tests;
-- context-review source-level regression tests;
+- context-review regression tests;
 - all prior Phase 1, Phase 2, and Phase 3 Slice 1 tests;
-- production TypeScript build.
+- repository type-check and production build.
