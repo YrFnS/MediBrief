@@ -5,9 +5,11 @@ export { default as HealthDataWorkspace } from './components/HealthDataWorkspace
 export { default as PatientOverview } from './components/PatientOverview';
 export { default as PatientTimeline } from './components/PatientTimeline';
 export { default as PersonalRecordNavigation } from './components/PersonalRecordNavigation';
+export { default as RecordManagementModule } from './components/RecordManagementModule';
 export * from './coreModuleTypes';
 export * from './coreModuleViewModels';
 export * from './longitudinalModuleViewModels';
+export * from './manualRecordManagement';
 export * from './planningModuleTypes';
 export * from './planningModuleViewModels';
 export * from './types';
