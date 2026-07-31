@@ -1,5 +1,7 @@
 import type { LabReport } from '../chat/schemas';
 import type {
+    LegacyLabReviewSource,
+    PendingLegacyLabReview,
     ReviewedDiagnosticReportDraft,
     ReviewedObservationDraft,
 } from './types';
@@ -18,26 +20,6 @@ const resultLocalId = (index: number, testName: string): string => {
         .slice(0, 48);
     return `extracted-result-${index + 1}${slug ? `-${slug}` : ''}`;
 };
-
-export interface LegacyLabReviewSource {
-    documentId?: string;
-    fileName?: string;
-    storageId?: string;
-    mimeType?: string;
-    pageNumber?: number;
-}
-
-/**
- * The chat extractor can discover the legacy lab-report JSON shape, but the
- * extracted report must remain attached to the uploaded source and pass through
- * the Phase 4 report-level review workspace before any clinical graph is saved.
- */
-export interface PendingLegacyLabReview {
-    report: LabReport;
-    source: LegacyLabReviewSource;
-    detectedAt: string;
-    extractionEngine: string;
-}
 
 export interface LegacyLabReviewSeed {
     draft: ReviewedDiagnosticReportDraft;
