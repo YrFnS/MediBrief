@@ -138,6 +138,8 @@ const contextResponse = {
             experiencer_evidence: { source: 'default' },
             medication_sig: {
                 raw: 'Take albuterol 2 puffs twice daily.',
+                window_start: 24,
+                window_end: 59,
                 dose: 2,
                 unit: 'puffs',
                 frequency_per_day: 2,
@@ -198,6 +200,7 @@ describe('OpenMed page-aware document extraction', () => {
         });
 
         expect(result.status).toBe('success');
+        expect(result.contextStatus).toBe('applied');
         expect(result.documentExtraction).toMatchObject({
             method: 'hybrid',
             pageCount: 2,
