@@ -153,12 +153,21 @@ describe('Phase 3 OpenMed workspace contracts', () => {
         const arabicCorpus = source(
             '../evaluation/phase3/clinical_ner_ar_gold.json',
         );
+        const extractionFunction = extraction.slice(
+            extraction.indexOf('export const extractOpenMedCandidatesFromUpload'),
+        );
+        const languageGuard = extractionFunction.indexOf(
+            'if (!languageAssessment.allowDefaultClinicalNer)',
+        );
+        const modelCall = extractionFunction.indexOf(
+            'const response = await analyzeOpenMedText',
+        );
 
         expect(extraction).toContain('assessOpenMedClinicalLanguage');
         expect(extraction).toContain('allowDefaultClinicalNer');
         expect(extraction).toContain("status: 'unsupported'");
-        expect(extraction.indexOf('allowDefaultClinicalNer'))
-            .toBeLessThan(extraction.indexOf('await analyzeOpenMedText'));
+        expect(languageGuard).toBeGreaterThanOrEqual(0);
+        expect(modelCall).toBeGreaterThan(languageGuard);
         expect(languagePolicy).toContain('unsupported-arabic-clinical-ner');
         expect(languagePolicy).toContain('mixed-script-review');
         expect(languagePolicy).toContain('Arabic OCR capability');
