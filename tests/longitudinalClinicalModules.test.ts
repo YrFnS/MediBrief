@@ -332,8 +332,8 @@ describe('document library module', () => {
         expect(view.items[0].relatedResources[0]).toMatchObject({
             id: 'procedure-2',
             label: 'Appendectomy',
-            missing: undefined,
         });
+        expect(view.items[0].relatedResources[0]).not.toHaveProperty('missing');
         expect(view.items[0].relatedResources[1]).toMatchObject({
             id: 'missing-encounter',
             missing: true,
