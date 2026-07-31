@@ -20,6 +20,7 @@ describe('Phase 3 OpenMed workspace contracts', () => {
         expect(settings).toContain('openMedBaseUrl');
         expect(settings).toContain('openMedDiseaseModel');
         expect(settings).toContain('openMedMedicationModel');
+        expect(settings).toContain('allowGeminiExtractionFallback: false');
         expect(modal).toContain('Assistant AI');
         expect(modal).toContain('OpenMedSettingsPanel');
         expect(openMedPanel).toContain('Clinical document extraction');
@@ -74,6 +75,12 @@ describe('Phase 3 OpenMed workspace contracts', () => {
             '!settings.allowGeminiExtractionFallback',
         );
         expect(extractionHook).toContain(
+            "openMedResult.status === 'invalid'",
+        );
+        expect(extractionHook).toContain(
+            "openMedResult.status === 'too-large'",
+        );
+        expect(extractionHook).toContain(
             'Auto mode reaches this branch only when local extraction is',
         );
         expect(settingsPanel).toContain(
@@ -96,10 +103,10 @@ describe('Phase 3 OpenMed workspace contracts', () => {
             'PDF and image OCR are not enabled yet',
         );
         expect(plan).toContain(
-            'Slice 1 does not pretend those files are text',
+            'PDF and image content is never represented as text',
         );
         expect(plan).toContain(
-            'PDF and image OCR are separate work',
+            'PDF and image processing needs a real local extraction or OCR pipeline',
         );
     });
 });
