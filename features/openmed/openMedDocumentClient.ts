@@ -36,7 +36,7 @@ const fetchDocumentJson = async ({
     const parentAbort = () => controller.abort(signal?.reason);
     if (signal?.aborted) parentAbort();
     signal?.addEventListener('abort', parentAbort, { once: true });
-    const timeout = window.setTimeout(() => {
+    const timeout = setTimeout(() => {
         timedOut = true;
         controller.abort(new Error('OpenMed document request timed out.'));
     }, timeoutMs ?? config.timeoutMs);
@@ -98,7 +98,7 @@ const fetchDocumentJson = async ({
             { code: 'document-unavailable', cause: error },
         );
     } finally {
-        window.clearTimeout(timeout);
+        clearTimeout(timeout);
         signal?.removeEventListener('abort', parentAbort);
     }
 };
