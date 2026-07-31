@@ -1,3 +1,4 @@
+import type { LabReport } from '../chat/schemas';
 import type {
     ClinicalDate,
     ClinicalRecordResource,
@@ -15,6 +16,26 @@ export type DiagnosticReportReviewStatus = Extract<
 export type ReviewedReportStatus = DiagnosticReportRecord['status'];
 export type ReviewedObservationStatus = ObservationRecord['status'];
 export type ReviewedSpecimenStatus = SpecimenRecord['status'];
+
+export interface LegacyLabReviewSource {
+    documentId?: string;
+    fileName?: string;
+    storageId?: string;
+    mimeType?: string;
+    pageNumber?: number;
+}
+
+/**
+ * The legacy chat extractor may discover a laboratory JSON payload, but it is
+ * held here with its source context until the report-level review workspace
+ * either confirms the connected graph or discards the pending review.
+ */
+export interface PendingLegacyLabReview {
+    report: LabReport;
+    source: LegacyLabReviewSource;
+    detectedAt: string;
+    extractionEngine: string;
+}
 
 export interface ReviewedDiagnosticIdentifier {
     value: string;
