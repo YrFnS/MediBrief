@@ -78,6 +78,8 @@ export type OpenMedExtractionStatus =
     | 'partial'
     | 'empty'
     | 'unsupported'
+    | 'too-large'
+    | 'invalid'
     | 'unavailable'
     | 'aborted';
 
