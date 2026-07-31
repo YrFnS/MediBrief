@@ -196,7 +196,7 @@ The repository-integrated Node.js 24 workflow passed:
 
 - TypeScript: `tsc --noEmit` passed.
 - Test files: **29 of 29 passed**.
-- Tests: **124 of 124 passed**.
+- Tests: **125 of 125 passed**.
 - Production build: `vite build` passed.
 - Production modules transformed: **1031**.
 
@@ -286,7 +286,7 @@ Status: `[ ] Not started`
 | 2026-07-31 | P3.0 / Slice 1 | Created the Phase 3 branch and living implementation plan from the accepted Phase 2 head. | Branch and plan created. | `docs: add Phase 3 OpenMed extraction plan` |
 | 2026-07-31 | P3.1 / Slice 1 | Added strict REST contracts, health checking, timeouts, cancellation, response validation, and independent persisted settings. | Included in repository pipeline. | `feat: add cancellable OpenMed REST client` |
 | 2026-07-31 | P3.2 / Slice 1 | Added local text decoding, two-model extraction, candidate mapping, exact offsets, provenance, and explicit fallback routing. | Included in repository pipeline. | `feat: route document candidates through local OpenMed` |
-| 2026-07-31 | P3.6 / Slice 1 | Added client, intake, mapping, service-failure, deduplication, provenance, settings, and fallback regression tests. | 29/29 files, 124/124 tests, build passed with 1031 modules. | `test: cover OpenMed routing and safety boundaries` |
+| 2026-07-31 | P3.6 / Slice 1 | Added client, intake, mapping, service-failure, deduplication, provenance, settings, and fallback regression tests. | 29/29 files, 125/125 tests, build passed with 1031 modules. | `test: cover OpenMed routing and safety boundaries` |
 | 2026-07-31 | P3.0 / Slice 1 | Added architecture and local-service setup documentation and opened draft PR #3. | PR workflow passed. | `docs: complete Phase 3 OpenMed Slice 1` |
 
 ---
