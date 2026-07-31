@@ -325,6 +325,8 @@ export const useEntityExtractor = () => {
 
                 if (
                     openMedResult.status === 'empty'
+                    || openMedResult.status === 'invalid'
+                    || openMedResult.status === 'too-large'
                     || openMedResult.status === 'aborted'
                     || settings.extractionMode === 'openmed'
                     || !settings.allowGeminiExtractionFallback
