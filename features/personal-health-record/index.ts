@@ -7,5 +7,6 @@ export { default as PatientTimeline } from './components/PatientTimeline';
 export { default as PersonalRecordNavigation } from './components/PersonalRecordNavigation';
 export * from './coreModuleTypes';
 export * from './coreModuleViewModels';
+export * from './longitudinalModuleViewModels';
 export * from './types';
 export * from './viewModels';
