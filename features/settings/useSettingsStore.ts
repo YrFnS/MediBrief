@@ -1,12 +1,16 @@
-
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
+import { createJSONStorage, persist } from 'zustand/middleware';
 import { indexedDBStorage } from '../../services/storage';
 import { ChatMode } from '../../types';
+import {
+    DEFAULT_OPENMED_BASE_URL,
+    DEFAULT_OPENMED_TIMEOUT_MS,
+} from '../openmed/openMedClient';
+import type { ClinicalExtractionMode } from '../openmed/types';
 
 export enum AIProvider {
     Gemini = 'Gemini',
-    OpenRouter = 'OpenRouter'
+    OpenRouter = 'OpenRouter',
 }
 
 interface SettingsState {
@@ -14,17 +18,43 @@ interface SettingsState {
     geminiApiKey: string;
     openRouterApiKey: string;
     customModels: Record<ChatMode, string>;
-    
-    // Actions
+
+    extractionMode: ClinicalExtractionMode;
+    openMedBaseUrl: string;
+    openMedDiseaseModel: string;
+    openMedMedicationModel: string;
+    openMedConfidenceThreshold: number;
+    openMedTimeoutMs: number;
+    openMedKeepAlive: string;
+    allowGeminiExtractionFallback: boolean;
+
     setProvider: (provider: AIProvider) => void;
     setGeminiApiKey: (key: string) => void;
     setOpenRouterApiKey: (key: string) => void;
     setCustomModel: (mode: ChatMode, model: string) => void;
+    setExtractionMode: (mode: ClinicalExtractionMode) => void;
+    setOpenMedBaseUrl: (value: string) => void;
+    setOpenMedDiseaseModel: (value: string) => void;
+    setOpenMedMedicationModel: (value: string) => void;
+    setOpenMedConfidenceThreshold: (value: number) => void;
+    setOpenMedTimeoutMs: (value: number) => void;
+    setOpenMedKeepAlive: (value: string) => void;
+    setAllowGeminiExtractionFallback: (value: boolean) => void;
 }
+
+const clampConfidence = (value: number): number => {
+    if (!Number.isFinite(value)) return 0.6;
+    return Math.min(1, Math.max(0, value));
+};
+
+const normalizeTimeout = (value: number): number => {
+    if (!Number.isFinite(value)) return DEFAULT_OPENMED_TIMEOUT_MS;
+    return Math.min(900_000, Math.max(1_000, Math.round(value)));
+};
 
 export const useSettingsStore = create<SettingsState>()(
     persist(
-        (set) => ({
+        set => ({
             provider: AIProvider.Gemini,
             geminiApiKey: '',
             openRouterApiKey: '',
@@ -32,20 +62,48 @@ export const useSettingsStore = create<SettingsState>()(
                 [ChatMode.Standard]: '',
                 [ChatMode.Deep]: '',
                 [ChatMode.Live]: '',
-                [ChatMode.Scribe]: ''
+                [ChatMode.Scribe]: '',
             },
-            
-            setProvider: (provider) => set({ provider }),
-            setGeminiApiKey: (geminiApiKey) => set({ geminiApiKey }),
-            setOpenRouterApiKey: (openRouterApiKey) => set({ openRouterApiKey }),
-            setCustomModel: (mode, model) => set((state) => ({ 
-                customModels: { ...state.customModels, [mode]: model } 
+
+            extractionMode: 'auto',
+            openMedBaseUrl: DEFAULT_OPENMED_BASE_URL,
+            openMedDiseaseModel: 'disease_detection_superclinical',
+            openMedMedicationModel: 'pharma_detection_superclinical',
+            openMedConfidenceThreshold: 0.6,
+            openMedTimeoutMs: DEFAULT_OPENMED_TIMEOUT_MS,
+            openMedKeepAlive: '10m',
+            allowGeminiExtractionFallback: true,
+
+            setProvider: provider => set({ provider }),
+            setGeminiApiKey: geminiApiKey => set({ geminiApiKey }),
+            setOpenRouterApiKey: openRouterApiKey => set({ openRouterApiKey }),
+            setCustomModel: (mode, model) => set(state => ({
+                customModels: { ...state.customModels, [mode]: model },
             })),
+            setExtractionMode: extractionMode => set({ extractionMode }),
+            setOpenMedBaseUrl: openMedBaseUrl => set({ openMedBaseUrl }),
+            setOpenMedDiseaseModel: openMedDiseaseModel => set({
+                openMedDiseaseModel,
+            }),
+            setOpenMedMedicationModel: openMedMedicationModel => set({
+                openMedMedicationModel,
+            }),
+            setOpenMedConfidenceThreshold: value => set({
+                openMedConfidenceThreshold: clampConfidence(value),
+            }),
+            setOpenMedTimeoutMs: value => set({
+                openMedTimeoutMs: normalizeTimeout(value),
+            }),
+            setOpenMedKeepAlive: openMedKeepAlive => set({
+                openMedKeepAlive,
+            }),
+            setAllowGeminiExtractionFallback: value => set({
+                allowGeminiExtractionFallback: value,
+            }),
         }),
         {
             name: 'medibrief-settings-storage',
             storage: createJSONStorage(() => indexedDBStorage),
-            // We want to persist the keys and settings
-        }
-    )
+        },
+    ),
 );
