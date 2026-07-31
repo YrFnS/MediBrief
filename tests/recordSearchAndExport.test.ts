@@ -166,6 +166,7 @@ describe('record-wide search', () => {
 
         const undated = searchPatientRecord(record, {
             dateState: 'undated',
+            resourceType: 'Observation',
         });
         expect(undated.items.map(item => item.id)).toEqual(['unknown-weight']);
         expect(undated.items[0]).toMatchObject({
