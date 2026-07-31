@@ -5,7 +5,7 @@
 > **Branch:** `agent/phase-2-personal-health-record`  
 > **Base:** `agent/phase-1-clinical-foundation`  
 > **Started:** 2026-07-31  
-> **Current focus:** Slice 3 — Encounters, Notes, Procedures, Immunizations, and Documents
+> **Current focus:** Slice 4 — Appointments, Tasks, Care Plans, and Reminders
 
 ## Product goal
 
@@ -15,10 +15,11 @@ Phase 2 makes the structured clinical record understandable and useful without r
 
 - The personal record remains usable without an AI API key.
 - Confirmed facts, pending candidates, rejected assertions, and entered-in-error records are never visually conflated.
-- An empty section means no confirmed information is available; it does not prove the absence of a condition, allergy, medication, procedure, immunization, or test.
+- An empty section means no confirmed information is available; it does not prove the absence of a condition, allergy, medication, procedure, immunization, visit, note, document, or test.
 - Unknown event dates remain unknown and appear separately from dated clinical history.
-- Secondary timestamps such as import, issue, review, or storage time never replace an explicitly unknown event date.
+- Secondary timestamps such as import, issue, review, upload, or storage time never replace an explicitly unknown event date.
 - Original clinical values remain visible even when a normalized value is available.
+- Device-related text is evidence to review, not a fabricated implant inventory.
 - Emergency summaries are generated deterministically from confirmed structured data.
 - Chat is an assistant surface, not the primary navigation model or medical record.
 - Every view supports sparse records and grows naturally as resources are added.
@@ -112,18 +113,20 @@ Status: `[-] In progress`
 - [x] Allergies and intolerances
 - [x] Medications and medication history
 - [x] Labs and diagnostic reports
-- [ ] Visits, encounters, and notes
-- [ ] Procedures and devices
-- [ ] Immunizations
-- [ ] Documents
+- [x] Visits and encounters
+- [x] Clinical notes
+- [x] Procedures and device-related evidence
+- [x] Immunizations
+- [x] Documents
 - [ ] Appointments
 - [ ] Tasks and reminders
 - [ ] Care plans
+- [!] Standalone versioned Device resource and implant inventory — deferred until a backward-compatible clinical-schema extension is designed and migrated.
 
 ### P2.4 completed core-module behavior
 
 - [x] Add one scalable Health Data destination with internal module navigation.
-- [x] Add current, history, and all-record scopes for conditions, allergies, and medications.
+- [x] Add current, history, and all-record scopes where clinically applicable.
 - [x] Add domain-specific search and filters.
 - [x] Preserve severity, body site, onset, resolution, reactions, dosage, route, timing, indication, prescriber, ranges, flags, and report relationships.
 - [x] Show provenance, amendment counts, extraction confidence, tags, and original local sources.
@@ -134,12 +137,27 @@ Status: `[-] In progress`
 - [x] Link diagnostic reports to their structured result previews.
 - [x] Keep explicitly unknown result dates unknown even when issue, review, or storage timestamps exist.
 
+### P2.4 completed longitudinal-module behavior
+
+- [x] Link encounters to confirmed notes, procedures, diagnostic reports, and related documents.
+- [x] Preserve encounter reasons, participants, location, service provider, class, status, and unknown periods.
+- [x] Present durable clinical notes independently of chat.
+- [x] Preserve every clinical-note section, author, note type, encounter link, source document, transcript link, and amended-note relationship.
+- [x] Preserve procedure dates, body sites, reasons, outcomes, complications, performers, encounter links, reports, documents, notes, and provenance.
+- [x] Expose confirmed device-related procedure and document evidence without claiming a current device inventory.
+- [x] Preserve immunization status, occurrence, manufacturer, lot, original/normalized dose, route, site, reason, performer, note, and source.
+- [x] Add a local document library with current/superseded status, type, MIME family, page count, hash, description, related resources, and source preview.
+- [x] Keep document authored date separate from upload time.
+- [x] Display broken related-resource references explicitly.
+
 ### P2.4 implementation notes
 
-- The top-level record navigation remains compact; Conditions, Allergies, Medications, and Results live under Health Data.
+- The top-level record navigation remains compact; all domain modules live under Health Data.
 - Every detailed record can open its original local source when provenance includes a document reference.
 - Result flags and reference ranges are reproduced as recorded information, not diagnoses or treatment recommendations.
+- Device keyword matches are labelled as evidence, not as proof that an implant is currently present.
 - See `docs/architecture/PHASE_2_CORE_CLINICAL_MODULES.md`.
+- See `docs/architecture/PHASE_2_LONGITUDINAL_RECORD_MODULES.md`.
 
 ## P2.5 — Manual entry and correction
 
@@ -162,9 +180,10 @@ Status: `[-] In progress`
 - [x] Add record-home view-model and confirmed-only tests.
 - [x] Add record-first startup and semantic regression guards.
 - [x] Add core clinical-module behavior tests.
-- [x] Add source-level uncertainty, provenance, and medication-boundary guards.
+- [x] Add longitudinal-module behavior tests.
+- [x] Add source-level uncertainty, provenance, device-boundary, document-date, and medication-boundary guards.
 - [x] Extend GitHub Actions validation to the Phase 2 branch and stacked PR.
-- [x] Run repository type-check, automated tests, and production build for Slices 1 and 2.
+- [x] Run repository type-check, automated tests, and production build for Slices 1–3.
 - [ ] Record final Phase 2 acceptance evidence after every Phase 2 slice is complete.
 
 ---
@@ -212,29 +231,48 @@ Status: `[x] Complete`
 
 ### Slice 2 validation
 
-The complete repository pipeline passed after the core-module and explicit-unknown-date fixes:
-
 - TypeScript: `tsc --noEmit` passed.
 - Test files: **18 of 18 passed**.
 - Tests: **72 of 72 passed**.
 - Production build: `vite build` passed.
 - Production modules transformed: **1006**.
 
-The regression suite caught and corrected a real semantics defect: an explicitly unknown result date could previously be presented using an issue timestamp. The view-model boundary now preserves the unknown event date and displays issue/storage time separately as provenance.
-
-The build continues to report the existing non-blocking bundle-size, mixed-import, and runtime stylesheet warnings. These remain a separate performance workstream.
+The regression suite caught and corrected a semantics defect: an explicitly unknown result date could previously be presented using an issue timestamp. The view-model boundary now preserves the unknown event date and displays issue/storage time separately as provenance.
 
 See `docs/architecture/PHASE_2_CORE_CLINICAL_MODULES.md`.
 
 ## Slice 3 — Visits and longitudinal documentation
 
-Status: `[ ] Not started`
+Status: `[x] Complete`
 
-- Encounters and visits
-- Clinical notes
-- Procedures and devices
-- Immunizations
-- Documents
+- [x] Visits and encounters
+- [x] Clinical notes
+- [x] Procedures and device-related evidence
+- [x] Immunizations
+- [x] Documents
+- [x] Encounter-to-record relationships
+- [x] Full note-section preservation
+- [x] Device-evidence boundary
+- [x] Authored-date versus upload-time separation
+- [x] Provenance and source preview
+- [x] Confirmed-only and sparse-record regression coverage
+- [x] Repository type-check, tests, and production build
+
+### Slice 3 validation
+
+The complete repository pipeline passed after tightening the resolved-versus-missing document relationship assertion:
+
+- TypeScript: `tsc --noEmit` passed.
+- Test files: **20 of 20 passed**.
+- Tests: **82 of 82 passed**.
+- Production build: `vite build` passed.
+- Production modules transformed: **1012**.
+
+The initial test expected an absent optional `missing` property to appear explicitly as `undefined`. The implementation correctly omits that property for resolved references. The regression was changed to assert that resolved links do not have `missing`, while broken references retain `missing: true`.
+
+The build continues to report the existing non-blocking bundle-size, mixed-import, and runtime stylesheet warnings. These remain a separate performance workstream.
+
+See `docs/architecture/PHASE_2_LONGITUDINAL_RECORD_MODULES.md`.
 
 ## Slice 4 — Planning and follow-up
 
@@ -244,6 +282,7 @@ Status: `[ ] Not started`
 - Tasks
 - Care plans
 - Reminders
+- Accurate proposed, booked, requested, accepted, and completed states
 
 ## Slice 5 — Manual entry and amendments
 
@@ -271,14 +310,13 @@ Status: `[ ] Not started`
 |---|---|---|
 | 2026-07-31 | Build Phase 2 as a stacked branch based on the completed Phase 1 head. | Phase 2 depends directly on the structured record while keeping the completed Phase 1 PR independently reviewable. |
 | 2026-07-31 | Make the record overview the default destination and keep the assistant as one workspace. | A local personal health record must remain useful without AI access and should not make chat the primary interface. |
-| 2026-07-31 | Use deterministic view models over confirmed resources. | Patient-facing record views should not require AI generation or introduce new clinical assertions. |
+| 2026-07-31 | Use deterministic view models over confirmed resources. | Overview, timeline, emergency, and domain information should not require AI generation or introduce new clinical assertions. |
 | 2026-07-31 | Separate clinically undated events from dated timeline entries. | Sorting an unknown clinical event by its storage timestamp could falsely imply when it occurred. |
-| 2026-07-31 | Keep the existing assistant layout behind the Assistant destination during Phase 2. | This preserves working chat, live, upload, and scribe features while the record shell expands incrementally. |
-| 2026-07-31 | Print the emergency summary locally from deterministic HTML. | The summary should work offline and should not transmit patient data. |
-| 2026-07-31 | Group the first four domain modules under one Health Data destination. | Dedicated modules need room to grow, while the primary navigation must remain usable on mobile and desktop. |
-| 2026-07-31 | Treat an explicitly unknown effective date as stronger than issue or storage timestamps. | Secondary timestamps describe provenance and cannot prove when a clinical event occurred. |
-| 2026-07-31 | Always expose the original observation value. | Normalization may help searching and comparison but must never hide source truth. |
-| 2026-07-31 | Treat medication modules as record browsers, not regimen validators. | Medication safety requires patient, indication, route, frequency, duration, interaction, and organ-function context not established by the stored list alone. |
+| 2026-07-31 | Keep the existing assistant layout behind the Assistant destination for the first slice. | This preserves working chat, live, upload, and scribe features while the record-first shell is introduced incrementally. |
+| 2026-07-31 | Print the emergency summary locally from deterministic HTML. | The summary should be available without a network or AI provider and should not transmit patient data. |
+| 2026-07-31 | Group nine domain modules under one Health Data destination. | This keeps the primary navigation understandable while allowing domain-specific filters and detail views. |
+| 2026-07-31 | Expose device-related confirmed evidence without creating a false device inventory. | The current versioned schema lacks a Device resource; keyword evidence is useful only when clearly labelled and reviewable. |
+| 2026-07-31 | Keep document authored date separate from upload date. | Upload time describes local provenance, not when the source or clinical event occurred. |
 
 ---
 
@@ -287,23 +325,21 @@ Status: `[ ] Not started`
 | Date | Slice | Work completed | Validation | Commit label |
 |---|---|---|---|---|
 | 2026-07-31 | P2.0 / Slice 1 | Created the Phase 2 branch and living implementation plan. | Branch created from the accepted Phase 1 head. | `docs: add Phase 2 personal health record plan` |
-| 2026-07-31 | P2.0–P2.3 / Slice 1 | Added record-first navigation, overview, timeline, emergency summary, optional assistant access, personal-record metadata, and deterministic view models. | Type-check passed; 16/16 test files and 64/64 tests passed; production build passed with 998 modules transformed. | `feat: add personal health record home` |
-| 2026-07-31 | P2.6 / Slice 1 | Added view-model tests, semantic regression guards, and Phase 2 CI coverage. | GitHub Actions completed type-check, test, and build steps successfully. | `test: validate personal record home` |
-| 2026-07-31 | P2.4 / Slice 2 | Added the Health Data workspace and first-class Conditions, Allergies, Medications, and Labs/Diagnostic Reports modules with filtering, history, provenance, and source review. | TypeScript and module tests passed. | `feat: add core clinical record modules` |
-| 2026-07-31 | P2.4 / Slice 2 | Corrected explicit-unknown result-date handling and guaranteed original-value display. | 18/18 test files and 72/72 tests passed; production build passed with 1006 modules transformed. | `fix: preserve explicit unknown result dates` |
-| 2026-07-31 | P2.6 / Slice 2 | Added core-module behavior and source-level semantic regression coverage. | GitHub Actions completed all required steps successfully. | `test: cover core clinical modules` |
+| 2026-07-31 | P2.0–P2.3 / Slice 1 | Added record-first navigation, overview, timeline, emergency summary, optional assistant access, personal-record metadata, and deterministic view models. | Repository type-check passed; 16/16 test files and 64/64 tests passed; production build passed with 998 modules transformed. | `feat: add personal health record home` |
+| 2026-07-31 | P2.4 / Slice 2 | Added Conditions, Allergies, Medications, and Results modules with search, filters, history, provenance, source preview, and strict unknown-date/original-value behavior. | Repository type-check passed; 18/18 test files and 72/72 tests passed; production build passed with 1006 modules transformed. | `feat: add core clinical record modules` |
+| 2026-07-31 | P2.4 / Slice 3 | Added Visits, Notes, Procedures/device evidence, Immunizations, and Documents modules with cross-resource links, source review, and clinically honest sparse states. | Repository type-check passed; 20/20 test files and 82/82 tests passed; production build passed with 1012 modules transformed. | `feat: add longitudinal record modules` |
 
 ---
 
 # Current open questions and deferred choices
 
-These do not block the next longitudinal-documentation slice:
+These do not block the completed Slices 1–3:
 
 - Whether to adopt official FHIR TypeScript definitions later or retain the smaller application-owned subset.
+- How to add a backward-compatible, versioned standalone Device resource and migrate existing procedure/document evidence.
 - Whether OpenMed will first run through a local FastAPI sidecar or browser/WebGPU runtime.
 - Whether transient advisories should eventually move to a dedicated advisory store.
 - Whether terminology coding initially remains optional free text plus suggestions or ships with a local terminology bundle.
 - Whether a global review inbox should complement the patient-scoped review queue.
 - When to remove the dual-written legacy observation store after compatibility tests pass.
 - Whether the assistant should later become an embedded panel inside the record shell instead of temporarily reusing the existing full assistant layout.
-- Whether devices should receive their own resource type in a later schema version or remain linked procedure/document details during Phase 2.
