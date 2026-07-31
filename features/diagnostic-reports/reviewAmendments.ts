@@ -12,6 +12,7 @@ import {
     commitDiagnosticReportBundle,
     type BuildDiagnosticReportBundleOptions,
 } from './graph';
+import { normalizeDiagnosticReportBundle } from './normalization';
 import type {
     DiagnosticBundleCommitResult,
     DiagnosticReportBundle,
@@ -139,7 +140,9 @@ export const buildReviewedDiagnosticReportBundle = (
     draft: ReviewedDiagnosticReportDraft,
     options: BuildDiagnosticReportBundleOptions = {},
 ): DiagnosticReportBundle => applyDiagnosticReviewEvidence({
-    bundle: buildDiagnosticReportBundle(draft, options),
+    bundle: normalizeDiagnosticReportBundle(
+        buildDiagnosticReportBundle(draft, options),
+    ),
     draft,
 });
 
