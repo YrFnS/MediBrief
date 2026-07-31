@@ -18,7 +18,8 @@ export type AuditEventType =
     | 'CLINICAL_NOTE_SAVED'
     | 'ADVISORY_ACKNOWLEDGED'
     | 'ADVISORY_TASK_CREATED'
-    | 'MEDICATION_LABEL_REVIEW';
+    | 'MEDICATION_LABEL_REVIEW'
+    | 'PATIENT_SUMMARY_EXPORTED';
 
 export type AuditActor = 'AI' | 'USER' | 'SYSTEM';
 
