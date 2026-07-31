@@ -23,6 +23,7 @@ import ImmunizationsModule from './ImmunizationsModule';
 import MedicationsModule from './MedicationsModule';
 import NotesModule from './NotesModule';
 import ProceduresModule from './ProceduresModule';
+import RecordManagementModule from './RecordManagementModule';
 import ResultsModule from './ResultsModule';
 import TasksModule from './TasksModule';
 import VisitsModule from './VisitsModule';
@@ -123,6 +124,13 @@ const MODULES: Array<{
         description: 'Conditions, activities, and plan history',
         icon: BriefingIcon,
     },
+    {
+        value: 'manage',
+        label: 'Manage Records',
+        shortLabel: 'Manage',
+        description: 'Manual entry, corrections, and history',
+        icon: RecordIcon,
+    },
 ];
 
 const HealthDataWorkspace: React.FC<HealthDataWorkspaceProps> = ({
@@ -158,6 +166,7 @@ const HealthDataWorkspace: React.FC<HealthDataWorkspaceProps> = ({
                 resource.resourceType === 'ClinicalTask').length,
             'care-plans': candidates.filter(resource =>
                 resource.resourceType === 'CarePlan').length,
+            manage: candidates.length,
         } satisfies Record<PersonalHealthDataModule, number>;
     }, [record]);
 
@@ -277,6 +286,12 @@ const HealthDataWorkspace: React.FC<HealthDataWorkspaceProps> = ({
             )}
             {module === 'care-plans' && (
                 <CarePlansModule
+                    record={record}
+                    onReviewCandidates={onReviewCandidates}
+                />
+            )}
+            {module === 'manage' && (
+                <RecordManagementModule
                     record={record}
                     onReviewCandidates={onReviewCandidates}
                 />
