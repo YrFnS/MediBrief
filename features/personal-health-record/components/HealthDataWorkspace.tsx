@@ -170,23 +170,52 @@ const HealthDataWorkspace: React.FC<HealthDataWorkspaceProps> = ({
         } satisfies Record<PersonalHealthDataModule, number>;
     }, [record]);
 
+    const handleModuleKeyDown = (
+        event: React.KeyboardEvent<HTMLButtonElement>,
+        index: number,
+    ): void => {
+        let nextIndex: number | null = null;
+        if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+            nextIndex = (index + 1) % MODULES.length;
+        } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+            nextIndex = (index - 1 + MODULES.length) % MODULES.length;
+        } else if (event.key === 'Home') {
+            nextIndex = 0;
+        } else if (event.key === 'End') {
+            nextIndex = MODULES.length - 1;
+        }
+        if (nextIndex === null) return;
+        event.preventDefault();
+        setModule(MODULES[nextIndex].value);
+        const tabs = event.currentTarget.parentElement
+            ?.querySelectorAll<HTMLButtonElement>('[role="tab"]');
+        tabs?.[nextIndex]?.focus();
+    };
+
     return (
         <div className="flex min-h-0 flex-1 flex-col">
             <div className="flex-shrink-0 border-b border-slate-200 bg-slate-50/95 px-3 py-2 dark:border-slate-800 dark:bg-slate-950/95 md:px-6">
                 <nav
                     className="no-scrollbar mx-auto flex max-w-7xl gap-1 overflow-x-auto"
                     aria-label="Health data modules"
+                    aria-orientation="horizontal"
+                    role="tablist"
                 >
-                    {MODULES.map(item => {
+                    {MODULES.map((item, index) => {
                         const Icon = item.icon;
                         const active = module === item.value;
                         const pending = candidateCounts[item.value];
                         return (
                             <button
                                 key={item.value}
+                                id={`health-data-tab-${item.value}`}
                                 type="button"
+                                role="tab"
+                                aria-selected={active}
+                                aria-controls="health-data-panel"
+                                tabIndex={active ? 0 : -1}
                                 onClick={() => setModule(item.value)}
-                                aria-current={active ? 'page' : undefined}
+                                onKeyDown={event => handleModuleKeyDown(event, index)}
                                 className={`group flex min-w-[130px] flex-1 items-center gap-2 rounded-xl border px-3 py-2.5 text-left transition-colors md:min-w-[170px] ${active
                                     ? 'border-slate-300 bg-white text-slate-950 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white'
                                     : 'border-transparent text-slate-500 hover:border-slate-200 hover:bg-white dark:text-slate-400 dark:hover:border-slate-800 dark:hover:bg-slate-900'
@@ -218,84 +247,91 @@ const HealthDataWorkspace: React.FC<HealthDataWorkspaceProps> = ({
                 </nav>
             </div>
 
-            {module === 'conditions' && (
-                <ConditionsModule
-                    record={record}
-                    onReviewCandidates={onReviewCandidates}
-                />
-            )}
-            {module === 'allergies' && (
-                <AllergiesModule
-                    record={record}
-                    onReviewCandidates={onReviewCandidates}
-                />
-            )}
-            {module === 'medications' && (
-                <MedicationsModule
-                    record={record}
-                    onReviewCandidates={onReviewCandidates}
-                />
-            )}
-            {module === 'results' && (
-                <ResultsModule
-                    record={record}
-                    onReviewCandidates={onReviewCandidates}
-                />
-            )}
-            {module === 'visits' && (
-                <VisitsModule
-                    record={record}
-                    onReviewCandidates={onReviewCandidates}
-                />
-            )}
-            {module === 'notes' && (
-                <NotesModule
-                    record={record}
-                    onReviewCandidates={onReviewCandidates}
-                />
-            )}
-            {module === 'procedures' && (
-                <ProceduresModule
-                    record={record}
-                    onReviewCandidates={onReviewCandidates}
-                />
-            )}
-            {module === 'immunizations' && (
-                <ImmunizationsModule
-                    record={record}
-                    onReviewCandidates={onReviewCandidates}
-                />
-            )}
-            {module === 'documents' && (
-                <DocumentsModule
-                    record={record}
-                    onReviewCandidates={onReviewCandidates}
-                />
-            )}
-            {module === 'appointments' && (
-                <AppointmentsModule
-                    record={record}
-                    onReviewCandidates={onReviewCandidates}
-                />
-            )}
-            {module === 'tasks' && (
-                <TasksModule
-                    record={record}
-                    onReviewCandidates={onReviewCandidates}
-                />
-            )}
-            {module === 'care-plans' && (
-                <CarePlansModule
-                    record={record}
-                    onReviewCandidates={onReviewCandidates}
-                />
-            )}
-            {module === 'manage' && (
-                <RecordManagementModule
-                    record={record}
-                    onReviewCandidates={onReviewCandidates}
-                />
-            )}
+            <div
+                id="health-data-panel"
+                role="tabpanel"
+                aria-labelledby={`health-data-tab-${module}`}
+                className="flex min-h-0 flex-1 flex-col"
+            >
+                {module === 'conditions' && (
+                    <ConditionsModule
+                        record={record}
+                        onReviewCandidates={onReviewCandidates}
+                    />
+                )}
+                {module === 'allergies' && (
+                    <AllergiesModule
+                        record={record}
+                        onReviewCandidates={onReviewCandidates}
+                    />
+                )}
+                {module === 'medications' && (
+                    <MedicationsModule
+                        record={record}
+                        onReviewCandidates={onReviewCandidates}
+                    />
+                )}
+                {module === 'results' && (
+                    <ResultsModule
+                        record={record}
+                        onReviewCandidates={onReviewCandidates}
+                    />
+                )}
+                {module === 'visits' && (
+                    <VisitsModule
+                        record={record}
+                        onReviewCandidates={onReviewCandidates}
+                    />
+                )}
+                {module === 'notes' && (
+                    <NotesModule
+                        record={record}
+                        onReviewCandidates={onReviewCandidates}
+                    />
+                )}
+                {module === 'procedures' && (
+                    <ProceduresModule
+                        record={record}
+                        onReviewCandidates={onReviewCandidates}
+                    />
+                )}
+                {module === 'immunizations' && (
+                    <ImmunizationsModule
+                        record={record}
+                        onReviewCandidates={onReviewCandidates}
+                    />
+                )}
+                {module === 'documents' && (
+                    <DocumentsModule
+                        record={record}
+                        onReviewCandidates={onReviewCandidates}
+                    />
+                )}
+                {module === 'appointments' && (
+                    <AppointmentsModule
+                        record={record}
+                        onReviewCandidates={onReviewCandidates}
+                    />
+                )}
+                {module === 'tasks' && (
+                    <TasksModule
+                        record={record}
+                        onReviewCandidates={onReviewCandidates}
+                    />
+                )}
+                {module === 'care-plans' && (
+                    <CarePlansModule
+                        record={record}
+                        onReviewCandidates={onReviewCandidates}
+                    />
+                )}
+                {module === 'manage' && (
+                    <RecordManagementModule
+                        record={record}
+                        onReviewCandidates={onReviewCandidates}
+                    />
+                )}
+            </div>
         </div>
     );
 };
