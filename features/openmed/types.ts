@@ -1,4 +1,10 @@
 import type { OpenMedContextResult } from './contextTypes';
+import type {
+    OpenMedDocumentEntityEvidence,
+    OpenMedDocumentExtractionResponse,
+    OpenMedOcrEngine,
+    OpenMedOcrMode,
+} from './documentTypes';
 
 export type ClinicalExtractionMode = 'auto' | 'openmed' | 'gemini';
 
@@ -59,6 +65,7 @@ export interface OpenMedCandidateEntity extends OpenMedEntity {
     modelName: string;
     engineVersion?: string;
     context?: OpenMedContextResult;
+    documentEvidence?: OpenMedDocumentEntityEvidence;
 }
 
 export type LocalTextExtractionStatus =
@@ -100,6 +107,7 @@ export interface OpenMedExtractionResult {
     serviceVersion?: string;
     contextStatus?: OpenMedContextApplicationStatus;
     contextAppliedCount?: number;
+    documentExtraction?: OpenMedDocumentExtractionResponse;
 }
 
 export interface OpenMedExtractionSettings {
@@ -109,6 +117,11 @@ export interface OpenMedExtractionSettings {
     diseaseModel: string;
     medicationModel: string;
     keepAlive?: string;
+    documentExtractionEnabled?: boolean;
+    ocrMode?: OpenMedOcrMode;
+    ocrEngine?: OpenMedOcrEngine;
+    ocrLanguages?: string[];
+    ocrResolution?: number;
 }
 
 export interface OpenMedErrorEnvelope {
