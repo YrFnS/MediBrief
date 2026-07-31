@@ -3,6 +3,7 @@ import {
     ActivityIcon,
     BotIcon,
     ClockIcon,
+    DocumentTextIcon,
     ShieldCheckIcon,
 } from '../../../components/icons';
 import type { PersonalRecordView } from '../types';
@@ -26,6 +27,13 @@ const items: Array<{
         shortLabel: 'Overview',
         description: 'Confirmed record at a glance',
         icon: ActivityIcon,
+    },
+    {
+        value: 'health-data',
+        label: 'Health Data',
+        shortLabel: 'Health Data',
+        description: 'Conditions, allergies, medications, results',
+        icon: DocumentTextIcon,
     },
     {
         value: 'timeline',
@@ -69,7 +77,7 @@ const PersonalRecordNavigation: React.FC<PersonalRecordNavigationProps> = ({
                         type="button"
                         onClick={() => onChange(item.value)}
                         aria-current={active ? 'page' : undefined}
-                        className={`group relative flex min-w-[128px] flex-1 items-center gap-2 rounded-xl border px-3 py-2.5 text-left transition-all md:min-w-[170px] ${active
+                        className={`group relative flex min-w-[122px] flex-1 items-center gap-2 rounded-xl border px-3 py-2.5 text-left transition-all md:min-w-[158px] ${active
                             ? 'border-blue-200 bg-blue-50 text-blue-800 shadow-sm dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200'
                             : 'border-transparent text-slate-500 hover:border-slate-200 hover:bg-slate-50 hover:text-slate-800 dark:text-slate-400 dark:hover:border-slate-700 dark:hover:bg-slate-900 dark:hover:text-slate-100'
                         }`}
@@ -84,7 +92,9 @@ const PersonalRecordNavigation: React.FC<PersonalRecordNavigationProps> = ({
                             <span className="flex items-center gap-1.5 text-xs font-bold">
                                 <span className="hidden sm:inline">{item.label}</span>
                                 <span className="sm:hidden">{item.shortLabel}</span>
-                                {item.value === 'overview' && pendingCandidates > 0 && (
+                                {(item.value === 'overview'
+                                    || item.value === 'health-data')
+                                    && pendingCandidates > 0 && (
                                     <span className="rounded-full bg-amber-500 px-1.5 py-0.5 text-[9px] font-bold text-white">
                                         {pendingCandidates}
                                     </span>
