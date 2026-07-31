@@ -33,8 +33,8 @@ describe('Phase 2 core clinical modules', () => {
         );
 
         expect(allergies).toContain('Allergy status unknown');
-        expect(allergies).not.toContain('NKDA');
         expect(allergies).toContain('does not mean the patient has no allergies');
+        expect(allergies).toContain('Do not interpret this empty state as NKDA');
         expect(medications).toContain('does not prove that the patient takes no medications');
         expect(medications).toContain('does not verify that a regimen is safe or appropriate');
     });
@@ -50,7 +50,10 @@ describe('Phase 2 core clinical modules', () => {
         expect(results).toContain('Original source value');
         expect(results).toContain('Normalized values never replace the original source value');
         expect(results).toContain('Clinical date unknown');
-        expect(models).toContain("label: 'Clinical date unknown'");
+        expect(models).toContain(
+            "UNKNOWN_CLINICAL_DATE_LABEL = 'Clinical date unknown'",
+        );
+        expect(models).toContain('hasExplicitUnknownEffectiveDate');
     });
 
     it('makes provenance and source review available across all four modules', () => {
