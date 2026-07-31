@@ -2,16 +2,25 @@ import React, { useMemo, useState } from 'react';
 import {
     ActivityIcon,
     AlertTriangleIcon,
+    BriefingIcon,
     DocumentTextIcon,
     DrugsIcon,
+    RecordIcon,
+    ShieldCheckIcon,
+    UserIcon,
 } from '../../../components/icons';
 import { selectCandidateResources } from '../../clinical-record/selectors';
 import type { PatientClinicalRecord } from '../../clinical-record/types';
 import type { HealthDataModule } from '../coreModuleTypes';
 import AllergiesModule from './AllergiesModule';
 import ConditionsModule from './ConditionsModule';
+import DocumentsModule from './DocumentsModule';
+import ImmunizationsModule from './ImmunizationsModule';
 import MedicationsModule from './MedicationsModule';
+import NotesModule from './NotesModule';
+import ProceduresModule from './ProceduresModule';
 import ResultsModule from './ResultsModule';
+import VisitsModule from './VisitsModule';
 
 interface HealthDataWorkspaceProps {
     record: PatientClinicalRecord;
@@ -53,6 +62,41 @@ const MODULES: Array<{
         description: 'Observations and diagnostic reports',
         icon: DocumentTextIcon,
     },
+    {
+        value: 'visits',
+        label: 'Visits',
+        shortLabel: 'Visits',
+        description: 'Encounters and linked care records',
+        icon: UserIcon,
+    },
+    {
+        value: 'notes',
+        label: 'Clinical Notes',
+        shortLabel: 'Notes',
+        description: 'Durable reviewed documentation',
+        icon: BriefingIcon,
+    },
+    {
+        value: 'procedures',
+        label: 'Procedures',
+        shortLabel: 'Procedures',
+        description: 'Interventions and device evidence',
+        icon: RecordIcon,
+    },
+    {
+        value: 'immunizations',
+        label: 'Immunizations',
+        shortLabel: 'Vaccines',
+        description: 'Vaccine history and source details',
+        icon: ShieldCheckIcon,
+    },
+    {
+        value: 'documents',
+        label: 'Documents',
+        shortLabel: 'Docs',
+        description: 'Local sources and relationships',
+        icon: DocumentTextIcon,
+    },
 ];
 
 const HealthDataWorkspace: React.FC<HealthDataWorkspaceProps> = ({
@@ -72,6 +116,16 @@ const HealthDataWorkspace: React.FC<HealthDataWorkspaceProps> = ({
             results: candidates.filter(resource =>
                 resource.resourceType === 'Observation'
                 || resource.resourceType === 'DiagnosticReport').length,
+            visits: candidates.filter(resource =>
+                resource.resourceType === 'Encounter').length,
+            notes: candidates.filter(resource =>
+                resource.resourceType === 'ClinicalNote').length,
+            procedures: candidates.filter(resource =>
+                resource.resourceType === 'Procedure').length,
+            immunizations: candidates.filter(resource =>
+                resource.resourceType === 'Immunization').length,
+            documents: candidates.filter(resource =>
+                resource.resourceType === 'DocumentReference').length,
         } satisfies Record<HealthDataModule, number>;
     }, [record]);
 
@@ -92,7 +146,7 @@ const HealthDataWorkspace: React.FC<HealthDataWorkspaceProps> = ({
                                 type="button"
                                 onClick={() => setModule(item.value)}
                                 aria-current={active ? 'page' : undefined}
-                                className={`group flex min-w-[130px] flex-1 items-center gap-2 rounded-xl border px-3 py-2.5 text-left transition-colors md:min-w-[180px] ${active
+                                className={`group flex min-w-[130px] flex-1 items-center gap-2 rounded-xl border px-3 py-2.5 text-left transition-colors md:min-w-[170px] ${active
                                     ? 'border-slate-300 bg-white text-slate-950 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white'
                                     : 'border-transparent text-slate-500 hover:border-slate-200 hover:bg-white dark:text-slate-400 dark:hover:border-slate-800 dark:hover:bg-slate-900'
                                 }`}
@@ -143,6 +197,36 @@ const HealthDataWorkspace: React.FC<HealthDataWorkspaceProps> = ({
             )}
             {module === 'results' && (
                 <ResultsModule
+                    record={record}
+                    onReviewCandidates={onReviewCandidates}
+                />
+            )}
+            {module === 'visits' && (
+                <VisitsModule
+                    record={record}
+                    onReviewCandidates={onReviewCandidates}
+                />
+            )}
+            {module === 'notes' && (
+                <NotesModule
+                    record={record}
+                    onReviewCandidates={onReviewCandidates}
+                />
+            )}
+            {module === 'procedures' && (
+                <ProceduresModule
+                    record={record}
+                    onReviewCandidates={onReviewCandidates}
+                />
+            )}
+            {module === 'immunizations' && (
+                <ImmunizationsModule
+                    record={record}
+                    onReviewCandidates={onReviewCandidates}
+                />
+            )}
+            {module === 'documents' && (
+                <DocumentsModule
                     record={record}
                     onReviewCandidates={onReviewCandidates}
                 />
