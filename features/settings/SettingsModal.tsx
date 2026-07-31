@@ -7,6 +7,7 @@ import {
 import { ChatMode } from '../../types';
 import { normalizeOpenMedBaseUrl } from '../openmed/openMedClient';
 import type { ClinicalExtractionMode } from '../openmed/types';
+import OpenMedContextBridgeStatus from './OpenMedContextBridgeStatus';
 import OpenMedSettingsPanel from './OpenMedSettingsPanel';
 import { AIProvider, useSettingsStore } from './useSettingsStore';
 
@@ -253,6 +254,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                         onKeepAliveChange={setTempKeepAlive}
                         onAllowGeminiFallbackChange={setTempFallback}
                     />
+
+                    {tempExtractionMode !== 'gemini' && (
+                        <OpenMedContextBridgeStatus
+                            baseUrl={tempOpenMedBaseUrl}
+                            timeoutMs={tempTimeoutMs}
+                        />
+                    )}
 
                     {saveError && (
                         <div
