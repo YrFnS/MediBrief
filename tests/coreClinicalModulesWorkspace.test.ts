@@ -43,21 +43,15 @@ describe('Phase 2 core clinical modules', () => {
         const results = source(
             '../features/personal-health-record/components/ResultsModule.tsx',
         );
-        const intelligence = source(
-            '../features/diagnostic-reports/resultIntelligence.ts',
-        );
         const models = source(
             '../features/personal-health-record/coreModuleViewModels.ts',
         );
 
+        expect(results).toContain('Original source value');
         expect(results).toContain(
-            'Original values always remain visible beside normalized views',
+            'Normalized values never replace the original source value',
         );
-        expect(results).toContain('originalValueLabel');
-        expect(results).toContain('normalizedValueLabel');
-        expect(intelligence).toContain("return 'Clinical date unknown'");
-        expect(intelligence).toContain('originalValueLabel');
-        expect(intelligence).toContain('normalizedValueLabel');
+        expect(results).toContain('Clinical date unknown');
         expect(models).toContain(
             "UNKNOWN_CLINICAL_DATE_LABEL = 'Clinical date unknown'",
         );
@@ -78,16 +72,14 @@ describe('Phase 2 core clinical modules', () => {
             '../features/personal-health-record/components/ResultsModule.tsx',
         );
 
-        for (const moduleSource of [conditions, allergies, medications]) {
+        for (const moduleSource of [
+            conditions,
+            allergies,
+            medications,
+            results,
+        ]) {
             expect(moduleSource).toContain('ProvenancePanel');
             expect(moduleSource).toContain('DocumentSourcePreview');
         }
-
-        // Results uses source-linked report/result cards rather than the generic
-        // provenance primitive, while retaining direct original-file review.
-        expect(results).toContain('SourceButton');
-        expect(results).toContain('Original source');
-        expect(results).toContain('DocumentSourcePreview');
-        expect(results).toContain('source={source}');
     });
 });
