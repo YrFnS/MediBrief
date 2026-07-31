@@ -72,7 +72,9 @@ export const useSettingsStore = create<SettingsState>()(
             openMedConfidenceThreshold: 0.6,
             openMedTimeoutMs: DEFAULT_OPENMED_TIMEOUT_MS,
             openMedKeepAlive: '10m',
-            allowGeminiExtractionFallback: true,
+            // Cloud fallback must be a conscious user choice. Existing Gemini
+            // settings remain intact, but Auto mode starts local-only.
+            allowGeminiExtractionFallback: false,
 
             setProvider: provider => set({ provider }),
             setGeminiApiKey: geminiApiKey => set({ geminiApiKey }),
