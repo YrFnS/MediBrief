@@ -1,8 +1,14 @@
 import { z } from 'zod';
 import type {
+    OpenMedContextAssertion,
+    OpenMedContextCue,
     OpenMedContextHealth,
     OpenMedContextRequestSpan,
     OpenMedContextResponse,
+    OpenMedContextResult,
+    OpenMedExperiencerEvidence,
+    OpenMedMedicationSig,
+    OpenMedSectionEvidence,
 } from './contextTypes';
 
 const IsoDateTimeSchema = z.string().min(1).refine(
@@ -153,7 +159,7 @@ export const parseOpenMedContextResponse = ({
     }
 
     const seen = new Set<string>();
-    const results = parsed.results.map(result => {
+    const results: OpenMedContextResult[] = parsed.results.map(result => {
         const requested = requestedById.get(result.id);
         if (!requested || seen.has(result.id)) {
             throw new Error('OpenMed context response contains an unknown or duplicate span.');
@@ -169,16 +175,31 @@ export const parseOpenMedContextResponse = ({
         ) {
             throw new Error(`OpenMed context response changed source span ${result.id}.`);
         }
-        result.cues.forEach(cue => {
+
+        const cues: OpenMedContextCue[] = result.cues.map(cue => {
             if (
                 cue.end > expectedText.length
                 || expectedText.slice(cue.start, cue.end) !== cue.text
             ) {
                 throw new Error(`OpenMed context response contains an invalid cue for ${result.id}.`);
             }
+            return {
+                text: cue.text,
+                category: cue.category,
+                start: cue.start,
+                end: cue.end,
+                direction: cue.direction,
+            };
         });
 
-        const medicationSig = result.medication_sig
+        const assertion: OpenMedContextAssertion = {
+            polarity: result.assertion.polarity!,
+            certainty: result.assertion.certainty!,
+            temporality: result.assertion.temporality!,
+            experiencer: result.assertion.experiencer!,
+        };
+
+        const medicationSig: OpenMedMedicationSig | undefined = result.medication_sig
             ? {
                 raw: result.medication_sig.raw,
                 windowStart: result.medication_sig.window_start,
@@ -213,53 +234,55 @@ export const parseOpenMedContextResponse = ({
             }
             : undefined;
 
-        return {
+        const section: OpenMedSectionEvidence | undefined = result.section
+            ? {
+                label: result.section.label,
+                ...(result.section.canonical
+                    ? { canonical: result.section.canonical }
+                    : {}),
+                ...(result.section.header
+                    ? { header: result.section.header }
+                    : {}),
+                start: result.section.start,
+                end: result.section.end,
+                ...(result.section.header_start !== undefined
+                    ? { headerStart: result.section.header_start }
+                    : {}),
+                ...(result.section.header_end !== undefined
+                    ? { headerEnd: result.section.header_end }
+                    : {}),
+                ...(result.section.content_start !== undefined
+                    ? { contentStart: result.section.content_start }
+                    : {}),
+                ...(result.section.source
+                    ? { source: result.section.source }
+                    : {}),
+            }
+            : undefined;
+
+        const experiencerEvidence: OpenMedExperiencerEvidence = {
+            source: result.experiencer_evidence.source,
+            ...(result.experiencer_evidence.cue
+                ? { cue: result.experiencer_evidence.cue }
+                : {}),
+            ...(result.experiencer_evidence.start !== undefined
+                ? { start: result.experiencer_evidence.start }
+                : {}),
+            ...(result.experiencer_evidence.end !== undefined
+                ? { end: result.experiencer_evidence.end }
+                : {}),
+        };
+
+        const mapped: OpenMedContextResult = {
             id: result.id,
             kind: result.kind,
             text: result.text,
             start: result.start,
             end: result.end,
-            assertion: result.assertion,
-            cues: result.cues,
-            ...(result.section
-                ? {
-                    section: {
-                        label: result.section.label,
-                        ...(result.section.canonical
-                            ? { canonical: result.section.canonical }
-                            : {}),
-                        ...(result.section.header
-                            ? { header: result.section.header }
-                            : {}),
-                        start: result.section.start,
-                        end: result.section.end,
-                        ...(result.section.header_start !== undefined
-                            ? { headerStart: result.section.header_start }
-                            : {}),
-                        ...(result.section.header_end !== undefined
-                            ? { headerEnd: result.section.header_end }
-                            : {}),
-                        ...(result.section.content_start !== undefined
-                            ? { contentStart: result.section.content_start }
-                            : {}),
-                        ...(result.section.source
-                            ? { source: result.section.source }
-                            : {}),
-                    },
-                }
-                : {}),
-            experiencerEvidence: {
-                source: result.experiencer_evidence.source,
-                ...(result.experiencer_evidence.cue
-                    ? { cue: result.experiencer_evidence.cue }
-                    : {}),
-                ...(result.experiencer_evidence.start !== undefined
-                    ? { start: result.experiencer_evidence.start }
-                    : {}),
-                ...(result.experiencer_evidence.end !== undefined
-                    ? { end: result.experiencer_evidence.end }
-                    : {}),
-            },
+            assertion,
+            cues,
+            ...(section ? { section } : {}),
+            experiencerEvidence,
             ...(medicationSig ? { medicationSig } : {}),
             engine: parsed.engine,
             ...(parsed.engine_version
@@ -269,6 +292,7 @@ export const parseOpenMedContextResponse = ({
             language: parsed.language,
             evaluatedAt: parsed.evaluated_at,
         };
+        return mapped;
     });
 
     return {
