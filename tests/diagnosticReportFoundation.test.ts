@@ -322,11 +322,18 @@ describe('Phase 4 diagnostic report graph', () => {
 
     it('requires the original source document before saving', () => {
         const actions = useClinicalRecordStore.getState().actions;
-        actions.deleteResource(
-            PATIENT_ID,
-            'DocumentReference',
-            DOCUMENT_ID,
-        );
+        const record = actions.getPatientRecord(PATIENT_ID)!;
+        actions.replacePatientRecord({
+            ...record,
+            resources: {
+                ...record.resources,
+                documents: [],
+            },
+            updatedAt: NOW,
+        });
+        expect(actions.getPatientRecord(PATIENT_ID)?.resources.documents)
+            .toHaveLength(0);
+
         const bundle = buildDiagnosticReportBundle(reviewedDraft(), {
             now: NOW,
             idFactory: deterministicIds,
