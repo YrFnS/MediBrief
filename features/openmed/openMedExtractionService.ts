@@ -10,6 +10,7 @@ import {
 } from './candidateMapping';
 import { attachOpenMedDocumentEvidence } from './documentEvidence';
 import { prepareOpenMedDocument } from './documentPreparation';
+import { assessOpenMedClinicalLanguage } from './languagePolicy';
 import type {
     OpenMedCandidateEntity,
     OpenMedExtractionResult,
@@ -22,11 +23,6 @@ const uniqueModels = (settings: OpenMedExtractionSettings): string[] => [
         settings.medicationModel.trim(),
     ].filter(Boolean)),
 ];
-
-const NON_LATIN_CONTEXT_SCRIPT = /[\u0400-\u052f\u0590-\u08ff\u0900-\u0d7f\u3040-\u30ff\u3400-\u9fff]/;
-
-const supportsEvaluatedEnglishContext = (text: string): boolean =>
-    !NON_LATIN_CONTEXT_SCRIPT.test(text);
 
 const derivedDocumentId = (file: UploadedFile): string =>
     file.storageId
@@ -66,6 +62,24 @@ export const extractOpenMedCandidatesFromUpload = async ({
     }
 
     const sourceText = prepared.text;
+    const languageAssessment = assessOpenMedClinicalLanguage(sourceText);
+    if (!languageAssessment.allowDefaultClinicalNer) {
+        return {
+            status: 'unsupported',
+            text: sourceText,
+            entities: [],
+            warnings: [
+                ...prepared.warnings,
+                languageAssessment.message,
+            ],
+            contextStatus: 'skipped-language',
+            languageAssessment,
+            ...(prepared.documentExtraction
+                ? { documentExtraction: prepared.documentExtraction }
+                : {}),
+        };
+    }
+
     const models = uniqueModels(settings);
     if (models.length === 0) {
         return {
@@ -77,6 +91,7 @@ export const extractOpenMedCandidatesFromUpload = async ({
                 'No OpenMed disease or medication model is configured.',
             ],
             contextStatus: 'not-requested',
+            languageAssessment,
             ...(prepared.documentExtraction
                 ? { documentExtraction: prepared.documentExtraction }
                 : {}),
@@ -97,6 +112,7 @@ export const extractOpenMedCandidatesFromUpload = async ({
                 entities: [],
                 warnings: ['OpenMed extraction was cancelled.'],
                 contextStatus: 'not-requested',
+                languageAssessment,
                 ...(prepared.documentExtraction
                     ? { documentExtraction: prepared.documentExtraction }
                     : {}),
@@ -141,7 +157,7 @@ export const extractOpenMedCandidatesFromUpload = async ({
             });
             if (unsupportedLabels > 0) {
                 warnings.push(
-                    `${unsupportedLabels} ${modelName} entity span(s) used labels that are not mapped in Slice 3.`,
+                    `${unsupportedLabels} ${modelName} entity span(s) used labels that are not mapped in Slice 4.`,
                 );
             }
         } catch (error) {
@@ -156,6 +172,7 @@ export const extractOpenMedCandidatesFromUpload = async ({
                     entities: [],
                     warnings: ['OpenMed extraction was cancelled.'],
                     contextStatus: 'not-requested',
+                    languageAssessment,
                     ...(prepared.documentExtraction
                         ? { documentExtraction: prepared.documentExtraction }
                         : {}),
@@ -185,6 +202,7 @@ export const extractOpenMedCandidatesFromUpload = async ({
             entities: [],
             warnings,
             contextStatus: 'not-requested',
+            languageAssessment,
             ...(prepared.documentExtraction
                 ? { documentExtraction: prepared.documentExtraction }
                 : {}),
@@ -197,6 +215,7 @@ export const extractOpenMedCandidatesFromUpload = async ({
             entities: [],
             warnings,
             contextStatus: 'not-requested',
+            languageAssessment,
             ...(serviceVersion ? { serviceVersion } : {}),
             ...(prepared.documentExtraction
                 ? { documentExtraction: prepared.documentExtraction }
@@ -208,10 +227,10 @@ export const extractOpenMedCandidatesFromUpload = async ({
     let contextStatus: OpenMedExtractionResult['contextStatus'] = 'not-requested';
     let contextAppliedCount = 0;
 
-    if (!supportsEvaluatedEnglishContext(sourceText)) {
+    if (!languageAssessment.allowEnglishContext) {
         contextStatus = 'skipped-language';
         warnings.push(
-            'OpenMed assertion context was skipped because Slice 2 is evaluated for English text only. Polarity, certainty, temporality, and experiencer remain unknown for this document.',
+            'OpenMed assertion context was skipped because this route has no accepted English-context evidence. Polarity, certainty, temporality, and experiencer remain unknown.',
         );
     } else {
         try {
@@ -243,6 +262,7 @@ export const extractOpenMedCandidatesFromUpload = async ({
                     entities: [],
                     warnings: ['OpenMed extraction was cancelled.'],
                     contextStatus: 'unavailable',
+                    languageAssessment,
                     ...(prepared.documentExtraction
                         ? { documentExtraction: prepared.documentExtraction }
                         : {}),
@@ -264,6 +284,7 @@ export const extractOpenMedCandidatesFromUpload = async ({
         entities: enriched,
         warnings,
         contextStatus,
+        languageAssessment,
         ...(contextAppliedCount > 0 ? { contextAppliedCount } : {}),
         ...(serviceVersion ? { serviceVersion } : {}),
         ...(prepared.documentExtraction
