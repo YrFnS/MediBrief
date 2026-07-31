@@ -21,7 +21,8 @@ describe('Phase 3 OpenMed workspace contracts', () => {
         expect(settings).toContain('openMedDiseaseModel');
         expect(settings).toContain('openMedMedicationModel');
         expect(modal).toContain('Assistant AI');
-        expect(modal).toContain('Clinical extraction');
+        expect(modal).toContain('OpenMedSettingsPanel');
+        expect(openMedPanel).toContain('Clinical document extraction');
         expect(openMedPanel).toContain('OpenMed only');
         expect(openMedPanel).toContain('Gemini only');
         expect(openMedPanel).toContain('Test local service');
@@ -76,7 +77,7 @@ describe('Phase 3 OpenMed workspace contracts', () => {
             'Auto mode reaches this branch only when local extraction is',
         );
         expect(settingsPanel).toContain(
-            'fallback was explicitly allowed',
+            'Use local OpenMed for supported text',
         );
         expect(settingsPanel).toContain(
             'Gemini output keeps separate cloud-extraction provenance',
