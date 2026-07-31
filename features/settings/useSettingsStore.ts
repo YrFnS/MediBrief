@@ -2,6 +2,10 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { indexedDBStorage } from '../../services/storage';
 import { ChatMode } from '../../types';
+import type {
+    OpenMedOcrEngine,
+    OpenMedOcrMode,
+} from '../openmed/documentTypes';
 import {
     DEFAULT_OPENMED_BASE_URL,
     DEFAULT_OPENMED_TIMEOUT_MS,
@@ -27,6 +31,11 @@ interface SettingsState {
     openMedTimeoutMs: number;
     openMedKeepAlive: string;
     allowGeminiExtractionFallback: boolean;
+    openMedDocumentExtractionEnabled: boolean;
+    openMedOcrMode: OpenMedOcrMode;
+    openMedOcrEngine: OpenMedOcrEngine;
+    openMedOcrLanguages: string[];
+    openMedOcrResolution: number;
 
     setProvider: (provider: AIProvider) => void;
     setGeminiApiKey: (key: string) => void;
@@ -40,6 +49,11 @@ interface SettingsState {
     setOpenMedTimeoutMs: (value: number) => void;
     setOpenMedKeepAlive: (value: string) => void;
     setAllowGeminiExtractionFallback: (value: boolean) => void;
+    setOpenMedDocumentExtractionEnabled: (value: boolean) => void;
+    setOpenMedOcrMode: (value: OpenMedOcrMode) => void;
+    setOpenMedOcrEngine: (value: OpenMedOcrEngine) => void;
+    setOpenMedOcrLanguages: (value: string[]) => void;
+    setOpenMedOcrResolution: (value: number) => void;
 }
 
 const clampConfidence = (value: number): number => {
@@ -50,6 +64,20 @@ const clampConfidence = (value: number): number => {
 const normalizeTimeout = (value: number): number => {
     if (!Number.isFinite(value)) return DEFAULT_OPENMED_TIMEOUT_MS;
     return Math.min(900_000, Math.max(1_000, Math.round(value)));
+};
+
+const normalizeOcrLanguages = (values: string[]): string[] => {
+    const normalized = values
+        .map(value => value.trim().toLowerCase())
+        .filter(Boolean)
+        .filter((value, index, all) => all.indexOf(value) === index)
+        .slice(0, 8);
+    return normalized.length > 0 ? normalized : ['en'];
+};
+
+const normalizeOcrResolution = (value: number): number => {
+    if (!Number.isFinite(value)) return 200;
+    return Math.min(400, Math.max(72, Math.round(value)));
 };
 
 export const useSettingsStore = create<SettingsState>()(
@@ -75,6 +103,11 @@ export const useSettingsStore = create<SettingsState>()(
             // Cloud fallback must be a conscious user choice. Existing Gemini
             // settings remain intact, but Auto mode starts local-only.
             allowGeminiExtractionFallback: false,
+            openMedDocumentExtractionEnabled: true,
+            openMedOcrMode: 'auto',
+            openMedOcrEngine: 'auto',
+            openMedOcrLanguages: ['en'],
+            openMedOcrResolution: 200,
 
             setProvider: provider => set({ provider }),
             setGeminiApiKey: geminiApiKey => set({ geminiApiKey }),
@@ -101,6 +134,17 @@ export const useSettingsStore = create<SettingsState>()(
             }),
             setAllowGeminiExtractionFallback: value => set({
                 allowGeminiExtractionFallback: value,
+            }),
+            setOpenMedDocumentExtractionEnabled: value => set({
+                openMedDocumentExtractionEnabled: value,
+            }),
+            setOpenMedOcrMode: openMedOcrMode => set({ openMedOcrMode }),
+            setOpenMedOcrEngine: openMedOcrEngine => set({ openMedOcrEngine }),
+            setOpenMedOcrLanguages: values => set({
+                openMedOcrLanguages: normalizeOcrLanguages(values),
+            }),
+            setOpenMedOcrResolution: value => set({
+                openMedOcrResolution: normalizeOcrResolution(value),
             }),
         }),
         {
