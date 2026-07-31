@@ -1,4 +1,5 @@
 export * from './candidateMapping';
+export * from './contextEvidence';
 export * from './contextSchemas';
 export * from './contextTypes';
 export * from './documentText';
