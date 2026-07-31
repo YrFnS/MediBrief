@@ -130,9 +130,9 @@ Phase 3 architecture acceptance does not pretend that deployment-specific runtim
 
 The Phase 3 evaluation workspace contains:
 
-- a 12-case English condition/medication span corpus;
-- a 6-case Arabic research corpus whose application route remains blocked;
-- English and Arabic OCR text/page references;
+- a 12-case English condition/medication span corpus with 20 gold entities;
+- a 6-case Arabic research corpus with 10 gold entities whose application route remains blocked;
+- four English and Arabic OCR text/page references;
 - exact-span OpenMed-shaped contract predictions;
 - separate Gemini-shaped contract predictions;
 - OCR contract predictions;
@@ -242,19 +242,50 @@ cancelled
 
 Retries preserve attempt counts, warnings, hashes, and candidate counts. Same-source candidate identity includes the document, derived-text hash, model, kind, offsets, and normalized text so an identical retry is reported as a duplicate rather than creating another medical assertion.
 
-## Final validation target
+## Final validation result
 
-The accepted Phase 3 branch must pass, in one GitHub Actions workflow:
+The complete Slice 4 branch state at commit:
 
-- all Python bridge, capture, comparison, and evaluation tests;
-- the synthetic English context gate;
-- NER/OCR metric-contract validation;
-- separate OpenMed/Gemini comparison-contract validation;
-- TypeScript type-checking;
-- the complete Vitest suite;
-- the Vite production build.
+```text
+f2776dfc3c8e76795193d7e35285faccfedddb43
+```
 
-The final validated commit and exact totals are recorded in PR #3 after the completed workflow run.
+passed GitHub Actions run **449** on Ubuntu 24.04 with Python 3.12 and Node.js 24.
+
+| Validation | Result |
+|---|---:|
+| Python bridge, capture, comparison, and evaluation tests | **24 / 24 passed** |
+| Synthetic English assertion cases | **6 / 6 exact** |
+| Synthetic assertion axes | **24 / 24 correct** |
+| Synthetic medication-sig fields | **5 / 5 correct** |
+| English NER metric-contract corpus | **12 cases / 20 gold entities** |
+| Arabic blocked-route corpus | **6 cases / 10 gold entities** |
+| OCR metric-contract corpus | **4 cases: 3 English / 1 Arabic** |
+| NER/OCR metric-contract validation | **Passed** |
+| Separate OpenMed/Gemini comparison-contract validation | **Passed** |
+| TypeScript type-check | **Passed** |
+| TypeScript test files | **36 / 36 passed** |
+| TypeScript tests | **154 / 154 passed** |
+| Vite production build | **Passed** |
+| Production modules transformed | **1046** |
+| Main application chunk | **1,987.55 kB minified / 536.37 kB gzip** |
+
+The deterministic contract fixtures reported exact-span and relaxed-span F1 of `1.0`, OCR CER/WER of `0.0`, and page-text accuracy of `1.0`. Those values validate the corpus, schemas, evaluator, and CI thresholds only. They are not measured OpenMed, Gemini, or OCR-engine accuracy.
+
+The provider-comparison contract also confirmed:
+
+```text
+comparison_evidence: contract-only
+merged_predictions: false
+winner_selected: false
+application_route_changed: false
+```
+
+## Defect found during final validation
+
+An early Slice 4 CI run exposed a false-negative source-order assertion. The test searched for the first occurrence of `analyzeOpenMedText`, matched the import near the top of the module, and incorrectly concluded that the language guard ran after model inference.
+
+The regression test now scopes its search to `extractOpenMedCandidatesFromUpload` and verifies that the concrete language-block branch appears before the concrete awaited model call. Production behavior was already correctly ordered; the test now checks the intended boundary accurately.
 
 ## Known limitations retained after acceptance
 
@@ -270,6 +301,18 @@ The final validated commit and exact totals are recorded in PR #3 after the comp
 - Extracted dates remain unknown unless explicitly and safely parsed in a later workflow.
 
 These limitations are compatible with Phase 3 acceptance because no extraction result becomes a current patient fact without human review.
+
+## Known non-blocking build observations
+
+The successful production build still reports:
+
+- a main JavaScript chunk above Vite's default 500 kB warning threshold;
+- mixed static and dynamic imports for `uuid` and blob storage;
+- runtime resolution of `/index.css`;
+- Recharts 2.x outside its active maintenance line;
+- deprecation warnings from Node runtimes embedded in some GitHub Actions.
+
+These remain dependency and frontend-performance workstreams. They do not change candidate isolation, provenance, local extraction failure behavior, language blocking, or the review boundary.
 
 ## Phase transition
 
