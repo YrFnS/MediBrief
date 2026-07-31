@@ -5,7 +5,7 @@
 > **Branch:** `agent/phase-3-openmed-extraction`  
 > **Base:** `agent/phase-2-personal-health-record`  
 > **Started:** 2026-07-31  
-> **Current focus:** Slice 2 — evaluated assertion context and richer clinical relationships
+> **Current focus:** Slice 3 — local PDF text extraction, OCR, page provenance, and extraction status
 
 ## Product goal
 
@@ -14,23 +14,24 @@ Phase 3 integrates OpenMed as a local clinical extraction layer while preserving
 - extraction output is always a candidate;
 - no extracted diagnosis, medication, allergy, result, or status becomes confirmed automatically;
 - source text, offsets, model, confidence, and extraction time remain attached to every candidate;
-- unknown assertion context remains unknown rather than being invented;
+- assertion context is evidence-backed and reviewable;
+- OpenMed defaults are not treated as positive clinical evidence;
 - unsupported files and unavailable local services are reported accurately;
 - the existing Gemini extractor remains an explicit compatibility fallback during migration, not a hidden second source of truth.
 
 ## Verified OpenMed integration surface
 
-The integration follows the current OpenMed 2.x local-service contract:
+The integration follows OpenMed 2.0.0 and its local interfaces:
 
-- local REST service through `openmed.service.app:app`;
 - `GET /health` for service reachability;
-- `POST /analyze` for text entity extraction;
-- entity spans with text, label, confidence, start offset, and end offset;
-- specialized disease and pharmaceutical model aliases;
-- exact-origin CORS and trusted-host configuration for browser clients;
-- local and on-device deployment under Apache-2.0.
+- `POST /analyze` for local named-entity recognition;
+- entity text, label, confidence, start offset, and end offset;
+- disease and pharmaceutical model aliases;
+- Python clinical helpers for context, sections, experiencer, and medication sigs;
+- exact-origin CORS and trusted-host configuration;
+- local deployment under Apache-2.0.
 
-MediBrief does not assume that generic `/analyze` output determines negation, certainty, temporality, experiencer, allergy relationships, or code-status meaning. Those fields remain unknown until a dedicated context layer is integrated and evaluated.
+The generic `/analyze` response does not include negation, certainty, temporality, experiencer, or medication-sig relationships. MediBrief exposes those Python helpers through its own local bridge rather than attributing context output to the NER endpoint.
 
 ---
 
@@ -41,13 +42,14 @@ MediBrief does not assume that generic `/analyze` output determines negation, ce
 - OpenMed settings are independent from the chat provider.
 - A healthy service is not evidence that a model is loaded or clinically suitable.
 - Every service response is runtime-validated before mapping.
-- Invalid offsets, confidence values, entities, and labels are rejected or ignored explicitly.
+- Invalid offsets, confidence values, entities, cues, and labels fail closed or are ignored explicitly.
 - Duplicate candidates use the existing conservative source-aware record-store policy.
 - Source offsets refer to the exact decoded text submitted to OpenMed.
 - PDF and image content is never represented as text without a real extraction or OCR step.
 - Candidate creation remains patient-scoped and document-scoped.
-- The local record remains usable when OpenMed is stopped.
-- OpenMed and Gemini output always retain different provenance.
+- The local record remains usable when OpenMed or its optional context bridge is stopped.
+- OpenMed NER, OpenMed context, and Gemini output retain separate provenance.
+- Default affirmed/certain/recent/patient axes remain unknown in the MediBrief candidate until supported by evidence or human review.
 
 ---
 
@@ -59,16 +61,16 @@ Status: `[x] Complete`
 
 - [x] Create the dedicated Phase 3 branch from the accepted Phase 2 head.
 - [x] Add this living Phase 3 plan.
-- [x] Verify the current OpenMed REST, model, CORS, and trusted-host surface.
+- [x] Verify the OpenMed REST, model, context-helper, CORS, and trusted-host surfaces.
 - [x] Inventory the existing Gemini extraction, upload, candidate, and provenance boundaries.
-- [x] Add the Slice 1 architecture note.
-- [x] Add a local OpenMed setup guide.
+- [x] Add Slice 1 and Slice 2 architecture notes.
+- [x] Add and update the local OpenMed setup guide.
 - [x] Record explicit non-goals, unsupported-file behavior, and fallback policy.
 - [x] Open stacked draft PR #3.
 
 ## P3.1 — Local OpenMed client and settings
 
-Status: `[x] Complete for Slice 1`
+Status: `[x] Complete for current Phase 3 scope`
 
 - [x] Add typed health, entity, analysis, service-status, settings, and error contracts.
 - [x] Add strict Zod response validation.
@@ -76,18 +78,18 @@ Status: `[x] Complete for Slice 1`
 - [x] Reject credentials embedded in the endpoint URL.
 - [x] Add configurable request timeout and caller cancellation.
 - [x] Distinguish timeout, cancellation, HTTP failure, service unavailability, and invalid response.
-- [x] Add `GET /health` service checking.
-- [x] Add `POST /analyze` support using the documented request fields.
+- [x] Add `GET /health` and `POST /analyze` support.
 - [x] Add disease and pharmaceutical model settings.
 - [x] Add confidence-threshold, timeout, and model keep-alive settings.
 - [x] Add Auto, OpenMed-only, and Gemini-only extraction modes.
 - [x] Show reachability without claiming model readiness or clinical validation.
 - [x] Keep OpenMed settings independent from chat-provider settings.
 - [x] Persist settings in the existing local settings store.
+- [x] Add a separate context-bridge health check.
 
-## P3.2 — Text intake and candidate mapping
+## P3.2 — Text intake and NER candidate mapping
 
-Status: `[x] Complete for Slice 1`
+Status: `[x] Complete for text sources`
 
 - [x] Decode supported text files locally from the existing upload payload.
 - [x] Support TXT, Markdown, CSV, TSV, JSON, XML, and HTML-as-text intake.
@@ -100,38 +102,48 @@ Status: `[x] Complete for Slice 1`
 - [x] Ignore unsupported labels and retain diagnostics.
 - [x] Reject invalid spans and source-text mismatches.
 - [x] Derive excerpts from the submitted source text.
-- [x] Preserve document ID, filename, character offsets, confidence, model, engine version, and extraction time.
-- [x] Keep polarity, certainty, temporality, and experiencer unknown.
+- [x] Preserve document ID, filename, offsets, confidence, model, engine version, and extraction time.
 - [x] Keep clinical dates explicitly unknown.
-- [x] Preserve existing candidate review, source preview, encrypted persistence, backup, and export behavior.
+- [x] Preserve candidate review, source preview, encrypted persistence, backup, and export behavior.
 - [x] Reuse conservative same-source deduplication.
-- [x] Keep OpenMed candidates excluded from confirmed timelines until reviewed.
+- [x] Keep candidates excluded from confirmed timelines until reviewed.
 
-## P3.3 — Assertion and relationship context
+## P3.3 — Assertion context and medication relationships
 
-Status: `[ ] Not started — next`
+Status: `[x] Complete for the verified Slice 2 scope`
 
-- [ ] Introduce an evaluated context adapter for negation.
-- [ ] Introduce certainty and hypothetical-context handling.
-- [ ] Introduce historical/current temporality handling.
-- [ ] Introduce patient/family/other experiencer handling.
-- [ ] Add medication attributes and relationships where supported.
-- [ ] Add allergy relationship extraction only after dedicated validation.
-- [ ] Add code-status extraction only from an authoritative, evaluated path.
-- [ ] Preserve context-engine provenance separately from NER provenance.
-- [ ] Extend candidate review to explain and edit context evidence.
-- [ ] Require human review before confirmation.
+- [x] Add `openmed_bridge.app`, preserving upstream `/health` and `/analyze` while adding `/medibrief/context/health` and `/medibrief/context`.
+- [x] Add scoped negation evidence.
+- [x] Add uncertainty and hypothetical-context evidence.
+- [x] Add historical temporality from scoped cues and section priors.
+- [x] Add patient/family/other experiencer evidence.
+- [x] Add clinical section detection and offsets.
+- [x] Add medication dose, form, route, frequency, PRN condition, and duration parsing where recognized.
+- [x] Preserve context-engine provenance separately from NER provenance.
+- [x] Preserve raw context, cues, sections, and medication sig in candidate amendment history.
+- [x] Copy only evidence-backed axes to candidate assertion fields.
+- [x] Keep default affirmed/certain/recent/patient values unknown in the candidate.
+- [x] Keep condition clinical status unknown until review.
+- [x] Add a dedicated context-evidence review UI without adding a second confirm/reject workflow.
+- [x] Preserve prior assertion values and audit context corrections.
+- [x] Retain NER candidates with unknown context when the optional bridge is unavailable.
+- [x] Prevent context-only failure from triggering Gemini fallback.
+- [x] Require human review before confirmation.
+- [!] Allergy relationship extraction deferred: no dedicated verified relationship endpoint with measured evidence was found.
+- [!] Code-status extraction deferred: generic NER/context is not an authoritative advance-directive path.
 
 ## P3.4 — Document text and OCR pipeline
 
-Status: `[ ] Not started`
+Status: `[ ] Not started — next`
 
-- [ ] Add PDF text extraction with page boundaries.
-- [ ] Add OCR for scanned PDFs and images through a local pipeline.
-- [ ] Preserve page numbers, sections, offsets, and raw extracted text.
+- [ ] Add local PDF text extraction with page boundaries.
+- [ ] Detect text-bearing versus scanned PDF pages.
+- [ ] Add local OCR for scanned PDFs and images.
+- [ ] Preserve page numbers, sections, offsets, and raw derived text.
 - [ ] Distinguish embedded PDF text from OCR text.
-- [ ] Record OCR engine and confidence.
-- [ ] Add extraction status for running, completed, partial, unsupported, cancelled, and failed work.
+- [ ] Record extraction/OCR engine, version, and confidence.
+- [ ] Add extraction status for queued, running, completed, partial, unsupported, cancelled, and failed work.
+- [ ] Add retry and recovery without duplicating candidates.
 - [ ] Keep the original file as the authoritative source.
 - [ ] Never use import time as the document or clinical date.
 
@@ -139,30 +151,38 @@ Status: `[ ] Not started`
 
 Status: `[-] In progress`
 
-- [ ] Add deterministic language routing for supported extraction paths.
-- [ ] Build synthetic English clinical extraction fixtures.
-- [ ] Build synthetic Arabic clinical extraction fixtures.
-- [ ] Measure entity precision, recall, span correctness, and candidate usability.
-- [ ] Compare OpenMed output with the compatibility Gemini path.
-- [ ] Document Arabic clinical-NER support separately from Arabic PII support.
+- [x] Add conservative language routing that prevents the English context layer from running on non-Latin clinical text.
+- [x] Build a PHI-free synthetic English assertion-context corpus.
+- [x] Measure the synthetic corpus at the axis and exact-case level.
+- [x] Add a medication-sig field evaluation.
+- [x] Document the difference between English clinical context and Arabic PII support.
 - [x] Make fallback behavior explicit in settings and user-facing copy.
 - [x] Prevent Gemini fallback results from being attributed to OpenMed.
 - [x] Prevent successful empty OpenMed output from triggering cloud fallback.
 - [x] Prevent OpenMed-only mode from using cloud fallback.
-- [x] Add extraction diagnostics without persisting extra source-text copies.
+- [x] Prevent context-bridge failure from causing cloud fallback.
+- [x] Add extraction diagnostics without persisting unnecessary source-text copies.
+- [ ] Build synthetic Arabic clinical NER and context fixtures.
+- [ ] Select or reject an Arabic clinical extraction path based on measured evidence.
+- [ ] Measure NER precision, recall, span correctness, and candidate usability on broader English fixtures.
+- [ ] Compare OpenMed output with the compatibility Gemini path without mixing provenance.
 
-## P3.6 — Migration and acceptance evidence
+## P3.6 — Acceptance evidence
 
 Status: `[-] In progress`
 
-- [x] Add repository-integrated tests for client, routing, mapping, and fallback boundaries.
+- [x] Add repository-integrated tests for NER client, routing, mapping, and fallback boundaries.
 - [x] Add malformed-response, source-mismatch, timeout, and cancellation tests.
-- [x] Add offset, confidence, model, engine-version, excerpt, and source-link tests.
+- [x] Add offset, confidence, model, version, excerpt, source-link, and cue-offset tests.
 - [x] Add candidate-only and same-source deduplication tests.
-- [x] Add unsupported-file, empty-file, binary-file, and service-unavailable behavior tests.
-- [x] Extend GitHub Actions to the Phase 3 branch and stacked PR.
-- [x] Run TypeScript validation, the complete automated suite, and production build for Slice 1.
-- [ ] Add English and Arabic measured evaluation evidence.
+- [x] Add unsupported-file, empty-file, binary-file, and service-unavailable tests.
+- [x] Add Python bridge tests and route smoke tests.
+- [x] Add context-unavailable and non-Latin skip tests.
+- [x] Add evidence-backed candidate-axis tests.
+- [x] Extend GitHub Actions with Python, synthetic evaluation, TypeScript, tests, and production build.
+- [x] Record Slice 1 and Slice 2 validation evidence.
+- [ ] Add PDF/OCR validation evidence.
+- [ ] Add broader English and Arabic measured evaluation evidence.
 - [ ] Record final Phase 3 acceptance evidence after every Phase 3 slice is complete.
 
 ---
@@ -173,93 +193,113 @@ Status: `[-] In progress`
 
 Status: `[x] Complete`
 
-- [x] Dedicated Phase 3 branch
-- [x] Living implementation plan
-- [x] Local REST client
-- [x] OpenMed settings and health status
-- [x] Supported local text intake
-- [x] Disease and medication candidate mapping
-- [x] Explicit Gemini compatibility fallback
-- [x] Separate OpenMed and Gemini provenance
-- [x] Exact offsets, excerpts, confidence, model, and engine metadata
-- [x] Unknown assertion-context and clinical-date preservation
-- [x] Existing candidate-review integration
-- [x] Expanded text upload support and MIME inference
-- [x] Local service setup guide
-- [x] Focused regression coverage
-- [x] Repository type-check, tests, and production build
-- [x] Architecture note and draft PR #3
+Delivered:
 
-### Slice 1 validation
+- strict local REST client;
+- independent extraction settings and health status;
+- supported local text intake;
+- disease and medication NER candidate mapping;
+- exact source offsets and provenance;
+- explicit Gemini compatibility fallback;
+- candidate-review integration;
+- setup and architecture documentation.
 
-The repository-integrated Node.js 24 workflow passed:
+Validation:
 
-- TypeScript: `tsc --noEmit` passed.
-- Test files: **29 of 29 passed**.
-- Tests: **125 of 125 passed**.
-- Production build: `vite build` passed.
-- Production modules transformed: **1031**.
+- TypeScript passed.
+- **29 / 29** test files passed.
+- **125 / 125** TypeScript tests passed.
+- Production build passed with **1031** modules transformed.
 
-The build continues to report the existing non-blocking large-chunk, mixed-import, and runtime stylesheet warnings. The main bundle remains a separate frontend-performance workstream.
-
-See:
+Documentation:
 
 - `docs/architecture/PHASE_3_OPENMED_FOUNDATION.md`
 - `docs/OPENMED_LOCAL_SETUP.md`
 
-## Slice 2 — Assertion context and richer clinical mapping
+## Slice 2 — Assertion context and medication evidence
 
-Status: `[ ] Not started — next`
+Status: `[x] Complete`
 
-- Negation evidence and scope
-- Certainty and hypothetical context
-- Historical/current temporality
-- Patient/family/other experiencer
-- Medication attributes and relationships
-- Evaluated allergy and code-status paths
-- Context provenance and review UI
-- Synthetic evaluation fixtures
+Delivered:
+
+- local context bridge over OpenMed 2.0.0 Python helpers;
+- scoped negation, uncertainty, temporality, experiencer, and section evidence;
+- medication-sig parsing;
+- strict bridge/client response validation;
+- separate NER and context provenance;
+- conservative evidence-backed candidate mapping;
+- default positive axes retained as evidence but not copied as facts;
+- context review and correction UI;
+- bridge and language failure degradation;
+- English-only routing boundary;
+- PHI-free synthetic evaluation gate.
+
+Validation at the completed Slice 2 code head:
+
+- Python bridge tests: **7 / 7 passed**.
+- Synthetic assertion cases: **6 / 6 exact**.
+- Synthetic assertion axes: **24 / 24 correct**.
+- Synthetic medication-sig fields: **5 / 5 correct**.
+- TypeScript: `tsc --noEmit` passed.
+- TypeScript test files: **30 / 30 passed**.
+- TypeScript tests: **134 / 134 passed**.
+- Production build: passed.
+- Production modules transformed: **1037**.
+
+Limitations:
+
+- synthetic English regression evidence is not a real-document clinical validation;
+- Arabic and other non-Latin context remains unsupported and explicitly unknown;
+- allergy and code-status paths remain deferred;
+- all output remains candidate-only and requires review.
+
+Documentation:
+
+- `docs/architecture/PHASE_3_ASSERTION_CONTEXT.md`
+- `docs/OPENMED_LOCAL_SETUP.md`
 
 ## Slice 3 — Local document text and OCR
 
-Status: `[ ] Not started`
+Status: `[ ] Not started — next`
 
 - PDF text extraction
-- Scanned PDF and image OCR
-- Page and section provenance
-- Extraction status and failure recovery
-- Source-text review
+- scanned PDF and image OCR
+- page and section provenance
+- extraction status and recovery
+- derived-text source review
+- candidate idempotency across retries
 
 ## Slice 4 — Language evaluation and final acceptance
 
 Status: `[ ] Not started`
 
-- English and Arabic synthetic corpora
-- Measured extraction quality
-- Explicit language and fallback policy
-- Final migration and acceptance evidence
+- broader English synthetic corpus
+- Arabic clinical NER/context decision
+- measured entity quality
+- explicit language and fallback policy
+- final Phase 3 acceptance evidence
 
 ---
 
-# Slice 1 acceptance evidence
+# Slice 2 acceptance evidence
 
 | Criterion | Result |
 |---|---|
-| OpenMed settings do not change the chat provider | Passed |
-| Health check is cancellable, timed out, and accurately labelled | Passed |
-| Supported text is decoded locally | Passed |
-| Binary files are not sent to the text analyze endpoint | Passed |
-| PDFs and images are not represented as OCR-complete | Passed |
-| Disease and medication output creates candidates only | Passed |
-| Exact source offsets and excerpts are preserved | Passed |
-| Confidence, model, engine, and extraction time are preserved | Passed |
-| Assertion context remains unknown | Passed |
-| Clinical date remains unknown | Passed |
-| Stopped or malformed service creates no invented fact | Passed |
-| Auto fallback is explicit and correctly attributed | Passed |
-| OpenMed-only mode prevents cloud fallback | Passed |
-| Successful empty OpenMed output prevents cloud fallback | Passed |
-| Type-check, all tests, and production build pass | Passed |
+| Standard OpenMed REST remains available | Passed |
+| Context bridge health is independently testable | Passed |
+| Context request and response preserve exact source spans | Passed |
+| Invalid source, cue, or span offsets fail closed | Passed |
+| Negation evidence is scoped | Passed on synthetic gate |
+| Uncertainty and hypothetical evidence are preserved | Passed on synthetic gate |
+| Historical and family context are preserved | Passed on synthetic gate |
+| Medication sig fields remain advisory candidates | Passed |
+| Raw context and NER provenance remain separate | Passed |
+| Default positive axes remain unknown in candidates | Passed |
+| Context panel cannot confirm or reject a candidate | Passed |
+| Bridge failure retains NER with unknown context | Passed |
+| Context failure does not trigger Gemini fallback | Passed |
+| Non-Latin text skips the English context layer | Passed |
+| Python tests, TypeScript, all tests, and build pass | Passed |
 
 ---
 
@@ -267,36 +307,36 @@ Status: `[ ] Not started`
 
 | Date | Decision | Reason |
 |---|---|---|
-| 2026-07-31 | Build Phase 3 as a stacked branch from the completed Phase 2 head. | OpenMed candidates depend on the versioned record, review queue, provenance, source preview, and module UI completed in Phases 1–2. |
-| 2026-07-31 | Start with a local REST sidecar rather than bundling model weights into the main web bundle. | The documented service supports multiple inference backends while avoiding further browser-bundle growth and tight runtime coupling. |
-| 2026-07-31 | Treat `/analyze` as named-entity recognition, not complete clinical assertion understanding. | Disease and medication spans do not establish negation, certainty, temporality, experiencer, allergy status, or code status. |
-| 2026-07-31 | Limit Slice 1 to files that already contain text. | PDF and image processing needs a real local extraction or OCR pipeline with page-level provenance. |
-| 2026-07-31 | Keep Gemini as an explicit compatibility fallback during migration. | Existing document support remains available without concealing which engine processed the source. |
-| 2026-07-31 | Run disease and medication models independently. | One model alias is not assumed to cover every clinical entity family. |
-| 2026-07-31 | Do not fall back after a successful empty OpenMed response. | No entity found is a valid extraction outcome, not evidence that the local service failed. |
-| 2026-07-31 | Keep all OpenMed assertion dimensions unknown in Slice 1. | NER spans alone do not justify patient attribution or assertion-state claims. |
-| 2026-07-31 | Derive excerpts from source offsets instead of trusting response text. | The exact submitted source remains authoritative for review provenance. |
+| 2026-07-31 | Build Phase 3 as a stacked branch from the completed Phase 2 head. | OpenMed candidates depend on the versioned record, review queue, provenance, and source preview completed in Phases 1–2. |
+| 2026-07-31 | Start with a local REST sidecar rather than browser model weights. | Avoid further bundle growth and support multiple local inference backends. |
+| 2026-07-31 | Treat `/analyze` as NER rather than full assertion understanding. | Entity spans alone do not establish assertion context. |
+| 2026-07-31 | Limit early extraction to files that already contain text. | PDF and image processing requires page-aware extraction/OCR provenance. |
+| 2026-07-31 | Keep Gemini as an explicit compatibility fallback. | Preserve existing document support without concealing the processing engine. |
+| 2026-07-31 | Do not fall back after a successful empty OpenMed response. | No entity found is a valid result, not a local-service failure. |
+| 2026-07-31 | Add `openmed_bridge.app` instead of claiming upstream REST returns context. | OpenMed context capabilities are Python helpers, not generic `/analyze` fields. |
+| 2026-07-31 | Store context evidence in candidate amendment history. | Preserve separate engine provenance without silently changing the clinical-record schema. |
+| 2026-07-31 | Keep default affirmed/certain/recent/patient axes unknown in the candidate. | OpenMed defaults are not positive evidence and could otherwise become confirmed too easily. |
+| 2026-07-31 | Keep context review separate from confirm/reject. | Correcting extraction evidence must not become a second clinical confirmation workflow. |
+| 2026-07-31 | Skip non-Latin context until measured. | Do not apply an English context layer to Arabic or other unsupported clinical text. |
+| 2026-07-31 | Defer allergy and code-status extraction. | Neither domain has an authoritative, measured relationship path in the verified integration surface. |
 
 ---
 
 # Progress log
 
-| Date | Slice | Work completed | Validation | Commit label |
-|---|---|---|---|---|
-| 2026-07-31 | P3.0 / Slice 1 | Created the Phase 3 branch and living implementation plan from the accepted Phase 2 head. | Branch and plan created. | `docs: add Phase 3 OpenMed extraction plan` |
-| 2026-07-31 | P3.1 / Slice 1 | Added strict REST contracts, health checking, timeouts, cancellation, response validation, and independent persisted settings. | Included in repository pipeline. | `feat: add cancellable OpenMed REST client` |
-| 2026-07-31 | P3.2 / Slice 1 | Added local text decoding, two-model extraction, candidate mapping, exact offsets, provenance, and explicit fallback routing. | Included in repository pipeline. | `feat: route document candidates through local OpenMed` |
-| 2026-07-31 | P3.6 / Slice 1 | Added client, intake, mapping, service-failure, deduplication, provenance, settings, and fallback regression tests. | 29/29 files, 125/125 tests, build passed with 1031 modules. | `test: cover OpenMed routing and safety boundaries` |
-| 2026-07-31 | P3.0 / Slice 1 | Added architecture and local-service setup documentation and opened draft PR #3. | PR workflow passed. | `docs: complete Phase 3 OpenMed Slice 1` |
+| Date | Slice | Work completed | Validation |
+|---|---|---|---|
+| 2026-07-31 | Slice 1 | Local client, settings, text intake, NER candidates, provenance, fallback, tests, setup docs, and draft PR. | 29/29 files, 125/125 tests, build passed. |
+| 2026-07-31 | Slice 2 | Context bridge, assertion evidence, medication sig, conservative mapping, review UI, language gate, Python tests, and synthetic evaluation. | 7/7 Python tests; 24/24 axes; 6/6 cases; 5/5 sig fields; 30/30 TS files; 134/134 TS tests; build passed. |
 
 ---
 
 # Current deferred choices
 
-- Whether desktop packaging will start and supervise the OpenMed sidecar automatically.
+- Whether desktop packaging will start and supervise the OpenMed bridge automatically.
 - Whether a later browser/WebGPU mode will use OpenMed-compatible ONNX exports directly.
-- Which disease and medication models become validated defaults after measured evaluation.
-- Whether Arabic clinical NER uses an OpenMed model, another local model, or remains unsupported until measured.
-- Whether derived PDF/OCR text is persisted as a local document or regenerated on demand.
-- Whether the context layer is OpenMed-native, rule-assisted, or a separate evaluated local model.
-- How to represent multiple context engines without collapsing provenance.
+- Which disease and medication models become validated defaults after broader evaluation.
+- Whether Arabic clinical NER uses an OpenMed model, another local model, or remains unsupported.
+- Whether derived PDF/OCR text is persisted as a local derived document or regenerated on demand.
+- Which local PDF text and OCR engines best preserve page geometry without making the desktop package unreasonably heavy.
+- Whether allergy and code-status extraction should remain manual indefinitely unless stronger source-specific models exist.
