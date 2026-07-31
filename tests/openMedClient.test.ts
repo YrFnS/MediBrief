@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
-    OpenMedClientError,
     analyzeOpenMedText,
     checkOpenMedHealth,
     normalizeOpenMedBaseUrl,
@@ -167,7 +166,9 @@ describe('OpenMed REST client', () => {
             },
         });
         controller.abort();
-        await expect(pending).rejects.toSatisfy(error =>
-            error instanceof OpenMedClientError && error.code === 'aborted');
+        await expect(pending).rejects.toMatchObject({
+            name: 'OpenMedClientError',
+            code: 'aborted',
+        });
     });
 });
