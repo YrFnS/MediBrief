@@ -5,7 +5,7 @@
 > **Branch:** `agent/phase-4-diagnostic-report-pipeline`  
 > **Base:** `agent/phase-3-openmed-extraction`  
 > **Started:** 2026-07-31  
-> **Current focus:** Slice 1 — diagnostic graph and ingestion foundation
+> **Current focus:** Slice 2 — report-level review workspace
 
 ## Product goal
 
@@ -25,6 +25,8 @@ Specimen(s)   Observation(s)
              reference-range context
              interpretation and quality warnings
 ```
+
+The design follows the current FHIR diagnostic boundary: `DiagnosticReport` carries report-level context, `Observation` carries atomic results, and `Specimen` represents the collected sample. LOINC and UCUM may be used as coding or unit evidence, but neither is treated as authoritative when the source report does not support it.
 
 ## Non-negotiable boundaries
 
@@ -52,51 +54,55 @@ Status: `[-] In progress`
 - [x] Add this living tracker.
 - [x] Inventory the current `DiagnosticReport`, `Observation`, and `Specimen` contracts.
 - [x] Inventory the current Results module and confirmed-only selectors.
-- [ ] Inventory and replace the legacy row-only lab confirmation path.
-- [ ] Add architecture notes for every accepted slice.
-- [ ] Open and maintain stacked draft PR #4.
+- [x] Add the Slice 1 architecture note.
+- [x] Open and maintain stacked draft PR #4.
+- [ ] Inventory and replace the legacy row-only lab confirmation path in Slice 2.
+- [ ] Add architecture notes for each later accepted slice.
 
 ## P4.1 — Diagnostic graph and model foundation
 
-Status: `[-] In progress — current slice`
+Status: `[x] Complete for the Slice 1 compatibility layer`
 
-- [ ] Add report identifiers and accession identifiers.
-- [ ] Add precise observation/report/specimen date-time fields without inventing dates.
-- [ ] Add absent-result reasons.
-- [ ] Add observation methods, body sites, panel/member relationships, and source data-quality notes.
-- [ ] Add richer reference-range context.
-- [ ] Add specimen identifiers, collector, quantity, conditions, and container details.
-- [ ] Keep all additions backward-compatible with existing Phase 1–3 records and backups.
-- [ ] Add strict Zod validation for every new field.
-- [ ] Add cross-resource diagnostic graph validation.
-- [ ] Add atomic bundle persistence for connected resources.
+- [x] Add strict report, specimen, result, identifier, and source-location draft contracts.
+- [x] Preserve report accession and identifiers in provenance when the current core record lacks dedicated fields.
+- [x] Preserve specimen identifiers, collection method, body site, collector, and notes without discarding source evidence.
+- [x] Preserve absent-result reasons and result method/body-site evidence.
+- [x] Preserve exact clinical dates and issue timestamps without inventing missing values.
+- [x] Keep all graph output backward-compatible with existing Phase 1–3 records and backups.
+- [x] Add strict Zod validation for reviewed report drafts.
+- [x] Add cross-resource diagnostic graph validation.
+- [x] Add atomic bundle persistence for connected resources.
+- [x] Reject patient mismatches, duplicate resource IDs, broken result/specimen links, missing source documents, resource conflicts, and duplicate same-source reports.
+- [ ] Migrate compatibility-preserved identifiers and metadata into dedicated backward-compatible core fields only when the schema-extension migration is designed and tested.
 
 ## P4.2 — Reviewed report draft and value parsing
 
-Status: `[ ] Not started`
+Status: `[x] Complete for Slice 1`
 
-- [ ] Define a reviewed report-draft contract independent from Gemini/OpenMed output.
-- [ ] Preserve source report title, identifiers, performer, dates, conclusion, and pages.
-- [ ] Parse numeric values with `<`, `<=`, `>`, `>=`, `≤`, and `≥` comparators.
-- [ ] Preserve decimal, integer, string, coded, boolean, and qualitative values.
-- [ ] Support positive, negative, reactive, non-reactive, detected, not detected, trace, equivocal, and indeterminate results.
-- [ ] Support explicit absent-result reasons.
-- [ ] Parse low/high, one-sided, and textual reference ranges without discarding source text.
-- [ ] Map recorded interpretation flags conservatively.
-- [ ] Recognize only safe UCUM aliases; do not perform unvalidated conversions.
-- [ ] Produce one connected report/specimen/result bundle.
+- [x] Define a reviewed report-draft contract independent from Gemini/OpenMed output.
+- [x] Preserve source report title, identifiers, performer, dates, conclusion, pages, sections, offsets, and excerpts.
+- [x] Parse numeric values with `<`, `<=`, `>`, `>=`, `≤`, and `≥` comparators.
+- [x] Preserve decimal, integer, string, coded, boolean, and qualitative values supported by the current record contract.
+- [x] Support positive, negative, reactive, non-reactive, detected, not detected, trace, equivocal, and indeterminate results.
+- [x] Support explicit absent-result reasons.
+- [x] Parse low/high, one-sided, and textual reference ranges without discarding source text.
+- [x] Map recorded interpretation flags conservatively.
+- [x] Recognize only safe UCUM aliases and perform no unvalidated value conversion.
+- [x] Fail closed on ambiguous decimal-comma values instead of guessing.
+- [x] Produce one connected report/specimen/result bundle.
 
 ## P4.3 — Report-level human review
 
-Status: `[ ] Not started`
+Status: `[ ] Not started — next`
 
 - [ ] Replace row-only confirmation with report-level review.
 - [ ] Display the original report beside extracted report metadata, specimens, panels, and results.
-- [ ] Allow confirm, edit, reject, or exclude each result.
-- [ ] Allow report-level status, date, performer, specimen, and accession corrections.
-- [ ] Preserve every edit as provenance/amendment evidence.
+- [ ] Allow include, edit, or exclude decisions for each result before confirmation.
+- [ ] Allow report-level status, date, performer, specimen, accession, and conclusion corrections.
+- [ ] Preserve every review edit as provenance/amendment evidence.
 - [ ] Prevent confirmation when graph references are broken.
 - [ ] Save the reviewed graph atomically.
+- [ ] Keep source-preview and confirmation usable without an AI provider.
 
 ## P4.4 — Panels, trends, and normalization
 
@@ -117,22 +123,23 @@ Status: `[ ] Not started`
 - [ ] Model preliminary, final, amended, corrected, cancelled, and entered-in-error transitions.
 - [ ] Preserve superseded values and report versions.
 - [ ] Detect likely duplicate reports using source identity, accession, dates, and report hashes.
-- [ ] Keep similar reports from different sources as separate assertions.
+- [ ] Keep similar reports from different documents as separate assertions.
 - [ ] Surface conflicts without silently choosing one result.
 - [ ] Link corrected reports and observations to their prior versions.
 
 ## P4.6 — Acceptance evidence
 
-Status: `[ ] Not started`
+Status: `[-] In progress`
 
-- [ ] Add schema and migration/backward-compatibility tests.
-- [ ] Add numeric, comparator, qualitative, textual, and absent-result tests.
-- [ ] Add reference-range and unit-preservation tests.
-- [ ] Add specimen/report/result relationship tests.
-- [ ] Add atomic-write rollback tests.
+- [x] Add strict draft-schema tests.
+- [x] Add numeric, comparator, qualitative, textual, absent-result, and decimal-comma tests.
+- [x] Add reference-range and unit-preservation tests.
+- [x] Add specimen/report/result relationship tests.
+- [x] Add patient, source-document, resource-conflict, and duplicate-report validation tests.
+- [x] Add atomic-write and no-partial-mutation tests.
+- [x] Run TypeScript, all automated tests, and production build for Slice 1.
 - [ ] Add report-review and correction-history tests.
-- [ ] Add duplicate/conflict tests.
-- [ ] Run TypeScript, all automated tests, and production build.
+- [ ] Add panel, trend, normalization, duplicate-lineage, and conflict tests.
 - [ ] Record final Phase 4 acceptance evidence.
 
 ---
@@ -141,31 +148,50 @@ Status: `[ ] Not started`
 
 ## Slice 1 — Diagnostic graph and ingestion foundation
 
-Status: `[-] In progress`
+Status: `[x] Complete`
 
-Planned delivery:
+Delivered:
 
-- backward-compatible clinical model extensions;
-- precise date-time fields;
-- report/specimen identifiers;
-- richer result and reference-range context;
-- atomic connected-resource bundle writes;
-- a reviewed report-draft builder;
+- reviewed report, specimen, result, identifier, and source-span contracts;
+- numeric, comparator, qualitative, absent, text, date, issue-time, reference-range, interpretation, and conservative unit parsing;
+- connected `DiagnosticReport`, `Observation`, and `Specimen` construction;
+- candidate or explicitly reviewed/confirmed output;
 - strict graph validation;
-- regression tests and architecture documentation.
+- duplicate same-source report detection;
+- atomic patient-record replacement;
+- source-document relationship amendments;
+- compatibility-preserved metadata where the current core schema lacks dedicated fields;
+- architecture documentation and regression coverage.
+
+Validation at the completed Slice 1 head:
+
+- Python bridge and evaluation tests: **24 / 24 passed**.
+- TypeScript: `tsc --noEmit` passed.
+- TypeScript test files: **37 / 37 passed**.
+- TypeScript tests: **163 / 163 passed**.
+- Phase 4 diagnostic foundation tests: **9 / 9 passed**.
+- Production build: passed.
+- Production modules transformed: **1046**.
+- Main bundle: approximately **1.99 MB minified / 536 kB gzip**.
+
+Documentation:
+
+- `docs/architecture/PHASE_4_DIAGNOSTIC_REPORT_FOUNDATION.md`
 
 ## Slice 2 — Report-level review workspace
 
-Status: `[ ] Pending`
+Status: `[ ] Next`
 
 Planned delivery:
 
 - source document and page preview;
 - report metadata review;
 - specimen review;
-- result inclusion/edit/rejection;
-- connected graph preview;
-- atomic confirmation.
+- per-result inclusion, editing, and exclusion;
+- connected graph preview and validation feedback;
+- atomic confirmation;
+- amendment and audit evidence for review changes;
+- retirement of the row-only confirmation path.
 
 ## Slice 3 — Panels, normalization, and trends
 
@@ -193,15 +219,37 @@ Planned delivery:
 
 ---
 
+# Slice 1 acceptance evidence
+
+| Criterion | Result |
+|---|---|
+| Report, observations, and specimens form one patient-scoped graph | Passed |
+| Original source document remains authoritative and linked | Passed |
+| Unknown clinical dates remain unknown | Passed |
+| Numeric comparators are preserved | Passed |
+| Qualitative, textual, and absent results remain distinct | Passed |
+| Reference-range source text is retained | Passed |
+| Unit aliases do not trigger unvalidated conversion | Passed |
+| Ambiguous decimal-comma values fail closed | Passed |
+| Broken resource relationships are rejected | Passed |
+| Same-source duplicate reports are detected | Passed |
+| Invalid bundles create no partial record mutations | Passed |
+| Python, TypeScript, all tests, and production build pass | Passed |
+
+---
+
 # Decision log
 
 | Date | Decision | Reason |
 |---|---|---|
 | 2026-07-31 | Build Phase 4 as a stacked branch from Phase 3. | The report pipeline depends on document/OCR provenance and the candidate-review foundation. |
 | 2026-07-31 | Treat `DiagnosticReport` as the report context and `Observation` as atomic results. | A report is more than a flat list of values and may include specimens, conclusions, documents, and panels. |
-| 2026-07-31 | Extend the existing record model backward-compatibly before replacing the UI. | Existing local records and backups must continue to hydrate. |
+| 2026-07-31 | Keep `Specimen` separate from report and result resources. | Collection and received times, type, body site, method, and identifiers belong to the sample rather than every result row. |
+| 2026-07-31 | Extend the report pipeline backward-compatibly before replacing the UI. | Existing local records and backups must continue to hydrate. |
 | 2026-07-31 | Require atomic diagnostic graph writes. | A report without its referenced results or specimens is an invalid partial record. |
 | 2026-07-31 | Preserve original result strings even when a structured value can be parsed. | Source truth must survive parsing and normalization. |
+| 2026-07-31 | Keep reference ranges contextual and non-diagnostic. | A range can vary by laboratory, method, population, age, sex, specimen, and other context. |
+| 2026-07-31 | Keep LOINC and UCUM optional evidence rather than inferred authority. | Coding or normalization must not replace the source report or create unsupported clinical meaning. |
 
 ---
 
@@ -209,4 +257,4 @@ Planned delivery:
 
 | Date | Slice | Work completed | Validation |
 |---|---|---|---|
-| 2026-07-31 | Slice 1 | Branch, plan, current-schema inventory, and diagnostic graph design started. | Pending |
+| 2026-07-31 | Slice 1 | Branch, plan, reviewed-report drafts, value parsing, diagnostic graph construction, graph validation, atomic persistence, duplicate protection, source-document linking, tests, and architecture note. | 24/24 Python tests; 37/37 TypeScript files; 163/163 TypeScript tests; build passed with 1046 modules. |
