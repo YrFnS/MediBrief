@@ -22,6 +22,21 @@ const resultLocalId = (index: number, testName: string): string => {
 export interface LegacyLabReviewSource {
     documentId?: string;
     fileName?: string;
+    storageId?: string;
+    mimeType?: string;
+    pageNumber?: number;
+}
+
+/**
+ * The chat extractor can discover the legacy lab-report JSON shape, but the
+ * extracted report must remain attached to the uploaded source and pass through
+ * the Phase 4 report-level review workspace before any clinical graph is saved.
+ */
+export interface PendingLegacyLabReview {
+    report: LabReport;
+    source: LegacyLabReviewSource;
+    detectedAt: string;
+    extractionEngine: string;
 }
 
 export interface LegacyLabReviewSeed {
@@ -29,6 +44,23 @@ export interface LegacyLabReviewSeed {
     sourceAvailable: boolean;
     sourceWarning?: string;
 }
+
+export const createPendingLegacyLabReview = ({
+    report,
+    source,
+    detectedAt = new Date().toISOString(),
+    extractionEngine = 'Google Gemini lab-report extraction',
+}: {
+    report: LabReport;
+    source: LegacyLabReviewSource;
+    detectedAt?: string;
+    extractionEngine?: string;
+}): PendingLegacyLabReview => ({
+    report,
+    source,
+    detectedAt,
+    extractionEngine,
+});
 
 /**
  * Convert the narrow legacy AI lab-report JSON into the Phase 4 reviewed-draft
@@ -62,7 +94,15 @@ export const createLegacyLabReviewSeed = ({
         ...(lab.flag && lab.flag !== 'Normal'
             ? { interpretationText: lab.flag }
             : {}),
-        source: {},
+        source: {
+            ...(source.pageNumber ? { pageNumber: source.pageNumber } : {}),
+            excerpt: [
+                lab.testName.trim(),
+                String(lab.value).trim(),
+                clean(lab.units),
+                clean(lab.refRange),
+            ].filter(Boolean).join(' · '),
+        },
     }));
 
     return {
@@ -89,6 +129,9 @@ export const createLegacyLabReviewSeed = ({
                 documentId: sourceDocumentId,
                 ...(clean(source.fileName)
                     ? { fileName: clean(source.fileName) }
+                    : {}),
+                ...(source.pageNumber
+                    ? { pageNumber: source.pageNumber }
                     : {}),
             },
             verificationStatus: 'candidate',
