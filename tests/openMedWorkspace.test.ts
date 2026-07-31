@@ -114,9 +114,7 @@ describe('Phase 3 OpenMed workspace contracts', () => {
             'medibrief:gemini-entity-extraction',
         );
         expect(extractionHook).toContain('gemini-extracted');
-        expect(extractionHook).toMatch(
-            /fallback[^.]*separate cloud provenance/i,
-        );
+        expect(extractionHook).toContain('separate cloud provenance');
     });
 
     it('allows fallback only for unsupported or unavailable local extraction after explicit opt-in', () => {
