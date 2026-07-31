@@ -8,7 +8,8 @@ import {
     deduplicateOpenMedEntities,
     toOpenMedCandidateEntity,
 } from './candidateMapping';
-import { extractLocalTextFromUpload } from './documentText';
+import { attachOpenMedDocumentEvidence } from './documentEvidence';
+import { prepareOpenMedDocument } from './documentPreparation';
 import type {
     OpenMedCandidateEntity,
     OpenMedExtractionResult,
@@ -29,46 +30,55 @@ const supportsEvaluatedEnglishContext = (text: string): boolean =>
 
 export const extractOpenMedCandidatesFromUpload = async ({
     file,
+    documentId,
     settings,
     signal,
 }: {
     file: UploadedFile;
+    documentId: string;
     settings: OpenMedExtractionSettings;
     signal?: AbortSignal;
 }): Promise<OpenMedExtractionResult> => {
-    const localText = extractLocalTextFromUpload(file);
-    if (localText.status !== 'ready') {
+    const prepared = await prepareOpenMedDocument({
+        file,
+        documentId,
+        settings,
+        signal,
+    });
+    if (prepared.status !== 'ready' || !prepared.text) {
         return {
-            status: localText.status,
+            status: prepared.status === 'ready' ? 'invalid' : prepared.status,
             entities: [],
-            warnings: [localText.message],
+            warnings: prepared.warnings.length > 0
+                ? prepared.warnings
+                : ['No local text was available for OpenMed extraction.'],
             contextStatus: 'not-requested',
-        };
-    }
-    if (!localText.text) {
-        return {
-            status: 'invalid',
-            entities: [],
-            warnings: [
-                'The local decoder reported ready text without a text payload.',
-            ],
-            contextStatus: 'not-requested',
+            ...(prepared.documentExtraction
+                ? { documentExtraction: prepared.documentExtraction }
+                : {}),
         };
     }
 
+    const sourceText = prepared.text;
     const models = uniqueModels(settings);
     if (models.length === 0) {
         return {
             status: 'unavailable',
-            text: localText.text,
+            text: sourceText,
             entities: [],
-            warnings: ['No OpenMed disease or medication model is configured.'],
+            warnings: [
+                ...prepared.warnings,
+                'No OpenMed disease or medication model is configured.',
+            ],
             contextStatus: 'not-requested',
+            ...(prepared.documentExtraction
+                ? { documentExtraction: prepared.documentExtraction }
+                : {}),
         };
     }
 
     const entities: OpenMedCandidateEntity[] = [];
-    const warnings: string[] = [];
+    const warnings: string[] = [...prepared.warnings];
     let successfulModels = 0;
     let failedModels = 0;
     let serviceVersion: string | undefined;
@@ -77,10 +87,13 @@ export const extractOpenMedCandidatesFromUpload = async ({
         if (signal?.aborted) {
             return {
                 status: 'aborted',
-                text: localText.text,
+                text: sourceText,
                 entities: [],
                 warnings: ['OpenMed extraction was cancelled.'],
                 contextStatus: 'not-requested',
+                ...(prepared.documentExtraction
+                    ? { documentExtraction: prepared.documentExtraction }
+                    : {}),
             };
         }
 
@@ -91,7 +104,7 @@ export const extractOpenMedCandidatesFromUpload = async ({
                     timeoutMs: settings.timeoutMs,
                 },
                 options: {
-                    text: localText.text,
+                    text: sourceText,
                     modelName,
                     confidenceThreshold: settings.confidenceThreshold,
                     groupEntities: false,
@@ -122,7 +135,7 @@ export const extractOpenMedCandidatesFromUpload = async ({
             });
             if (unsupportedLabels > 0) {
                 warnings.push(
-                    `${unsupportedLabels} ${modelName} entity span(s) used labels that are not mapped in Slice 2.`,
+                    `${unsupportedLabels} ${modelName} entity span(s) used labels that are not mapped in Slice 3.`,
                 );
             }
         } catch (error) {
@@ -133,10 +146,13 @@ export const extractOpenMedCandidatesFromUpload = async ({
             ) {
                 return {
                     status: 'aborted',
-                    text: localText.text,
+                    text: sourceText,
                     entities: [],
                     warnings: ['OpenMed extraction was cancelled.'],
                     contextStatus: 'not-requested',
+                    ...(prepared.documentExtraction
+                        ? { documentExtraction: prepared.documentExtraction }
+                        : {}),
                 };
             }
             failedModels += 1;
@@ -148,31 +164,45 @@ export const extractOpenMedCandidatesFromUpload = async ({
     }
 
     const deduplicated = deduplicateOpenMedEntities(entities);
+    const located = prepared.documentExtraction
+        ? attachOpenMedDocumentEvidence({
+            entities: deduplicated,
+            extraction: prepared.documentExtraction,
+        })
+        : deduplicated;
+    const documentPartial = prepared.documentExtraction?.status === 'partial';
+
     if (successfulModels === 0) {
         return {
             status: 'unavailable',
-            text: localText.text,
+            text: sourceText,
             entities: [],
             warnings,
             contextStatus: 'not-requested',
+            ...(prepared.documentExtraction
+                ? { documentExtraction: prepared.documentExtraction }
+                : {}),
         };
     }
-    if (deduplicated.length === 0) {
+    if (located.length === 0) {
         return {
-            status: failedModels > 0 ? 'partial' : 'empty',
-            text: localText.text,
+            status: failedModels > 0 || documentPartial ? 'partial' : 'empty',
+            text: sourceText,
             entities: [],
             warnings,
             contextStatus: 'not-requested',
             ...(serviceVersion ? { serviceVersion } : {}),
+            ...(prepared.documentExtraction
+                ? { documentExtraction: prepared.documentExtraction }
+                : {}),
         };
     }
 
-    let enriched = deduplicated;
+    let enriched = located;
     let contextStatus: OpenMedExtractionResult['contextStatus'] = 'not-requested';
     let contextAppliedCount = 0;
 
-    if (!supportsEvaluatedEnglishContext(localText.text)) {
+    if (!supportsEvaluatedEnglishContext(sourceText)) {
         contextStatus = 'skipped-language';
         warnings.push(
             'OpenMed assertion context was skipped because Slice 2 is evaluated for English text only. Polarity, certainty, temporality, and experiencer remain unknown for this document.',
@@ -184,12 +214,12 @@ export const extractOpenMedCandidatesFromUpload = async ({
                     baseUrl: settings.baseUrl,
                     timeoutMs: settings.timeoutMs,
                 },
-                text: localText.text,
-                entities: deduplicated,
+                text: sourceText,
+                entities: located,
                 language: 'en',
                 signal,
             });
-            enriched = deduplicated.map((entity, index) => ({
+            enriched = located.map((entity, index) => ({
                 ...entity,
                 context: context.results[index],
             }));
@@ -203,10 +233,13 @@ export const extractOpenMedCandidatesFromUpload = async ({
             ) {
                 return {
                     status: 'aborted',
-                    text: localText.text,
+                    text: sourceText,
                     entities: [],
                     warnings: ['OpenMed extraction was cancelled.'],
                     contextStatus: 'unavailable',
+                    ...(prepared.documentExtraction
+                        ? { documentExtraction: prepared.documentExtraction }
+                        : {}),
                 };
             }
             contextStatus = 'unavailable';
@@ -220,12 +253,15 @@ export const extractOpenMedCandidatesFromUpload = async ({
     }
 
     return {
-        status: failedModels > 0 ? 'partial' : 'success',
-        text: localText.text,
+        status: failedModels > 0 || documentPartial ? 'partial' : 'success',
+        text: sourceText,
         entities: enriched,
         warnings,
         contextStatus,
         ...(contextAppliedCount > 0 ? { contextAppliedCount } : {}),
         ...(serviceVersion ? { serviceVersion } : {}),
+        ...(prepared.documentExtraction
+            ? { documentExtraction: prepared.documentExtraction }
+            : {}),
     };
 };
