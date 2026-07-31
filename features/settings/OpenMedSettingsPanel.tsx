@@ -4,6 +4,10 @@ import {
     ShieldCheckIcon,
     WifiOffIcon,
 } from '../../components/icons';
+import type {
+    OpenMedOcrEngine,
+    OpenMedOcrMode,
+} from '../openmed/documentTypes';
 import {
     checkOpenMedHealth,
     normalizeOpenMedBaseUrl,
@@ -12,6 +16,7 @@ import type {
     ClinicalExtractionMode,
     OpenMedServiceHealth,
 } from '../openmed/types';
+import OpenMedDocumentBridgeStatus from './OpenMedDocumentBridgeStatus';
 
 interface OpenMedSettingsPanelProps {
     extractionMode: ClinicalExtractionMode;
@@ -22,6 +27,11 @@ interface OpenMedSettingsPanelProps {
     timeoutMs: number;
     keepAlive: string;
     allowGeminiFallback: boolean;
+    documentExtractionEnabled: boolean;
+    ocrMode: OpenMedOcrMode;
+    ocrEngine: OpenMedOcrEngine;
+    ocrLanguages: string[];
+    ocrResolution: number;
     onExtractionModeChange: (value: ClinicalExtractionMode) => void;
     onBaseUrlChange: (value: string) => void;
     onDiseaseModelChange: (value: string) => void;
@@ -30,6 +40,11 @@ interface OpenMedSettingsPanelProps {
     onTimeoutMsChange: (value: number) => void;
     onKeepAliveChange: (value: string) => void;
     onAllowGeminiFallbackChange: (value: boolean) => void;
+    onDocumentExtractionEnabledChange: (value: boolean) => void;
+    onOcrModeChange: (value: OpenMedOcrMode) => void;
+    onOcrEngineChange: (value: OpenMedOcrEngine) => void;
+    onOcrLanguagesChange: (value: string[]) => void;
+    onOcrResolutionChange: (value: number) => void;
 }
 
 const MODE_OPTIONS: Array<{
@@ -41,20 +56,31 @@ const MODE_OPTIONS: Array<{
         value: 'auto',
         label: 'Auto',
         description:
-            'Use local OpenMed for supported text. Use Gemini only for unsupported or unavailable local extraction when fallback is enabled.',
+            'Use local OpenMed for supported text, PDFs, and images. Use Gemini only when local extraction is unavailable and fallback is enabled.',
     },
     {
         value: 'openmed',
         label: 'OpenMed only',
         description:
-            'Keep extraction local. Unsupported PDFs, images, and unavailable-service requests are not sent to Gemini.',
+            'Keep extraction local. Text, embedded PDF text, and configured OCR can be used without cloud fallback.',
     },
     {
         value: 'gemini',
         label: 'Gemini only',
         description:
-            'Use the existing compatibility extractor. OpenMed is not contacted.',
+            'Use the existing compatibility extractor. OpenMed and the local document bridge are not contacted.',
     },
+];
+
+const OCR_ENGINE_OPTIONS: Array<{
+    value: OpenMedOcrEngine;
+    label: string;
+}> = [
+    { value: 'auto', label: 'Auto-select installed engine' },
+    { value: 'doctr', label: 'docTR' },
+    { value: 'tesseract', label: 'Tesseract' },
+    { value: 'easyocr', label: 'EasyOCR' },
+    { value: 'paddleocr', label: 'PaddleOCR' },
 ];
 
 const OpenMedSettingsPanel: React.FC<OpenMedSettingsPanelProps> = props => {
@@ -104,7 +130,7 @@ const OpenMedSettingsPanel: React.FC<OpenMedSettingsPanelProps> = props => {
                         Clinical document extraction
                     </h3>
                     <p className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
-                        OpenMed runs as a separate local REST service. Its named entities become review candidates only; they are never confirmed automatically.
+                        OpenMed runs as a separate local REST service. Named entities, assertion context, and OCR-derived findings become review candidates only; they are never confirmed automatically.
                     </p>
                 </div>
             </div>
@@ -174,7 +200,7 @@ const OpenMedSettingsPanel: React.FC<OpenMedSettingsPanelProps> = props => {
                         id="openmed-endpoint-help"
                         className="text-[10px] leading-relaxed text-slate-500 dark:text-slate-400"
                     >
-                        Browser access requires OpenMed to allow this app’s exact origin with <code>OPENMED_SERVICE_CORS_ORIGINS</code>. The recommended local bind is <code>127.0.0.1</code>.
+                        Browser access requires the bridge to allow this app’s exact origin with <code>OPENMED_SERVICE_CORS_ORIGINS</code>. The recommended local bind is <code>127.0.0.1</code>.
                     </p>
 
                     {health && (
@@ -198,7 +224,7 @@ const OpenMedSettingsPanel: React.FC<OpenMedSettingsPanelProps> = props => {
                                 </p>
                                 {health.available && (
                                     <p className="mt-1 text-[10px] opacity-80">
-                                        Reachability does not prove that the configured models are downloaded, loaded, or clinically validated for this patient.
+                                        Reachability does not prove that the configured models are downloaded, loaded, appropriate for the document language, or clinically validated.
                                     </p>
                                 )}
                             </div>
@@ -269,6 +295,96 @@ const OpenMedSettingsPanel: React.FC<OpenMedSettingsPanelProps> = props => {
                         </label>
                     </div>
 
+                    <div className="space-y-3 rounded-2xl border border-violet-200 bg-white p-4 dark:border-violet-900/60 dark:bg-slate-950">
+                        <label className="flex items-start gap-3">
+                            <input
+                                type="checkbox"
+                                checked={props.documentExtractionEnabled}
+                                onChange={event => props.onDocumentExtractionEnabledChange(event.target.checked)}
+                                className="mt-0.5 h-4 w-4 rounded border-violet-300"
+                            />
+                            <span>
+                                <span className="block text-xs font-bold text-slate-800 dark:text-slate-100">
+                                    Enable local PDF and image text extraction
+                                </span>
+                                <span className="mt-1 block text-[10px] leading-relaxed text-slate-500 dark:text-slate-400">
+                                    Embedded PDF text is extracted page by page. OCR is used according to the policy below. Derived text and coordinates are review evidence; the original file remains authoritative.
+                                </span>
+                            </span>
+                        </label>
+
+                        {props.documentExtractionEnabled && (
+                            <>
+                                <div className="grid gap-3 sm:grid-cols-2">
+                                    <label className="block">
+                                        <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-400">
+                                            OCR policy
+                                        </span>
+                                        <select
+                                            value={props.ocrMode}
+                                            onChange={event => props.onOcrModeChange(event.target.value as OpenMedOcrMode)}
+                                            className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-semibold outline-none focus:border-violet-400 dark:border-slate-700 dark:bg-slate-950"
+                                        >
+                                            <option value="auto">Auto — OCR pages without usable embedded text</option>
+                                            <option value="always">Always OCR every PDF page and image</option>
+                                            <option value="never">Never OCR — embedded PDF text only</option>
+                                        </select>
+                                    </label>
+                                    <label className="block">
+                                        <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-400">
+                                            OCR engine
+                                        </span>
+                                        <select
+                                            value={props.ocrEngine}
+                                            onChange={event => props.onOcrEngineChange(event.target.value as OpenMedOcrEngine)}
+                                            className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-semibold outline-none focus:border-violet-400 dark:border-slate-700 dark:bg-slate-950"
+                                        >
+                                            {OCR_ENGINE_OPTIONS.map(option => (
+                                                <option key={option.value} value={option.value}>
+                                                    {option.label}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </label>
+                                    <label className="block">
+                                        <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-400">
+                                            OCR languages
+                                        </span>
+                                        <input
+                                            type="text"
+                                            value={props.ocrLanguages.join(', ')}
+                                            onChange={event => props.onOcrLanguagesChange(
+                                                event.target.value.split(',').map(value => value.trim()),
+                                            )}
+                                            placeholder="en, ar"
+                                            className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-mono outline-none focus:border-violet-400 dark:border-slate-700 dark:bg-slate-950"
+                                        />
+                                        <span className="mt-1 block text-[9px] leading-relaxed text-slate-400">
+                                            OpenMed language codes. OCR language support does not establish Arabic clinical-NER or assertion-context quality.
+                                        </span>
+                                    </label>
+                                    <label className="block">
+                                        <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-400">
+                                            PDF OCR resolution (DPI)
+                                        </span>
+                                        <input
+                                            type="number"
+                                            min="72"
+                                            max="400"
+                                            value={props.ocrResolution}
+                                            onChange={event => props.onOcrResolutionChange(Number(event.target.value))}
+                                            className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-violet-400 dark:border-slate-700 dark:bg-slate-950"
+                                        />
+                                    </label>
+                                </div>
+                                <OpenMedDocumentBridgeStatus
+                                    baseUrl={props.baseUrl}
+                                    timeoutMs={props.timeoutMs}
+                                />
+                            </>
+                        )}
+                    </div>
+
                     {props.extractionMode === 'auto' && (
                         <label className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/60 dark:bg-amber-950/20">
                             <input
@@ -278,7 +394,7 @@ const OpenMedSettingsPanel: React.FC<OpenMedSettingsPanelProps> = props => {
                                 className="mt-0.5 h-4 w-4 rounded border-amber-300"
                             />
                             <span className="text-xs leading-relaxed text-amber-800 dark:text-amber-200">
-                                Allow the existing Gemini compatibility extractor only when the file is not text or the local OpenMed service is unavailable. Gemini output keeps separate cloud-extraction provenance.
+                                Allow the existing Gemini compatibility extractor only when local document or NER extraction is unsupported or unavailable. Gemini output keeps separate cloud-extraction provenance.
                             </span>
                         </label>
                     )}
