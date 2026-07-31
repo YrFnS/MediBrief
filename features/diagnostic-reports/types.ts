@@ -66,6 +66,30 @@ export interface ReviewedObservationDraft {
     source?: Partial<Omit<ReviewedDiagnosticSource, 'documentId'>>;
 }
 
+export interface DiagnosticReviewFieldChange {
+    field: string;
+    previousValue?: unknown;
+}
+
+export interface ExcludedDiagnosticResultEvidence {
+    localId: string;
+    testName: string;
+    previousValue: ReviewedObservationDraft;
+}
+
+/**
+ * Human review evidence is carried into clinical amendment history. It records
+ * the original extracted value for every edited field and preserves excluded
+ * rows on the report rather than silently dropping them.
+ */
+export interface DiagnosticReportReviewEvidence {
+    reason: string;
+    reportChanges?: DiagnosticReviewFieldChange[];
+    resultChanges?: Record<string, DiagnosticReviewFieldChange[]>;
+    specimenChanges?: Record<string, DiagnosticReviewFieldChange[]>;
+    excludedResults?: ExcludedDiagnosticResultEvidence[];
+}
+
 export interface ReviewedDiagnosticReportDraft {
     patientId: string;
     reportTitle: string;
@@ -83,6 +107,7 @@ export interface ReviewedDiagnosticReportDraft {
     verificationStatus?: DiagnosticReportReviewStatus;
     reviewedAt?: string;
     reviewedBy?: string;
+    reviewEvidence?: DiagnosticReportReviewEvidence;
 }
 
 export type ParsedObservationValueKind =
