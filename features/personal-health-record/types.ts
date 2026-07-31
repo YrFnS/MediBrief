@@ -7,6 +7,7 @@ export type PersonalRecordView =
     | 'overview'
     | 'health-data'
     | 'timeline'
+    | 'search'
     | 'emergency'
     | 'assistant';
 
