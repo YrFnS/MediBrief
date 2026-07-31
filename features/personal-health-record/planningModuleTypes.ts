@@ -7,7 +7,8 @@ import type {
 export type PlanningHealthDataModule =
     | 'appointments'
     | 'tasks'
-    | 'care-plans';
+    | 'care-plans'
+    | 'manage';
 
 export type PersonalHealthDataModule =
     | HealthDataModule
