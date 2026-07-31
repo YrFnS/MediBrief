@@ -2,6 +2,7 @@ import React from 'react';
 import { DocumentTextIcon } from '../../components/icons';
 import { useClinicalRecordStore } from '../clinical-record/useClinicalRecordStore';
 import EmergencySummary from './components/EmergencySummary';
+import HealthDataWorkspace from './components/HealthDataWorkspace';
 import PatientOverview from './components/PatientOverview';
 import PatientTimeline from './components/PatientTimeline';
 import type {
@@ -45,6 +46,14 @@ const PersonalHealthRecordShell: React.FC<PersonalHealthRecordShellProps> = ({
                     record={record}
                     onOpenTimeline={() => onNavigate('timeline')}
                     onOpenEmergency={() => onNavigate('emergency')}
+                    onOpenHealthData={() => onNavigate('health-data')}
+                />
+            );
+        case 'health-data':
+            return (
+                <HealthDataWorkspace
+                    record={record}
+                    onReviewCandidates={() => onNavigate('overview')}
                 />
             );
         case 'timeline':
