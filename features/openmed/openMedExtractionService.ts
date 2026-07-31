@@ -28,6 +28,11 @@ const NON_LATIN_CONTEXT_SCRIPT = /[\u0400-\u052f\u0590-\u08ff\u0900-\u0d7f\u3040
 const supportsEvaluatedEnglishContext = (text: string): boolean =>
     !NON_LATIN_CONTEXT_SCRIPT.test(text);
 
+const derivedDocumentId = (file: UploadedFile): string =>
+    file.storageId
+        ? `document-${file.storageId}`
+        : `untracked-document:${file.file.name}:${file.file.size}`;
+
 export const extractOpenMedCandidatesFromUpload = async ({
     file,
     documentId,
@@ -35,13 +40,14 @@ export const extractOpenMedCandidatesFromUpload = async ({
     signal,
 }: {
     file: UploadedFile;
-    documentId: string;
+    documentId?: string;
     settings: OpenMedExtractionSettings;
     signal?: AbortSignal;
 }): Promise<OpenMedExtractionResult> => {
+    const resolvedDocumentId = documentId || derivedDocumentId(file);
     const prepared = await prepareOpenMedDocument({
         file,
-        documentId,
+        documentId: resolvedDocumentId,
         settings,
         signal,
     });
