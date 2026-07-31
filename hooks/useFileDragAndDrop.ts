@@ -8,14 +8,20 @@ const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
 const MIME_BY_EXTENSION: Record<string, string> = {
     csv: 'text/csv',
+    gif: 'image/gif',
     htm: 'text/html',
     html: 'text/html',
+    jpeg: 'image/jpeg',
+    jpg: 'image/jpeg',
     json: 'application/json',
     markdown: 'text/markdown',
     md: 'text/markdown',
+    pdf: 'application/pdf',
+    png: 'image/png',
     text: 'text/plain',
     tsv: 'text/tab-separated-values',
     txt: 'text/plain',
+    webp: 'image/webp',
     xml: 'application/xml',
 };
 
@@ -27,11 +33,12 @@ const resolvedMimeType = (file: File): string =>
     || MIME_BY_EXTENSION[fileExtension(file.name)]
     || 'application/octet-stream';
 
-const isSupportedUpload = (file: File): boolean =>
-    file.type.startsWith('image/')
-    || file.type === 'application/pdf'
-    || fileExtension(file.name) === 'pdf'
-    || isOpenMedTextFile({ file, type: resolvedMimeType(file) });
+const isSupportedUpload = (file: File): boolean => {
+    const mimeType = resolvedMimeType(file);
+    return mimeType.startsWith('image/')
+        || mimeType === 'application/pdf'
+        || isOpenMedTextFile({ file, type: mimeType });
+};
 
 export const useFileDragAndDrop = () => {
     const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null);
