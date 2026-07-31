@@ -128,18 +128,44 @@ const candidateSource = ({
         'Candidate extracted locally by OpenMed named-entity recognition. Assertion context, when present, remains advisory and reviewable.',
 });
 
+/**
+ * OpenMed's context helpers intentionally default an unmodified span to
+ * affirmed, certain, recent, and patient. Those defaults are useful review
+ * hints, but they are not positive evidence. MediBrief therefore copies only
+ * evidence-backed risk/context signals into the candidate and leaves every
+ * other axis unknown until a person reviews the source.
+ */
 const mappedAssertion = (
     entity: OpenMedCandidateEntity,
 ): ClinicalAssertionContext => {
-    const assertion = entity.context?.assertion;
-    if (!assertion) return UNKNOWN_ASSERTION;
+    const context = entity.context;
+    if (!context) return UNKNOWN_ASSERTION;
+
+    const hasCue = (
+        category: 'historical' | 'hypothetical' | 'uncertainty' | 'negation',
+    ): boolean => context.cues.some(cue => cue.category === category);
+    const section = context.section?.canonical || context.section?.label;
+    const historicalSection = section === 'past_medical_history'
+        || section === 'history';
+
     return {
-        polarity: assertion.polarity,
-        certainty: assertion.certainty,
-        temporality: assertion.temporality === 'recent'
-            ? 'current'
-            : assertion.temporality,
-        experiencer: assertion.experiencer,
+        polarity: context.assertion.polarity === 'negated' && hasCue('negation')
+            ? 'negated'
+            : 'unknown',
+        certainty: context.assertion.certainty === 'uncertain'
+            && (hasCue('uncertainty') || hasCue('hypothetical'))
+            ? 'uncertain'
+            : 'unknown',
+        temporality: context.assertion.temporality === 'historical'
+            && (hasCue('historical') || historicalSection)
+            ? 'historical'
+            : context.assertion.temporality === 'hypothetical'
+                && hasCue('hypothetical')
+                ? 'hypothetical'
+                : 'unknown',
+        experiencer: context.experiencerEvidence.source !== 'default'
+            ? context.assertion.experiencer
+            : 'unknown',
     };
 };
 
@@ -212,22 +238,6 @@ const candidateBase = ({
     };
 };
 
-const conditionStatus = (
-    entity: OpenMedCandidateEntity,
-): ConditionRecord['clinicalStatus'] => {
-    const assertion = mappedAssertion(entity);
-    if (
-        assertion.polarity !== 'affirmed'
-        || assertion.experiencer !== 'patient'
-        || assertion.temporality === 'hypothetical'
-    ) {
-        return 'unknown';
-    }
-    if (assertion.temporality === 'historical') return 'inactive';
-    if (assertion.temporality === 'current') return 'active';
-    return 'unknown';
-};
-
 const medicationDosage = (
     entity: OpenMedCandidateEntity,
 ): MedicationDosage[] => {
@@ -268,13 +278,14 @@ const contextSummary = (entity: OpenMedCandidateEntity): string => {
     if (!context) {
         return 'Assertion context was not available. Confirm polarity, certainty, temporality, experiencer, status, and date against the source.';
     }
-    const assertion = mappedAssertion(entity);
+    const raw = context.assertion;
     const cueText = context.cues.length > 0
         ? context.cues.map(cue => `“${cue.text}”`).join(', ')
         : 'no scoped cue';
     return [
-        `${context.engine} suggested ${assertion.polarity}, ${assertion.certainty}, ${assertion.temporality}, ${assertion.experiencer}.`,
+        `${context.engine} suggested ${raw.polarity}, ${raw.certainty}, ${raw.temporality}, ${raw.experiencer}.`,
         `Evidence: ${cueText}${context.section ? `; section ${context.section.label}` : ''}.`,
+        'Default positive axes are retained as review evidence but remain unknown in the candidate unless supported by a scoped cue or section prior.',
         'This deterministic context annotation is advisory and must be reviewed against the original source.',
     ].join(' ');
 };
@@ -300,7 +311,7 @@ export const mapOpenMedEntityToCandidate = ({
             ...base,
             resourceType: 'Condition',
             code: { text: entity.text },
-            clinicalStatus: conditionStatus(entity),
+            clinicalStatus: 'unknown',
             note: [
                 'OpenMed identified a disease or condition span.',
                 contextSummary(entity),
