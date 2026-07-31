@@ -28,7 +28,7 @@ describe('Phase 2 manual record management workspace', () => {
             '../features/personal-health-record/manualRecordManagement.ts',
         );
 
-        expect(management).toContain('the current date is never substituted');
+        expect(management).toContain('records them as unknown instead of inserting today’s date');
         expect(service).toContain("createUnknownClinicalDate('Not entered during manual record entry')");
         expect(service).toContain('validateManualResourceRelationships');
         expect(service).toContain('does not exist for this patient');
