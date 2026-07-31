@@ -33,11 +33,26 @@ jobs:
       - name: Install OpenMed bridge test dependencies
         run: python -m pip install --disable-pip-version-check "openmed[service]==2.0.0" pytest
 
-      - name: Test OpenMed context bridge
+      - name: Test OpenMed bridge
         run: python -m pytest -q openmed_bridge/tests
 
       - name: Evaluate synthetic English context corpus
         run: python -m openmed_bridge.evaluate_context --minimum-axis-accuracy 1 --minimum-exact-case-accuracy 1 --minimum-medication-sig-accuracy 1
+
+      - name: Validate Phase 3 extraction metric contracts
+        run: >-
+          python -m openmed_bridge.evaluate_extraction
+          --ner-gold evaluation/phase3/clinical_ner_en_gold.json
+          --ner-predictions evaluation/phase3/clinical_ner_en_reference_predictions.json
+          --blocked-ner-gold evaluation/phase3/clinical_ner_ar_gold.json
+          --ocr-gold evaluation/phase3/ocr_gold.json
+          --ocr-predictions evaluation/phase3/ocr_reference_predictions.json
+          --minimum-exact-span-f1 1
+          --minimum-relaxed-span-f1 1
+          --minimum-exact-case-accuracy 1
+          --maximum-character-error-rate 0
+          --maximum-word-error-rate 0
+          --minimum-page-text-accuracy 1
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
