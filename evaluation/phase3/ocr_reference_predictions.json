@@ -1,0 +1,41 @@
+{
+  "schema_version": "1",
+  "corpus_id": "medibrief-phase3-ocr-v1",
+  "prediction_source": "deterministic-contract-fixture",
+  "engine": "reference-exact-text",
+  "cases": [
+    {
+      "id": "ocr-en-001",
+      "text": "Discharge Summary\nAsthma stable.\n\nMedications\nAlbuterol 2 puffs twice daily.",
+      "pages": [
+        {"page_number": 1, "start": 0, "end": 32, "text": "Discharge Summary\nAsthma stable."},
+        {"page_number": 2, "start": 34, "end": 76, "text": "Medications\nAlbuterol 2 puffs twice daily."}
+      ]
+    },
+    {
+      "id": "ocr-en-002",
+      "text": "Blood pressure 120/80\nPulse 72 bpm",
+      "pages": [
+        {"page_number": 1, "start": 0, "end": 34, "text": "Blood pressure 120/80\nPulse 72 bpm"}
+      ]
+    },
+    {
+      "id": "ocr-en-003",
+      "text": "Laboratory Results\nHemoglobin 13.2 g/dL\nCreatinine 0.9 mg/dL",
+      "pages": [
+        {"page_number": 1, "start": 0, "end": 60, "text": "Laboratory Results\nHemoglobin 13.2 g/dL\nCreatinine 0.9 mg/dL"}
+      ]
+    },
+    {
+      "id": "ocr-ar-001",
+      "text": "ملخص الخروج\nالربو مستقر\nسالبوتامول عند الحاجة",
+      "pages": [
+        {"page_number": 1, "start": 0, "end": 45, "text": "ملخص الخروج\nالربو مستقر\nسالبوتامول عند الحاجة"}
+      ]
+    }
+  ],
+  "limitations": [
+    "This file validates OCR scoring and page-contract code only.",
+    "It is not output from an OCR engine and must never be reported as OCR accuracy."
+  ]
+}
