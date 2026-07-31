@@ -7,12 +7,14 @@ on:
       - agent/phase-1-clinical-foundation
       - agent/phase-2-personal-health-record
       - agent/phase-3-openmed-extraction
+      - agent/phase-4-diagnostic-report-pipeline
   push:
     branches:
       - agent/phase-1-clinical-foundation
       - agent/phase-2-personal-health-record
       - agent/phase-3-openmed-extraction
       - agent/phase-4-diagnostic-report-pipeline
+      - agent/phase-5-grounded-assistance
 
 permissions:
   contents: read
