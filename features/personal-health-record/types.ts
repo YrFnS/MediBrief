@@ -5,6 +5,7 @@ import type {
 
 export type PersonalRecordView =
     | 'overview'
+    | 'health-data'
     | 'timeline'
     | 'emergency'
     | 'assistant';
