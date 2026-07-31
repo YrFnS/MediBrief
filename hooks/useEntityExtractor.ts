@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
+import { useShallow } from 'zustand/react/shallow';
 import type { UploadedFile } from '../types';
 import {
     ENTITY_EXTRACTION_MODEL,
@@ -147,7 +148,7 @@ const ensureDocumentReference = ({
 
 export const useEntityExtractor = () => {
     const clinicalRecordActions = useClinicalRecordStore(state => state.actions);
-    const settings = useSettingsStore(state => ({
+    const settings = useSettingsStore(useShallow(state => ({
         geminiApiKey: state.geminiApiKey,
         extractionMode: state.extractionMode,
         openMedBaseUrl: state.openMedBaseUrl,
@@ -157,7 +158,7 @@ export const useEntityExtractor = () => {
         openMedTimeoutMs: state.openMedTimeoutMs,
         openMedKeepAlive: state.openMedKeepAlive,
         allowGeminiExtractionFallback: state.allowGeminiExtractionFallback,
-    }));
+    })));
     const abortControllerRef = useRef<AbortController | null>(null);
 
     useEffect(() => () => {
