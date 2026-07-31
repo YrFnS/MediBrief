@@ -7,6 +7,7 @@ export * from './documentPreparation';
 export * from './documentSchemas';
 export * from './documentText';
 export * from './documentTypes';
+export * from './languagePolicy';
 export * from './openMedClient';
 export * from './openMedContextClient';
 export * from './openMedDocumentClient';
