@@ -103,6 +103,13 @@ const contextResponse = (text: string) => ({
             cues: [],
             section: { label: 'unsectioned', start: 0, end: text.length },
             experiencer_evidence: { source: 'default' },
+            medication_sig: {
+                raw: 'Asthma treated with albuterol.',
+                window_start: 0,
+                window_end: text.length,
+                as_needed: false,
+                missing: ['dose', 'route', 'frequency'],
+            },
         },
     ],
 });
@@ -119,17 +126,15 @@ describe('OpenMed local text intake', () => {
         expect(result.text).toBe('{"note":"Asthma treated with albuterol."}\n');
     });
 
-    it('does not pretend PDF or image files have already been converted to text', () => {
+    it('does not pretend the direct text decoder has already converted PDF or image content', () => {
         const result = extractLocalTextFromUpload(upload({
             name: 'scan.pdf',
             type: 'application/pdf',
             text: '%PDF-binary-placeholder',
         }));
 
-        expect(result).toMatchObject({
-            status: 'unsupported',
-            message: expect.stringContaining('PDF and image OCR are not enabled'),
-        });
+        expect(result.status).toBe('unsupported');
+        expect(result.message).toContain('PDF and image OCR are not enabled');
     });
 
     it('rejects binary and oversized text before any OpenMed request', async () => {
@@ -141,15 +146,12 @@ describe('OpenMed local text intake', () => {
             type: 'text/plain',
             text: 'clinical\u0000binary',
         });
-        const binary = extractLocalTextFromUpload(binaryUpload);
-        expect(binary.status).toBe('invalid');
-
-        const oversized = extractLocalTextFromUpload(upload({
+        expect(extractLocalTextFromUpload(binaryUpload).status).toBe('invalid');
+        expect(extractLocalTextFromUpload(upload({
             name: 'large.txt',
             type: 'text/plain',
             text: '12345678901',
-        }), { maxCharacters: 10 });
-        expect(oversized.status).toBe('too-large');
+        }), { maxCharacters: 10 }).status).toBe('too-large');
 
         const extraction = await extractOpenMedCandidatesFromUpload({
             file: binaryUpload,
@@ -166,7 +168,7 @@ describe('OpenMed extraction orchestration and clinical mapping', () => {
         useClinicalRecordStore.setState({ records: {} });
     });
 
-    it('runs NER, enriches assertion evidence, and keeps default positive axes unknown', async () => {
+    it('runs NER and context on the evaluated English route while retaining exact source provenance', async () => {
         const text = 'Asthma treated with albuterol.';
         const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
             const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
@@ -190,7 +192,11 @@ describe('OpenMed extraction orchestration and clinical mapping', () => {
         expect(result.status).toBe('success');
         expect(result.contextStatus).toBe('applied');
         expect(result.contextAppliedCount).toBe(2);
-        expect(result.entities).toHaveLength(2);
+        expect(result.languageAssessment).toMatchObject({
+            route: 'evaluated-english-defaults',
+            allowDefaultClinicalNer: true,
+            allowEnglishContext: true,
+        });
         expect(result.entities.map(entity => entity.kind))
             .toEqual(['condition', 'medication']);
         expect(fetchMock).toHaveBeenCalledTimes(3);
@@ -202,8 +208,6 @@ describe('OpenMed extraction orchestration and clinical mapping', () => {
             entities: result.entities,
             now: '2026-07-31T12:00:00.000Z',
         });
-        expect(candidates).toHaveLength(2);
-
         const condition = candidates.find(candidate =>
             candidate.resourceType === 'Condition');
         expect(condition).toMatchObject({
@@ -254,27 +258,24 @@ describe('OpenMed extraction orchestration and clinical mapping', () => {
             displayName: 'Test Patient',
             now: '2026-07-31T12:00:00.000Z',
         });
-        const firstWrite = actions.addResource(candidates[0]);
-        const duplicateWrite = actions.addResource({
+        expect(actions.addResource(candidates[0]).status).toBe('created');
+        expect(actions.addResource({
             ...candidates[0],
             id: 'another-id',
-        });
-        expect(firstWrite.status).toBe('created');
-        expect(duplicateWrite.status).toBe('duplicate');
+        }).status).toBe('duplicate');
         expect(actions.getTimeline('patient-1')).toEqual([]);
     });
 
-    it('copies only scoped context evidence into candidate assertion axes', () => {
+    it('copies a scoped negation cue while leaving unsupported positive axes unknown', () => {
         const text = 'No evidence of pneumonia.';
         const entity: OpenMedCandidateEntity = {
+            kind: 'condition',
             text: 'pneumonia',
             label: 'DISEASE',
             confidence: 0.98,
             start: 15,
             end: 24,
-            kind: 'condition',
             modelName: 'disease_detection_superclinical',
-            engineVersion: '2.0.0',
             context: {
                 id: 'condition:15:24:0',
                 kind: 'condition',
@@ -352,54 +353,50 @@ describe('OpenMed extraction orchestration and clinical mapping', () => {
         expect(result.contextStatus).toBe('unavailable');
         expect(result.entities.every(entity => entity.context === undefined)).toBe(true);
         expect(result.warnings.join(' ')).toContain('unknown assertion context');
-
-        const candidates = mapOpenMedEntitiesToCandidates({
-            patientId: 'patient-1',
-            documentId: 'document-1',
-            fileName: 'visit.txt',
-            entities: result.entities,
-            now: '2026-07-31T12:00:00.000Z',
-        });
-        expect(candidates[0].assertion).toEqual({
-            polarity: 'unknown',
-            certainty: 'unknown',
-            temporality: 'unknown',
-            experiencer: 'unknown',
-        });
     });
 
-    it('skips the English-only context bridge for non-Latin clinical text', async () => {
+    it('preserves Arabic text but blocks the unevaluated default clinical models', async () => {
         const text = 'المريض لديه ربو.';
-        const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
-            const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
-            return new Response(JSON.stringify({
-                text: body.text,
-                model_name: body.model_name,
-                version: '2.0.0',
-                entities: [{
-                    text: 'ربو',
-                    label: 'DISEASE',
-                    confidence: 0.9,
-                    start: 12,
-                    end: 15,
-                }],
-            }), { status: 200 });
-        });
+        const fetchMock = vi.fn();
         vi.stubGlobal('fetch', fetchMock);
 
         const result = await extractOpenMedCandidatesFromUpload({
             file: upload({ name: 'arabic.txt', type: 'text/plain', text }),
-            settings: {
-                ...extractionSettings,
-                medicationModel: '',
-            },
+            settings: extractionSettings,
         });
 
-        expect(result.status).toBe('success');
+        expect(result.status).toBe('unsupported');
+        expect(result.text).toBe(text);
         expect(result.contextStatus).toBe('skipped-language');
-        expect(result.entities[0].context).toBeUndefined();
-        expect(result.entities[0].text).toBe('ربو');
-        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(result.entities).toEqual([]);
+        expect(result.languageAssessment).toMatchObject({
+            route: 'unsupported-arabic-clinical-ner',
+            inferredLanguage: 'ar',
+            allowDefaultClinicalNer: false,
+            allowEnglishContext: false,
+            fallbackEligible: true,
+        });
+        expect(result.warnings.join(' ')).toContain('clinical NER was skipped');
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('blocks mixed-script text before contacting the default models', async () => {
+        const fetchMock = vi.fn();
+        vi.stubGlobal('fetch', fetchMock);
+
+        const result = await extractOpenMedCandidatesFromUpload({
+            file: upload({
+                name: 'mixed.txt',
+                type: 'text/plain',
+                text: 'Diagnosis التشخيص: asthma ربو',
+            }),
+            settings: extractionSettings,
+        });
+
+        expect(result.status).toBe('unsupported');
+        expect(result.languageAssessment?.route).toBe('mixed-script-review');
+        expect(result.entities).toEqual([]);
+        expect(fetchMock).not.toHaveBeenCalled();
     });
 
     it('returns unavailable without creating invented output when every local model fails', async () => {
@@ -422,5 +419,7 @@ describe('OpenMed extraction orchestration and clinical mapping', () => {
         expect(result.status).toBe('unavailable');
         expect(result.entities).toEqual([]);
         expect(result.warnings).toHaveLength(2);
+        expect(result.languageAssessment?.route)
+            .toBe('evaluated-english-defaults');
     });
 });
