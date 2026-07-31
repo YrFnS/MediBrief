@@ -36,6 +36,9 @@ jobs:
       - name: Test OpenMed context bridge
         run: python -m pytest -q openmed_bridge/tests
 
+      - name: Evaluate synthetic English context corpus
+        run: python -m openmed_bridge.evaluate_context --minimum-axis-accuracy 1 --minimum-exact-case-accuracy 1 --minimum-medication-sig-accuracy 1
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
