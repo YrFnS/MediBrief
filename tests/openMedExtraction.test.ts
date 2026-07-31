@@ -6,6 +6,7 @@ import {
     getOpenMedContextEvidence,
     mapOpenMedEntitiesToCandidates,
 } from '../features/openmed';
+import type { OpenMedCandidateEntity } from '../features/openmed';
 import { useClinicalRecordStore } from '../features/clinical-record';
 
 const upload = ({
@@ -165,7 +166,7 @@ describe('OpenMed extraction orchestration and clinical mapping', () => {
         useClinicalRecordStore.setState({ records: {} });
     });
 
-    it('runs NER, enriches assertion context, and keeps exact source provenance', async () => {
+    it('runs NER, enriches assertion evidence, and keeps default positive axes unknown', async () => {
         const text = 'Asthma treated with albuterol.';
         const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
             const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
@@ -207,16 +208,16 @@ describe('OpenMed extraction orchestration and clinical mapping', () => {
             candidate.resourceType === 'Condition');
         expect(condition).toMatchObject({
             verificationStatus: 'candidate',
-            clinicalStatus: 'active',
+            clinicalStatus: 'unknown',
             effective: {
                 value: null,
                 precision: 'unknown',
             },
             assertion: {
-                polarity: 'affirmed',
-                certainty: 'certain',
-                temporality: 'current',
-                experiencer: 'patient',
+                polarity: 'unknown',
+                certainty: 'unknown',
+                temporality: 'unknown',
+                experiencer: 'unknown',
             },
             provenance: {
                 source: {
@@ -261,6 +262,70 @@ describe('OpenMed extraction orchestration and clinical mapping', () => {
         expect(firstWrite.status).toBe('created');
         expect(duplicateWrite.status).toBe('duplicate');
         expect(actions.getTimeline('patient-1')).toEqual([]);
+    });
+
+    it('copies only scoped context evidence into candidate assertion axes', () => {
+        const text = 'No evidence of pneumonia.';
+        const entity: OpenMedCandidateEntity = {
+            text: 'pneumonia',
+            label: 'DISEASE',
+            confidence: 0.98,
+            start: 15,
+            end: 24,
+            kind: 'condition',
+            modelName: 'disease_detection_superclinical',
+            engineVersion: '2.0.0',
+            context: {
+                id: 'condition:15:24:0',
+                kind: 'condition',
+                text: 'pneumonia',
+                start: 15,
+                end: 24,
+                assertion: {
+                    polarity: 'negated',
+                    certainty: 'certain',
+                    temporality: 'recent',
+                    experiencer: 'patient',
+                },
+                cues: [{
+                    text: 'No evidence of',
+                    category: 'negation',
+                    start: 0,
+                    end: 14,
+                    direction: 'forward',
+                }],
+                section: {
+                    label: 'unsectioned',
+                    start: 0,
+                    end: text.length,
+                },
+                experiencerEvidence: { source: 'default' },
+                engine: 'OpenMed clinical ConText',
+                engineVersion: '2.0.0',
+                bridgeVersion: '1',
+                language: 'en',
+                evaluatedAt: '2026-07-31T12:00:01.000Z',
+            },
+        };
+
+        const [candidate] = mapOpenMedEntitiesToCandidates({
+            patientId: 'patient-1',
+            documentId: 'document-1',
+            fileName: 'visit.txt',
+            entities: [entity],
+            now: '2026-07-31T12:00:00.000Z',
+        });
+
+        expect(candidate.assertion).toEqual({
+            polarity: 'negated',
+            certainty: 'unknown',
+            temporality: 'unknown',
+            experiencer: 'unknown',
+        });
+        expect(candidate.resourceType).toBe('Condition');
+        if (candidate.resourceType === 'Condition') {
+            expect(candidate.clinicalStatus).toBe('unknown');
+        }
     });
 
     it('retains candidate NER with unknown context when the optional bridge is unavailable', async () => {
@@ -315,8 +380,8 @@ describe('OpenMed extraction orchestration and clinical mapping', () => {
                     text: 'ربو',
                     label: 'DISEASE',
                     confidence: 0.9,
-                    start: 13,
-                    end: 16,
+                    start: 12,
+                    end: 15,
                 }],
             }), { status: 200 });
         });
@@ -333,6 +398,7 @@ describe('OpenMed extraction orchestration and clinical mapping', () => {
         expect(result.status).toBe('success');
         expect(result.contextStatus).toBe('skipped-language');
         expect(result.entities[0].context).toBeUndefined();
+        expect(result.entities[0].text).toBe('ربو');
         expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 
