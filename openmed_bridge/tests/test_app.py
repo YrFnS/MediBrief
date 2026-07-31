@@ -10,3 +10,5 @@ def test_bridge_extends_the_openmed_rest_application():
     assert "/analyze" in paths
     assert "/medibrief/context/health" in paths
     assert "/medibrief/context" in paths
+    assert "/medibrief/documents/health" in paths
+    assert "/medibrief/documents/extract" in paths
