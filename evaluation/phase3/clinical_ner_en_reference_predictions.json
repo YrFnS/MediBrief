@@ -1,0 +1,55 @@
+{
+  "schema_version": "1",
+  "corpus_id": "medibrief-phase3-clinical-ner-en-v1",
+  "prediction_source": "deterministic-contract-fixture",
+  "model": "reference-exact-spans",
+  "cases": [
+    {"id": "en-001", "entities": [
+      {"kind": "condition", "text": "Asthma", "start": 0, "end": 6, "confidence": 1.0},
+      {"kind": "medication", "text": "albuterol", "start": 20, "end": 29, "confidence": 1.0}
+    ]},
+    {"id": "en-002", "entities": [
+      {"kind": "condition", "text": "pneumonia", "start": 15, "end": 24, "confidence": 1.0},
+      {"kind": "medication", "text": "azithromycin", "start": 35, "end": 47, "confidence": 1.0}
+    ]},
+    {"id": "en-003", "entities": [
+      {"kind": "condition", "text": "type 2 diabetes", "start": 11, "end": 26, "confidence": 1.0},
+      {"kind": "medication", "text": "metformin", "start": 40, "end": 49, "confidence": 1.0}
+    ]},
+    {"id": "en-004", "entities": [
+      {"kind": "condition", "text": "migraine", "start": 9, "end": 17, "confidence": 1.0},
+      {"kind": "medication", "text": "sumatriptan", "start": 19, "end": 30, "confidence": 1.0}
+    ]},
+    {"id": "en-005", "entities": [
+      {"kind": "condition", "text": "Hypertension", "start": 0, "end": 12, "confidence": 1.0},
+      {"kind": "condition", "text": "chronic kidney disease", "start": 17, "end": 39, "confidence": 1.0}
+    ]},
+    {"id": "en-006", "entities": [
+      {"kind": "medication", "text": "amoxicillin", "start": 6, "end": 17, "confidence": 1.0}
+    ]},
+    {"id": "en-007", "entities": [
+      {"kind": "condition", "text": "chest pain", "start": 19, "end": 29, "confidence": 1.0},
+      {"kind": "medication", "text": "aspirin", "start": 40, "end": 47, "confidence": 1.0}
+    ]},
+    {"id": "en-008", "entities": [
+      {"kind": "condition", "text": "breast cancer", "start": 27, "end": 40, "confidence": 1.0}
+    ]},
+    {"id": "en-009", "entities": [
+      {"kind": "condition", "text": "wheezing", "start": 3, "end": 11, "confidence": 1.0},
+      {"kind": "medication", "text": "budesonide/formoterol", "start": 24, "end": 45, "confidence": 1.0}
+    ]},
+    {"id": "en-010", "entities": []},
+    {"id": "en-011", "entities": [
+      {"kind": "medication", "text": "Penicillin", "start": 0, "end": 10, "confidence": 1.0},
+      {"kind": "condition", "text": "rash", "start": 38, "end": 42, "confidence": 1.0}
+    ]},
+    {"id": "en-012", "entities": [
+      {"kind": "condition", "text": "Acute myocardial infarction", "start": 0, "end": 27, "confidence": 1.0},
+      {"kind": "medication", "text": "clopidogrel", "start": 41, "end": 52, "confidence": 1.0}
+    ]}
+  ],
+  "limitations": [
+    "This file validates the evaluator and corpus contracts only.",
+    "It is not output from an OpenMed model and must never be reported as model accuracy."
+  ]
+}
