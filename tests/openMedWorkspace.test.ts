@@ -158,7 +158,7 @@ describe('Phase 3 OpenMed workspace contracts', () => {
         expect(extraction).toContain('allowDefaultClinicalNer');
         expect(extraction).toContain("status: 'unsupported'");
         expect(extraction.indexOf('allowDefaultClinicalNer'))
-            .toBeLessThan(extraction.indexOf('analyzeOpenMedText'));
+            .toBeLessThan(extraction.indexOf('await analyzeOpenMedText'));
         expect(languagePolicy).toContain('unsupported-arabic-clinical-ner');
         expect(languagePolicy).toContain('mixed-script-review');
         expect(languagePolicy).toContain('Arabic OCR capability');
