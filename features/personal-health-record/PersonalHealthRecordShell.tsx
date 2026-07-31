@@ -5,6 +5,7 @@ import EmergencySummary from './components/EmergencySummary';
 import HealthDataWorkspace from './components/HealthDataWorkspace';
 import PatientOverview from './components/PatientOverview';
 import PatientTimeline from './components/PatientTimeline';
+import RecordSearchAndExport from './components/RecordSearchAndExport';
 import type {
     PersonalRecordContentView,
     PersonalRecordView,
@@ -57,6 +58,13 @@ const PersonalHealthRecordShell: React.FC<PersonalHealthRecordShellProps> = ({
             );
         case 'timeline':
             return <PatientTimeline record={record} />;
+        case 'search':
+            return (
+                <RecordSearchAndExport
+                    record={record}
+                    onReviewCandidates={() => onNavigate('overview')}
+                />
+            );
         case 'emergency':
             return <EmergencySummary record={record} />;
     }
