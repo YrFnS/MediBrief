@@ -143,17 +143,42 @@ describe('Phase 3 OpenMed workspace contracts', () => {
         );
     });
 
-    it('keeps the context layer English-only until measured language evidence exists', () => {
+    it('blocks unevaluated Arabic and mixed-script clinical NER while preserving source text', () => {
         const extraction = source(
             '../features/openmed/openMedExtractionService.ts',
+        );
+        const languagePolicy = source(
+            '../features/openmed/languagePolicy.ts',
+        );
+        const arabicCorpus = source(
+            '../evaluation/phase3/clinical_ner_ar_gold.json',
+        );
+
+        expect(extraction).toContain('assessOpenMedClinicalLanguage');
+        expect(extraction).toContain('allowDefaultClinicalNer');
+        expect(extraction).toContain("status: 'unsupported'");
+        expect(extraction.indexOf('allowDefaultClinicalNer'))
+            .toBeLessThan(extraction.indexOf('analyzeOpenMedText'));
+        expect(languagePolicy).toContain('unsupported-arabic-clinical-ner');
+        expect(languagePolicy).toContain('mixed-script-review');
+        expect(languagePolicy).toContain('Arabic OCR capability');
+        expect(languagePolicy).toContain('Arabic clinical NER');
+        expect(arabicCorpus).toContain('route-blocked-pending-measurement');
+        expect(arabicCorpus).toContain('No accepted OpenMed Arabic clinical-NER prediction file');
+    });
+
+    it('keeps context defaults advisory and evidence-backed', () => {
+        const mapping = source(
+            '../features/openmed/candidateMapping.ts',
         );
         const review = source(
             '../features/clinical-record/components/ClinicalContextReview.tsx',
         );
 
-        expect(extraction).toContain('supportsEvaluatedEnglishContext');
-        expect(extraction).toContain("contextStatus = 'skipped-language'");
-        expect(extraction).toContain('evaluated for English text only');
+        expect(mapping).toContain('not positive evidence');
+        expect(mapping).toContain("? 'negated'");
+        expect(mapping).toContain("? 'uncertain'");
+        expect(mapping).toContain("? 'historical'");
         expect(review).toContain('deterministic OpenMed clinical-context helpers');
         expect(review).toContain('A default is not proof');
     });
@@ -184,5 +209,30 @@ describe('Phase 3 OpenMed workspace contracts', () => {
         expect(statusPanel).toContain('same-source candidates are deduplicated');
         expect(statusPanel).toContain('original uploaded file remains authoritative');
         expect(documents).toContain('DocumentExtractionStatusPanel');
+    });
+
+    it('separates contract fixtures from measured model and OCR evidence', () => {
+        const evaluator = source(
+            '../openmed_bridge/evaluate_extraction.py',
+        );
+        const workflow = source(
+            '../.github/workflows/phase1-validation.yml',
+        );
+        const referenceNer = source(
+            '../evaluation/phase3/clinical_ner_en_reference_predictions.json',
+        );
+        const referenceOcr = source(
+            '../evaluation/phase3/ocr_reference_predictions.json',
+        );
+
+        expect(evaluator).toContain('contract-fixture');
+        expect(evaluator).toContain('measured-runtime-output');
+        expect(evaluator).toContain('--require-measured-predictions');
+        expect(evaluator).toContain('character_error_rate');
+        expect(evaluator).toContain('word_error_rate');
+        expect(evaluator).toContain('exact_span');
+        expect(workflow).toContain('Validate Phase 3 extraction metric contracts');
+        expect(referenceNer).toContain('must never be reported as model accuracy');
+        expect(referenceOcr).toContain('must never be reported as OCR accuracy');
     });
 });
