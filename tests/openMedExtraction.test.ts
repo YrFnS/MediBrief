@@ -26,6 +26,15 @@ const upload = ({
     storageId: 'storage-1',
 });
 
+const extractionSettings = {
+    baseUrl: 'http://127.0.0.1:8080',
+    timeoutMs: 100,
+    confidenceThreshold: 0.6,
+    diseaseModel: 'disease_detection_superclinical',
+    medicationModel: 'pharma_detection_superclinical',
+    keepAlive: '10m',
+};
+
 describe('OpenMed local text intake', () => {
     it('decodes supported text locally while preserving exact character positions', () => {
         const result = extractLocalTextFromUpload(upload({
@@ -49,6 +58,34 @@ describe('OpenMed local text intake', () => {
             status: 'unsupported',
             message: expect.stringContaining('PDF and image OCR are not enabled'),
         });
+    });
+
+    it('rejects binary and oversized text before any OpenMed request', async () => {
+        const fetchMock = vi.fn();
+        vi.stubGlobal('fetch', fetchMock);
+
+        const binaryUpload = upload({
+            name: 'not-really-text.txt',
+            type: 'text/plain',
+            text: 'clinical\u0000binary',
+        });
+        const binary = extractLocalTextFromUpload(binaryUpload);
+        expect(binary.status).toBe('invalid');
+
+        const oversized = extractLocalTextFromUpload(upload({
+            name: 'large.txt',
+            type: 'text/plain',
+            text: '12345678901',
+        }), { maxCharacters: 10 });
+        expect(oversized.status).toBe('too-large');
+
+        const extraction = await extractOpenMedCandidatesFromUpload({
+            file: binaryUpload,
+            settings: extractionSettings,
+        });
+        expect(extraction.status).toBe('invalid');
+        expect(extraction.entities).toEqual([]);
+        expect(fetchMock).not.toHaveBeenCalled();
     });
 });
 
@@ -90,14 +127,7 @@ describe('OpenMed extraction orchestration and clinical mapping', () => {
 
         const result = await extractOpenMedCandidatesFromUpload({
             file: upload({ name: 'visit.txt', type: 'text/plain', text }),
-            settings: {
-                baseUrl: 'http://127.0.0.1:8080',
-                timeoutMs: 100,
-                confidenceThreshold: 0.6,
-                diseaseModel: 'disease_detection_superclinical',
-                medicationModel: 'pharma_detection_superclinical',
-                keepAlive: '10m',
-            },
+            settings: extractionSettings,
         });
 
         expect(result.status).toBe('success');
@@ -177,11 +207,8 @@ describe('OpenMed extraction orchestration and clinical mapping', () => {
                 text: 'Patient has asthma.',
             }),
             settings: {
-                baseUrl: 'http://127.0.0.1:8080',
+                ...extractionSettings,
                 timeoutMs: 20,
-                confidenceThreshold: 0.6,
-                diseaseModel: 'disease_detection_superclinical',
-                medicationModel: 'pharma_detection_superclinical',
             },
         });
 
