@@ -10,7 +10,7 @@ const IdentifierSchema = z.object({
     type: optionalTrimmed,
 }).strict();
 
-const SourceSchema = z.object({
+const SourceObjectSchema = z.object({
     documentId: z.string().trim().min(1),
     fileName: optionalTrimmed,
     pageNumber: z.number().int().positive().optional(),
@@ -18,7 +18,15 @@ const SourceSchema = z.object({
     startOffset: z.number().int().nonnegative().optional(),
     endOffset: z.number().int().nonnegative().optional(),
     excerpt: optionalTrimmed,
-}).strict().superRefine((source, context) => {
+}).strict();
+
+const validateSourceOffsets = (
+    source: {
+        startOffset?: number;
+        endOffset?: number;
+    },
+    context: z.RefinementCtx,
+): void => {
     if (
         source.startOffset !== undefined
         && source.endOffset !== undefined
@@ -30,9 +38,14 @@ const SourceSchema = z.object({
             message: 'endOffset must be greater than or equal to startOffset',
         });
     }
-});
+};
 
-const PartialSourceSchema = SourceSchema.omit({ documentId: true }).partial();
+const SourceSchema = SourceObjectSchema.superRefine(validateSourceOffsets);
+
+const PartialSourceSchema = SourceObjectSchema
+    .omit({ documentId: true })
+    .partial()
+    .superRefine(validateSourceOffsets);
 
 const SpecimenDraftSchema = z.object({
     localId: z.string().trim().min(1),
