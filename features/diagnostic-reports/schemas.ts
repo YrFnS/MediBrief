@@ -4,6 +4,17 @@ import type { ReviewedDiagnosticReportDraft } from './types';
 const optionalTrimmed = z.string().trim().min(1).optional();
 const nullableTrimmed = z.string().trim().min(1).nullable().optional();
 
+// `undefined` means that a result may inherit report-level context. Explicit
+// `null` means the reviewer identified the field as unknown, so it must survive
+// parsing as an explicit unknown marker rather than falling through `??` to a
+// report date or issue timestamp.
+const nullableDateText = z.string()
+    .trim()
+    .min(1)
+    .nullable()
+    .optional()
+    .transform(value => value === null ? 'unknown' : value);
+
 const IdentifierSchema = z.object({
     value: z.string().trim().min(1),
     system: optionalTrimmed,
@@ -57,8 +68,8 @@ const SpecimenDraftSchema = z.object({
         'unknown',
     ]).optional(),
     typeText: optionalTrimmed,
-    collectedDate: nullableTrimmed,
-    receivedDate: nullableTrimmed,
+    collectedDate: nullableDateText,
+    receivedDate: nullableDateText,
     bodySiteText: optionalTrimmed,
     collectionMethodText: optionalTrimmed,
     collector: optionalTrimmed,
@@ -86,8 +97,8 @@ const ObservationDraftSchema = z.object({
     referenceRangeText: nullableTrimmed,
     interpretationText: nullableTrimmed,
     absentReasonText: nullableTrimmed,
-    clinicalDate: nullableTrimmed,
-    issuedAt: nullableTrimmed,
+    clinicalDate: nullableDateText,
+    issuedAt: nullableDateText,
     performer: z.array(z.string().trim().min(1)).optional(),
     specimenLocalId: optionalTrimmed,
     methodText: optionalTrimmed,
@@ -121,8 +132,8 @@ export const ReviewedDiagnosticReportDraftSchema = z.object({
         'unknown',
     ]).optional(),
     categoryTexts: z.array(z.string().trim().min(1)).optional(),
-    effectiveDate: nullableTrimmed,
-    issuedAt: nullableTrimmed,
+    effectiveDate: nullableDateText,
+    issuedAt: nullableDateText,
     performer: z.array(z.string().trim().min(1)).optional(),
     conclusion: optionalTrimmed,
     identifiers: z.array(IdentifierSchema).optional(),
