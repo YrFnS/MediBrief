@@ -201,7 +201,16 @@ export const parseOpenMedDocumentResponse = ({
             end: span.end,
             pageNumber: span.page_number,
             method: span.method,
-            ...(span.bbox ? { bbox: span.bbox } : {}),
+            ...(span.bbox
+                ? {
+                    bbox: [
+                        span.bbox[0],
+                        span.bbox[1],
+                        span.bbox[2],
+                        span.bbox[3],
+                    ] as [number, number, number, number],
+                }
+                : {}),
             ...(span.confidence !== undefined
                 ? { confidence: span.confidence }
                 : {}),
