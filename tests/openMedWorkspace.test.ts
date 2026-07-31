@@ -15,6 +15,9 @@ describe('Phase 3 OpenMed workspace contracts', () => {
         const openMedPanel = source(
             '../features/settings/OpenMedSettingsPanel.tsx',
         );
+        const bridgeStatus = source(
+            '../features/settings/OpenMedContextBridgeStatus.tsx',
+        );
 
         expect(settings).toContain("extractionMode: 'auto'");
         expect(settings).toContain('openMedBaseUrl');
@@ -23,15 +26,21 @@ describe('Phase 3 OpenMed workspace contracts', () => {
         expect(settings).toContain('allowGeminiExtractionFallback: false');
         expect(modal).toContain('Assistant AI');
         expect(modal).toContain('OpenMedSettingsPanel');
+        expect(modal).toContain('OpenMedContextBridgeStatus');
         expect(openMedPanel).toContain('Clinical document extraction');
         expect(openMedPanel).toContain('OpenMed only');
         expect(openMedPanel).toContain('Gemini only');
         expect(openMedPanel).toContain('Test local service');
+        expect(bridgeStatus).toContain('Test context bridge');
+        expect(bridgeStatus).toContain('uvicorn openmed_bridge.app:app');
     });
 
-    it('never represents OpenMed named entities as confirmed patient facts', () => {
+    it('never represents OpenMed extraction or context as a confirmed patient fact', () => {
         const mapping = source(
             '../features/openmed/candidateMapping.ts',
+        );
+        const contextReview = source(
+            '../features/clinical-record/components/ClinicalContextReview.tsx',
         );
 
         expect(mapping).toContain("verificationStatus: 'candidate'");
@@ -42,7 +51,35 @@ describe('Phase 3 OpenMed workspace contracts', () => {
         expect(mapping).toContain('startOffset: entity.start');
         expect(mapping).toContain('endOffset: entity.end');
         expect(mapping).toContain("externalSystem: 'openmed:rest'");
+        expect(mapping).toContain('openMedContextEvidence');
         expect(mapping).not.toContain("verificationStatus: 'confirmed'");
+        expect(contextReview).toContain(
+            'The main candidate review remains the only confirmation/rejection workflow',
+        );
+        expect(contextReview).not.toContain('confirmCandidate');
+        expect(contextReview).not.toContain('rejectCandidate');
+    });
+
+    it('keeps NER and context-engine provenance separate and reviewable', () => {
+        const mapping = source(
+            '../features/openmed/candidateMapping.ts',
+        );
+        const contextClient = source(
+            '../features/openmed/openMedContextClient.ts',
+        );
+        const evidence = source(
+            '../features/openmed/contextEvidence.ts',
+        );
+        const workspace = source('../features/layout/Phase2Workspace.tsx');
+
+        expect(mapping).toContain('OpenMed local REST NER');
+        expect(mapping).toContain('OpenMed assertion context and medication-sig evidence');
+        expect(mapping).toContain('openmed-context');
+        expect(mapping).toContain('openmed-medication-sig');
+        expect(contextClient).toContain("path: '/medibrief/context'");
+        expect(evidence).toContain('openMedContextEvidence');
+        expect(workspace).toContain('ClinicalContextReview');
+        expect(workspace).toContain('ClinicalCandidateReview');
     });
 
     it('keeps local OpenMed and cloud Gemini provenance distinguishable', () => {
@@ -89,6 +126,21 @@ describe('Phase 3 OpenMed workspace contracts', () => {
         expect(settingsPanel).toContain(
             'Gemini output keeps separate cloud-extraction provenance',
         );
+    });
+
+    it('keeps the context layer English-only until measured language evidence exists', () => {
+        const extraction = source(
+            '../features/openmed/openMedExtractionService.ts',
+        );
+        const review = source(
+            '../features/clinical-record/components/ClinicalContextReview.tsx',
+        );
+
+        expect(extraction).toContain('supportsEvaluatedEnglishContext');
+        expect(extraction).toContain("contextStatus = 'skipped-language'");
+        expect(extraction).toContain('evaluated for English text only');
+        expect(review).toContain('deterministic OpenMed clinical-context helpers');
+        expect(review).toContain('A default is not proof');
     });
 
     it('does not claim PDF or image OCR exists in the text-only slice', () => {
