@@ -32,8 +32,26 @@ const LETTER = /\p{Letter}/u;
 const LATIN = /\p{Script=Latin}/u;
 const ARABIC = /\p{Script=Arabic}/u;
 
+// A single unit suffix or abbreviation is not enough evidence to route an
+// otherwise numeric measurement string through an English clinical model.
+const MIN_ALPHABETIC_EVIDENCE = 4;
+
 const share = (value: number, total: number): number =>
     total > 0 ? value / total : 0;
+
+const undeterminedAssessment = (
+    evidence: OpenMedLanguageEvidence,
+): OpenMedLanguageAssessment => ({
+    route: 'undetermined',
+    inferredLanguage: 'unknown',
+    basis: 'script-heuristic',
+    allowDefaultClinicalNer: false,
+    allowEnglishContext: false,
+    fallbackEligible: true,
+    message:
+        'There was not enough alphabetic clinical text to route through the evaluated default OpenMed models.',
+    evidence,
+});
 
 /**
  * Conservative routing for the default disease and medication models.
@@ -69,18 +87,8 @@ export const assessOpenMedClinicalLanguage = (
         otherShare: share(otherLetters, totalLetters),
     };
 
-    if (totalLetters === 0) {
-        return {
-            route: 'undetermined',
-            inferredLanguage: 'unknown',
-            basis: 'script-heuristic',
-            allowDefaultClinicalNer: false,
-            allowEnglishContext: false,
-            fallbackEligible: true,
-            message:
-                'No alphabetic clinical text was available to route through the evaluated default OpenMed models.',
-            evidence,
-        };
+    if (totalLetters < MIN_ALPHABETIC_EVIDENCE) {
+        return undeterminedAssessment(evidence);
     }
 
     if (evidence.latinShare >= 0.85) {
