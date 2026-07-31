@@ -3,9 +3,10 @@
 <html lang="en" class="light">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#ffffff" />
-  <title>MediBrief - Clinical Intelligence Layer</title>
+  <meta name="color-scheme" content="light dark" />
+  <title>MediBrief — Local Personal Health Record</title>
   <link rel="manifest" href="/manifest.json" />
   <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -92,6 +93,11 @@
       font-feature-settings: "tnum";
       font-variant-numeric: tabular-nums;
     }
+
+    :focus-visible {
+      outline: 3px solid #2563eb;
+      outline-offset: 2px;
+    }
     
     /* Clean scrollbar */
     ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -168,6 +174,15 @@
     .mask-fade-r {
         mask-image: linear-gradient(to right, black 90%, transparent 100%);
         -webkit-mask-image: linear-gradient(to right, black 90%, transparent 100%);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+      }
     }
   </style>
 <script type="importmap">
