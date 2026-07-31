@@ -33,7 +33,7 @@ export const extractOpenMedCandidatesFromUpload = async ({
     const localText = extractLocalTextFromUpload(file);
     if (localText.status !== 'ready' || !localText.text) {
         return {
-            status: localText.status === 'empty' ? 'empty' : 'unsupported',
+            status: localText.status,
             entities: [],
             warnings: [localText.message],
         };
