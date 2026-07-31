@@ -1,10 +1,10 @@
-import { normalizeValue } from '../fhir/unitService';
 import type { LabReport } from '../chat/schemas';
 import type {
     ClinicalDate,
     ClinicalQuantityValue,
     SourceDocumentReference,
 } from '../clinical-record';
+import { normalizeValue } from '../fhir/unitService';
 import type {
     DiagnosticReferenceRangeDraft,
     DiagnosticReportDraft,
@@ -19,11 +19,11 @@ export interface PendingLabSource {
     mimeType?: string;
 }
 
-export interface ReviewedLabRow extends LabReport['labs'][number] {
+export type ReviewedLabRow = LabReport['labs'][number] & {
     pageNumber?: number;
     effectiveDate?: string;
     sourceExcerpt?: string;
-}
+};
 
 export interface ReviewedLabReport {
     reportTitle: string;
@@ -49,6 +49,17 @@ export interface BuildReviewedLabDraftInput {
 const normalizedIdentity = (value: string): string =>
     value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
     || 'report';
+
+const normalizedComparator = (
+    value?: string,
+): DiagnosticResultComparator | undefined => {
+    if (value === '≤') return '<=';
+    if (value === '≥') return '>=';
+    if (['<', '<=', '>', '>='].includes(value || '')) {
+        return value as DiagnosticResultComparator;
+    }
+    return undefined;
+};
 
 export const parseReviewedReportDate = (
     input?: string,
@@ -84,16 +95,15 @@ const numericValue = (
     comparator?: DiagnosticResultComparator;
 } | undefined => {
     const match = rawText.trim().replace(/,/g, '').match(
-        /^(<=|>=|<|>)?\s*(-?(?:\d+(?:\.\d+)?|\.\d+))$/,
+        /^(<=|>=|<|>|≤|≥)?\s*(-?(?:\d+(?:\.\d+)?|\.\d+))$/,
     );
     if (!match) return undefined;
     const value = Number(match[2]);
     if (!Number.isFinite(value)) return undefined;
+    const comparator = normalizedComparator(match[1]);
     return {
         value,
-        ...(match[1]
-            ? { comparator: match[1] as DiagnosticResultComparator }
-            : {}),
+        ...(comparator ? { comparator } : {}),
     };
 };
 
@@ -188,13 +198,13 @@ export const reviewedReferenceRange = (
             sourceText,
         }];
     }
-    const comparator = sourceText.match(
-        /^\s*(<=|>=|<|>)\s*(-?(?:\d+(?:\.\d+)?|\.\d+))\s*(.*)$/,
+    const comparatorMatch = sourceText.match(
+        /^\s*(<=|>=|<|>|≤|≥)\s*(-?(?:\d+(?:\.\d+)?|\.\d+))\s*(.*)$/,
     );
-    if (comparator) {
-        const token = comparator[1] as DiagnosticResultComparator;
-        const rangeUnit = comparator[3].trim() || unit;
-        const bound = rangeBound(comparator[2], rangeUnit, token);
+    if (comparatorMatch) {
+        const token = normalizedComparator(comparatorMatch[1]);
+        const rangeUnit = comparatorMatch[3].trim() || unit;
+        const bound = rangeBound(comparatorMatch[2], rangeUnit, token);
         return [{
             ...(token === '<' || token === '<='
                 ? { high: bound }
