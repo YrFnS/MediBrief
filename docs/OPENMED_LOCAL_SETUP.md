@@ -1,32 +1,34 @@
 # Run OpenMed Locally for MediBrief
 
-MediBrief Phase 3 connects to OpenMed through a local REST service. The default endpoint is:
+MediBrief Phase 3 uses one local REST service for named-entity recognition, advisory assertion context, PDF text extraction, and image/scanned-page OCR.
+
+The default endpoint is:
 
 ```text
 http://127.0.0.1:8080
 ```
 
-This guide keeps the service on loopback, allows only the exact MediBrief browser origin, and starts the MediBrief bridge that extends OpenMed with advisory assertion-context endpoints.
+Keep the service on loopback for a normal personal installation and allow only the exact MediBrief browser origin.
 
-## What the bridge adds
+## What the MediBrief bridge adds
 
-OpenMed's standard REST application provides:
+The upstream OpenMed application continues to provide:
 
 ```text
 GET  /health
 POST /analyze
 ```
 
-Those endpoints provide service status and named-entity recognition.
-
-OpenMed's negation, certainty, temporality, experiencer, section, and medication-sig helpers are Python APIs rather than part of the standard `/analyze` response. MediBrief therefore includes `openmed_bridge.app`, which imports the upstream OpenMed REST application and adds:
+MediBrief imports that application and adds:
 
 ```text
 GET  /medibrief/context/health
 POST /medibrief/context
+GET  /medibrief/documents/health
+POST /medibrief/documents/extract
 ```
 
-The added endpoint is deterministic and advisory. It never confirms or rejects a clinical fact.
+The context endpoints expose OpenMed's deterministic clinical-context helpers. The document endpoints expose page-aware embedded PDF text and configured local OCR. None of these endpoints confirms or rejects a clinical fact.
 
 ## 1. Create a Python environment
 
@@ -46,26 +48,32 @@ source .venv/bin/activate
 .venv\Scripts\Activate.ps1
 ```
 
-## 2. Install OpenMed with inference and service support
+## 2. Install the validated bridge runtime
 
 Run this from the MediBrief repository root:
 
 ```bash
 python -m pip install --upgrade pip
-python -m pip install --upgrade "openmed[hf,service]==2.0.0"
+python -m pip install -r openmed_bridge/requirements.txt
 ```
 
-The first use of a model alias may download its model files. For a fully air-gapped installation, prepare the model directories beforehand and configure local model paths instead of remote aliases.
-
-The bridge source itself lives in the repository under:
+The requirements file pins the validated runtime:
 
 ```text
-openmed_bridge/
+openmed[hf,service,multimodal]==2.0.0
 ```
 
-No separate Python package installation is required when Uvicorn is started from the repository root.
+The extras provide:
 
-## 3. Start the extended local REST service
+- Hugging Face inference support for the configured NER models;
+- the upstream OpenMed REST service;
+- OpenMed multimodal PDF and OCR interfaces.
+
+Some OCR engines may also require engine-specific Python packages, local model files, or system binaries. The document health endpoint reports which engines are actually available in the running environment. A successful package installation alone is not proof that OCR is operational.
+
+The first use of a model or OCR backend may download model files. For an air-gapped installation, prepare the model directories and OCR dependencies before disconnecting the machine.
+
+## 3. Start the extended local service
 
 For the normal Vite development origin:
 
@@ -83,23 +91,28 @@ $env:OPENMED_SERVICE_TRUSTED_HOSTS = "127.0.0.1,localhost"
 uvicorn openmed_bridge.app:app --host 127.0.0.1 --port 8080
 ```
 
-Use the exact origin shown in the browser address bar. For example, `http://127.0.0.1:5173` and `http://localhost:5173` are different origins.
+Use the exact origin shown in the browser address bar. These are different origins:
 
-Do not bind to `0.0.0.0` for a personal local setup unless network exposure is intentional and authentication, TLS, firewall rules, and trusted hosts have been designed.
+```text
+http://localhost:5173
+http://127.0.0.1:5173
+```
 
-### Standard OpenMed app versus MediBrief bridge
+Do not bind to `0.0.0.0` for a personal setup unless network exposure is intentional and authentication, TLS, firewall rules, trusted hosts, and access logging have been designed.
 
-Starting this command still supports Slice 1 NER but not Slice 2 assertion context:
+### Starting only the upstream OpenMed app
+
+This command still supports `/health` and `/analyze`:
 
 ```bash
 uvicorn openmed.service.app:app --host 127.0.0.1 --port 8080
 ```
 
-When MediBrief can reach `/analyze` but cannot reach `/medibrief/context`, it keeps the NER findings as candidates and leaves assertion axes unknown. It does not invent context and it does not silently call Gemini because the context bridge alone is missing.
+It does **not** provide MediBrief's context or document endpoints. Start `openmed_bridge.app:app` for the complete Phase 3 pipeline.
 
-## 4. Optional model preload
+## 4. Optional NER model preload
 
-Preloading reduces the delay on the first NER request:
+Preloading can reduce first-request delay:
 
 ```bash
 OPENMED_SERVICE_CORS_ORIGINS=http://localhost:5173 \
@@ -109,27 +122,42 @@ OPENMED_SERVICE_MAX_RESIDENT_MODELS=2 \
 uvicorn openmed_bridge.app:app --host 127.0.0.1 --port 8080
 ```
 
-Preload success means the service attempted to prepare those models. It is still important to test the configured extraction path in MediBrief.
+Preload success means the service attempted to prepare the named models. It does not establish that the models are suitable for a document language or clinically validated for a patient.
 
-## 5. Verify both service layers
+## 5. Verify all service layers
 
-### Upstream OpenMed service
+### Base OpenMed service
 
 ```bash
 curl http://127.0.0.1:8080/health
 ```
 
-A healthy service should return JSON whose status is `ok` or `ready`.
+A healthy service normally reports `ok` or `ready`.
 
-### MediBrief context bridge
+### Assertion-context bridge
 
 ```bash
 curl http://127.0.0.1:8080/medibrief/context/health
 ```
 
-A healthy bridge reports advisory features such as negation, certainty, temporality, experiencer, section context, and medication-sig parsing.
+A healthy response lists advisory features such as negation, certainty, temporality, experiencer, section context, and medication-sig parsing.
 
-In MediBrief:
+### Document and OCR bridge
+
+```bash
+curl http://127.0.0.1:8080/medibrief/documents/health
+```
+
+Check these fields:
+
+- `status` — whether the local multimodal adapter can load;
+- `features` — embedded PDF text, page provenance, image OCR, and scanned-PDF OCR;
+- `available_ocr_engines` — engines detected in this environment;
+- `ocr_available` — whether at least one OCR engine is available.
+
+The health response confirms capability discovery only. It does not prove accuracy on a particular scan, language, handwriting style, table, or medical form.
+
+### Verify from MediBrief
 
 1. Open **Settings**.
 2. Find **Clinical document extraction**.
@@ -137,8 +165,7 @@ In MediBrief:
 4. Keep the endpoint at `http://127.0.0.1:8080`.
 5. Select **Test local service**.
 6. Select **Test context bridge**.
-
-The checks confirm reachability only. They do not prove that every configured NER model is downloaded, loadable, suitable for the document language, or clinically validated.
+7. Select **Test document bridge**.
 
 ## 6. Default NER models
 
@@ -154,52 +181,11 @@ Default medication model:
 pharma_detection_superclinical
 ```
 
-MediBrief calls the two models independently and maps only recognized disease/condition and medication/pharmaceutical spans.
+MediBrief calls the two models independently and maps only recognized condition and medication labels. Every result remains a candidate requiring review.
 
-## 7. Slice 2 context behavior
+## 7. Supported source files
 
-For evaluated English text, the bridge can attach advisory evidence for:
-
-- affirmed versus negated polarity;
-- certain versus uncertain language;
-- current, historical, or hypothetical temporality;
-- patient, family, or other experiencer cues;
-- recognized clinical section context;
-- medication dose, route, frequency, PRN condition, and duration when parseable.
-
-Every result retains source offsets and the matched cue or section evidence. Context is stored separately from NER provenance in the candidate's amendment history.
-
-The app presents a dedicated context-evidence review before the existing confirm/reject workflow. Saving a context correction does not confirm the underlying clinical fact.
-
-### Language boundary
-
-Slice 2 context application is currently limited to English text in MediBrief. Non-Latin clinical text skips context enrichment and keeps all assertion dimensions unknown until measured language-specific evidence is added.
-
-This limitation is separate from any Arabic PII support that OpenMed may provide.
-
-## 8. Extraction modes
-
-### Auto
-
-- Uses OpenMed for supported text files.
-- Does not call Gemini when OpenMed succeeds but finds no entities.
-- Keeps NER candidates when the optional context bridge is unavailable.
-- Can use Gemini for an unsupported source file or unavailable NER service only when compatibility fallback is enabled and a Gemini key is configured.
-
-### OpenMed only
-
-- Keeps extraction on the configured local OpenMed service.
-- Does not send unsupported PDF/image content to Gemini.
-- Keeps NER candidates with unknown context if only the bridge endpoint is unavailable.
-
-### Gemini only
-
-- Uses the existing compatibility extraction path.
-- Does not contact OpenMed.
-
-## 9. Supported local text files
-
-The current OpenMed path analyzes files that already contain UTF-8 text:
+### Files decoded directly in the browser
 
 - TXT
 - Markdown
@@ -208,57 +194,223 @@ The current OpenMed path analyzes files that already contain UTF-8 text:
 - XML
 - HTML source text
 
-PDF and image uploads remain valid source documents in MediBrief, but page-aware PDF extraction and local OCR are not part of Slice 2.
+### Files handled by the local document bridge
 
-## 10. Privacy and provenance boundary
+- PDF documents
+- BMP
+- GIF
+- JPEG/JPG
+- PNG
+- TIFF
+- WebP
 
-With OpenMed-only mode and a loopback service, decoded source text travels only from the MediBrief browser to the locally running OpenMed service.
+The bridge currently enforces conservative limits:
 
-Auto mode may use Gemini only when the explicit compatibility-fallback setting allows it. OpenMed NER, OpenMed context, and Gemini results retain separate engines, versions, identifiers, tags, and audit-visible provenance.
+- maximum decoded document size: **10 MiB**;
+- maximum PDF pages: **200**;
+- OCR rendering resolution: configurable from **72 to 400 DPI**, with a default of **200 DPI**.
 
-Every extracted clinical statement remains a candidate requiring human review.
+A rejected size, page count, malformed base64 payload, or unsupported file family fails closed and creates no clinical candidate.
 
-## 11. Run bridge tests locally
+## 8. PDF extraction behavior
 
-Install test dependencies:
+For each PDF page, MediBrief distinguishes:
 
-```bash
-python -m pip install pytest "openmed[service]==2.0.0"
+- **embedded-pdf** — usable text already present in the PDF;
+- **ocr** — page rasterized and processed by a configured OCR engine;
+- **hybrid** — the document contains both embedded-text and OCR-derived pages;
+- **none** — no usable text was produced for that page.
+
+Pages are assembled into one derived text stream separated by two newline characters. Page start/end offsets and word-level source spans refer to that exact derived text.
+
+The response preserves:
+
+- page number;
+- page start and end offsets;
+- extraction method;
+- word and character counts;
+- extraction/OCR engine;
+- bounding boxes where available;
+- OCR confidence where available;
+- source-file SHA-256;
+- derived-text SHA-256;
+- failed pages and warnings.
+
+The original uploaded file remains authoritative. Derived text, offsets, bounding boxes, and confidence values are secondary review evidence.
+
+## 9. OCR policy
+
+MediBrief provides three policies:
+
+### Auto
+
+- Uses embedded PDF text when a page has enough usable text.
+- OCRs PDF pages without usable embedded text.
+- OCRs supported image uploads.
+
+### Always
+
+- OCRs every PDF page and supported image.
+- Useful when embedded text is unreliable, but slower and more resource intensive.
+
+### Never
+
+- Uses embedded PDF text only.
+- Does not OCR scanned pages or images.
+
+Selectable OCR engines are:
+
+- Auto-select installed engine
+- docTR
+- Tesseract
+- EasyOCR
+- PaddleOCR
+
+The selected engine must be installed and discoverable locally. Use **Test document bridge** to inspect the actual runtime capability before relying on a choice.
+
+OCR languages are configured as a comma-separated list in Settings. Language availability depends on the selected OCR backend and its installed language data.
+
+## 10. Extraction status and retry behavior
+
+The local record tracks document extraction separately from clinical facts with these states:
+
+```text
+queued
+running
+completed
+partial
+empty
+unsupported
+failed
+cancelled
 ```
 
-Run:
+The Documents module shows:
+
+- extraction method;
+- page count and pages containing text;
+- derived character count;
+- warnings and failed pages;
+- created candidate count;
+- skipped same-source duplicate count;
+- whether Gemini compatibility fallback was used;
+- retry controls for recoverable runs.
+
+Retrying does not blindly duplicate facts. Candidate identity includes the source document, model, derived-text hash, offsets, and normalized entity text, and the clinical store applies its existing same-source deduplication policy.
+
+## 11. Assertion context after PDF/OCR
+
+Once page-aware text is derived, it follows the same local pipeline as ordinary text:
+
+1. OpenMed NER extracts candidate condition and medication spans.
+2. The context bridge evaluates supported English spans.
+3. Page/OCR evidence is attached separately from NER and context provenance.
+4. The candidate review remains the only confirmation/rejection workflow.
+
+Default OpenMed values such as affirmed, certain, recent, and patient are not treated as positive proof. Only scoped evidence-backed context is copied to candidate assertion fields; other axes remain unknown.
+
+Non-Latin clinical text currently skips the evaluated English context layer. OCR may still derive text, but clinical assertion axes remain unknown until language-specific evaluation exists.
+
+## 12. Extraction modes and cloud fallback
+
+### Auto
+
+- Uses local OpenMed for supported direct text, PDFs, and images.
+- Uses Gemini only when local document or NER extraction is **unsupported** or **unavailable**, compatibility fallback is explicitly enabled, and a Gemini key is configured.
+- Does not use Gemini after successful empty local extraction.
+- Does not use Gemini for invalid or oversized input.
+- Does not use Gemini merely because the optional context layer failed.
+
+### OpenMed only
+
+- Keeps extraction on the local service.
+- Never uses Gemini fallback.
+- Retains NER candidates with unknown context when the context bridge is unavailable.
+
+### Gemini only
+
+- Uses the existing compatibility extractor.
+- Does not contact OpenMed or the local document bridge.
+
+OpenMed NER, OpenMed context, OpenMed document extraction, and Gemini retain separate engines, identifiers, tags, hashes, and audit-visible provenance.
+
+## 13. Privacy boundary
+
+With OpenMed-only mode and a loopback service:
+
+- the original file is sent from the MediBrief browser only to the local bridge;
+- the bridge uses a temporary local file and does not retain the upload after extraction;
+- derived text is processed by the local NER/context pipeline;
+- every extracted clinical statement remains an unconfirmed candidate.
+
+Review the configuration before exposing the service outside the device. A local endpoint is not automatically safe if it is bound to a public interface or reachable by other users on the network.
+
+## 14. Run validation locally
+
+Install the bridge runtime and test dependency:
+
+```bash
+python -m pip install -r openmed_bridge/requirements.txt
+python -m pip install pytest
+```
+
+Run Python bridge tests:
 
 ```bash
 python -m pytest -q openmed_bridge/tests
 ```
 
-The repository CI runs these Python tests before the TypeScript suite and production build.
+Run the TypeScript pipeline:
 
-## 12. Troubleshooting
+```bash
+npm install --no-audit --no-fund
+npm run typecheck
+npm run test:run
+npm run build:app
+```
+
+The document tests use deterministic synthetic PDF/OCR objects to validate offsets, page assembly, status, routing, provenance, failure behavior, and duplicate safety. They do not prove that a particular host has an OCR engine installed or estimate OCR quality on real medical documents. Verify the document health endpoint and test representative non-sensitive files on every deployment environment.
+
+## 15. Troubleshooting
 
 ### Base service unavailable
-
-Confirm:
 
 ```bash
 curl http://127.0.0.1:8080/health
 ```
 
-Also verify that MediBrief's endpoint matches the service port.
+Confirm the port and that the service is bound to the expected host.
 
 ### NER works but context remains unknown
-
-Confirm:
 
 ```bash
 curl http://127.0.0.1:8080/medibrief/context/health
 ```
 
-If it returns `404`, the standard `openmed.service.app:app` was probably started. Restart using:
+A `404` usually means the upstream `openmed.service.app:app` was started instead of `openmed_bridge.app:app`.
+
+### Document bridge returns unavailable
 
 ```bash
-uvicorn openmed_bridge.app:app --host 127.0.0.1 --port 8080
+curl http://127.0.0.1:8080/medibrief/documents/health
 ```
+
+Reinstall the pinned requirements and inspect `available_ocr_engines`. Embedded PDF extraction and OCR capability are reported independently from NER model readiness.
+
+### PDF returns embedded text but scanned pages are empty
+
+- Confirm OCR policy is **Auto** or **Always**.
+- Confirm `ocr_available` is true.
+- Confirm the selected engine appears in `available_ocr_engines`, or select Auto.
+- Confirm the requested OCR language data is installed for that engine.
+
+### PDF result is partial
+
+A partial result preserves successful pages and lists warnings and failed page numbers. Review the original document and retry after correcting the local OCR dependency or configuration.
+
+### Image produces no text
+
+Check the document health response, OCR engine, language list, image format, image resolution, and whether the source contains readable printed text. An empty OCR result is not evidence that the image contains no clinical information.
 
 ### Browser reports CORS failure
 
@@ -266,16 +418,12 @@ Set `OPENMED_SERVICE_CORS_ORIGINS` to the exact MediBrief origin, including sche
 
 ### Invalid host error
 
-Keep the default loopback trusted hosts or include the exact host header in `OPENMED_SERVICE_TRUSTED_HOSTS`.
+Keep loopback trusted hosts or add the exact intended host to `OPENMED_SERVICE_TRUSTED_HOSTS`.
 
 ### First request is slow
 
-The model may be downloading and loading for the first time. Use optional model preload or the keep-alive setting.
+NER or OCR models may be downloading or loading for the first time. Use model preload where supported and test the chosen OCR backend before production use.
 
 ### Arabic or other non-Latin text has unknown context
 
-That is intentional in Slice 2. MediBrief does not apply the English context layer to those documents until language-specific evaluation exists.
-
-### PDF or image produces no OpenMed candidates
-
-That is expected in the current text-only path. The file has not yet been converted into page-aware text or OCR output. Use the explicit Gemini compatibility route only when desired, or wait for the later local document-text/OCR slice.
+That remains intentional. OCR language support and clinical-context validation are separate concerns; recognizing characters does not validate clinical assertion interpretation.
