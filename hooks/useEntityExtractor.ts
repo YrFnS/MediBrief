@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { useShallow } from 'zustand/react/shallow';
-import type { UploadedFile } from '../types';
+import { useAuditStore } from '../features/audit/useAuditStore';
 import {
     ENTITY_EXTRACTION_MODEL,
     ENTITY_EXTRACTION_PROMPT_VERSION,
@@ -19,12 +19,19 @@ import { useClinicalRecordStore } from '../features/clinical-record/useClinicalR
 import {
     extractOpenMedCandidatesFromUpload,
     mapOpenMedEntitiesToCandidates,
+    useDocumentExtractionStore,
 } from '../features/openmed';
 import { usePatientStore } from '../features/patient-management/usePatientStore';
 import { useSettingsStore } from '../features/settings/useSettingsStore';
+import type { UploadedFile } from '../types';
 
 export interface EntityExtractionSource {
     documentId?: string;
+}
+
+interface CandidateWriteCounts {
+    created: number;
+    duplicates: number;
 }
 
 const normalizedKey = (value: string): string =>
@@ -148,6 +155,8 @@ const ensureDocumentReference = ({
 
 export const useEntityExtractor = () => {
     const clinicalRecordActions = useClinicalRecordStore(state => state.actions);
+    const documentActions = useDocumentExtractionStore(state => state.actions);
+    const auditActions = useAuditStore(state => state.actions);
     const settings = useSettingsStore(useShallow(state => ({
         geminiApiKey: state.geminiApiKey,
         extractionMode: state.extractionMode,
@@ -158,6 +167,12 @@ export const useEntityExtractor = () => {
         openMedTimeoutMs: state.openMedTimeoutMs,
         openMedKeepAlive: state.openMedKeepAlive,
         allowGeminiExtractionFallback: state.allowGeminiExtractionFallback,
+        openMedDocumentExtractionEnabled:
+            state.openMedDocumentExtractionEnabled,
+        openMedOcrMode: state.openMedOcrMode,
+        openMedOcrEngine: state.openMedOcrEngine,
+        openMedOcrLanguages: state.openMedOcrLanguages,
+        openMedOcrResolution: state.openMedOcrResolution,
     })));
     const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -178,21 +193,35 @@ export const useEntityExtractor = () => {
             || (file.storageId ? `document-${file.storageId}` : undefined)
             || `untracked-document:${file.file.name}:${file.file.size}`;
         const now = new Date().toISOString();
+        const mimeType = file.type
+            || file.file.type
+            || 'application/octet-stream';
+        const localRoute = settings.extractionMode !== 'gemini';
 
-        const addGeminiCompatibilityCandidates = async () => {
+        const writeCandidate = (candidate: ConditionRecord
+            | AllergyIntoleranceRecord
+            | ObservationRecord): 'created' | 'duplicate' | 'other' => {
+            const result = clinicalRecordActions.addResource(candidate);
+            if (result.status === 'created') return 'created';
+            if (result.status === 'duplicate') return 'duplicate';
+            return 'other';
+        };
+
+        const addGeminiCompatibilityCandidates = async (): Promise<CandidateWriteCounts> => {
+            const counts: CandidateWriteCounts = { created: 0, duplicates: 0 };
             const apiKey = settings.geminiApiKey || process.env.API_KEY || '';
             if (!apiKey) {
                 console.warn(
                     'Gemini compatibility extraction was requested, but no Gemini API key is configured.',
                 );
-                return;
+                return counts;
             }
 
             const entities = await extractEntitiesFromUpload(file, {
                 signal: controller.signal,
                 apiKey,
             });
-            if (controller.signal.aborted) return;
+            if (controller.signal.aborted) return counts;
 
             entities.diagnosis.forEach(diagnosis => {
                 const clean = diagnosis.trim();
@@ -211,7 +240,9 @@ export const useEntityExtractor = () => {
                     note:
                         'Review the source and assertion context before confirming this condition.',
                 };
-                clinicalRecordActions.addResource(candidate);
+                const result = writeCandidate(candidate);
+                if (result === 'created') counts.created += 1;
+                if (result === 'duplicate') counts.duplicates += 1;
             });
 
             entities.allergies.forEach(allergy => {
@@ -234,7 +265,9 @@ export const useEntityExtractor = () => {
                     note:
                         'Confirm the substance, reaction, severity, and whether the statement applies to this patient.',
                 };
-                clinicalRecordActions.addResource(candidate);
+                const result = writeCandidate(candidate);
+                if (result === 'created') counts.created += 1;
+                if (result === 'duplicate') counts.duplicates += 1;
             });
 
             const codeStatus = entities.codeStatus?.trim();
@@ -256,8 +289,11 @@ export const useEntityExtractor = () => {
                     note:
                         'Confirm against an authoritative advance-directive or resuscitation-status source.',
                 };
-                clinicalRecordActions.addResource(candidate);
+                const result = writeCandidate(candidate);
+                if (result === 'created') counts.created += 1;
+                if (result === 'duplicate') counts.duplicates += 1;
             }
+            return counts;
         };
 
         try {
@@ -283,9 +319,27 @@ export const useEntityExtractor = () => {
                 now,
             });
 
-            if (settings.extractionMode !== 'gemini') {
+            if (localRoute) {
+                documentActions.begin({
+                    patientId,
+                    documentId,
+                    ...(file.storageId ? { storageId: file.storageId } : {}),
+                    fileName: file.file.name,
+                    mimeType,
+                    startedAt: now,
+                });
+                documentActions.markRunning(patientId, documentId);
+                auditActions.logEvent(
+                    'DOCUMENT_EXTRACTION_STARTED',
+                    patientId,
+                    `Started local document extraction for ${file.file.name}.`,
+                    'SYSTEM',
+                    { documentId, mimeType },
+                );
+
                 const openMedResult = await extractOpenMedCandidatesFromUpload({
                     file,
+                    documentId,
                     settings: {
                         baseUrl: settings.openMedBaseUrl,
                         timeoutMs: settings.openMedTimeoutMs,
@@ -294,10 +348,19 @@ export const useEntityExtractor = () => {
                         diseaseModel: settings.openMedDiseaseModel,
                         medicationModel: settings.openMedMedicationModel,
                         keepAlive: settings.openMedKeepAlive || undefined,
+                        documentExtractionEnabled:
+                            settings.openMedDocumentExtractionEnabled,
+                        ocrMode: settings.openMedOcrMode,
+                        ocrEngine: settings.openMedOcrEngine,
+                        ocrLanguages: settings.openMedOcrLanguages,
+                        ocrResolution: settings.openMedOcrResolution,
                     },
                     signal: controller.signal,
                 });
-                if (controller.signal.aborted) return;
+                if (controller.signal.aborted) {
+                    documentActions.cancel(patientId, documentId);
+                    return;
+                }
 
                 if (openMedResult.warnings.length > 0) {
                     console.warn(
@@ -310,6 +373,8 @@ export const useEntityExtractor = () => {
                     openMedResult.status === 'success'
                     || openMedResult.status === 'partial'
                 ) {
+                    let created = 0;
+                    let duplicates = 0;
                     const candidates = mapOpenMedEntitiesToCandidates({
                         patientId,
                         documentId,
@@ -318,25 +383,119 @@ export const useEntityExtractor = () => {
                         now,
                     });
                     candidates.forEach(candidate => {
-                        clinicalRecordActions.addResource(candidate);
+                        const result = clinicalRecordActions.addResource(candidate);
+                        if (result.status === 'created') created += 1;
+                        if (result.status === 'duplicate') duplicates += 1;
+                    });
+                    documentActions.complete({
+                        patientId,
+                        documentId,
+                        ...(openMedResult.documentExtraction
+                            ? { result: openMedResult.documentExtraction }
+                            : {}),
+                        status: openMedResult.status === 'partial'
+                            ? 'partial'
+                            : openMedResult.documentExtraction?.status
+                                || 'completed',
+                        warnings: openMedResult.warnings,
+                        createdCandidates: created,
+                        duplicateCandidates: duplicates,
+                        message: `Local extraction created ${created} candidate${created === 1 ? '' : 's'} and skipped ${duplicates} same-source duplicate${duplicates === 1 ? '' : 's'}.`,
+                    });
+                    auditActions.logEvent(
+                        'DOCUMENT_EXTRACTION_COMPLETED',
+                        patientId,
+                        `Completed local extraction for ${file.file.name}.`,
+                        'SYSTEM',
+                        {
+                            documentId,
+                            status: openMedResult.status,
+                            method: openMedResult.documentExtraction?.method
+                                || 'local-text',
+                            pageCount: openMedResult.documentExtraction?.pageCount,
+                            createdCandidates: created,
+                            duplicateCandidates: duplicates,
+                        },
+                    );
+                    return;
+                }
+
+                if (openMedResult.status === 'empty') {
+                    documentActions.complete({
+                        patientId,
+                        documentId,
+                        ...(openMedResult.documentExtraction
+                            ? { result: openMedResult.documentExtraction }
+                            : {}),
+                        status: 'empty',
+                        warnings: openMedResult.warnings,
+                        message:
+                            'Local extraction completed, but no mapped clinical entities were found.',
                     });
                     return;
                 }
-
-                if (
-                    openMedResult.status === 'empty'
-                    || openMedResult.status === 'invalid'
-                    || openMedResult.status === 'too-large'
-                    || openMedResult.status === 'aborted'
-                    || settings.extractionMode === 'openmed'
-                    || !settings.allowGeminiExtractionFallback
-                ) {
+                if (openMedResult.status === 'aborted') {
+                    documentActions.cancel(patientId, documentId);
                     return;
                 }
 
-                // Auto mode reaches this branch only when local extraction is
-                // unsupported or unavailable and fallback was explicitly allowed.
-                await addGeminiCompatibilityCandidates();
+                const fallbackEligible = openMedResult.status === 'unsupported'
+                    || openMedResult.status === 'unavailable';
+                const shouldFallback = settings.extractionMode === 'auto'
+                    && settings.allowGeminiExtractionFallback
+                    && fallbackEligible;
+
+                if (!shouldFallback) {
+                    if (openMedResult.status === 'unsupported') {
+                        documentActions.complete({
+                            patientId,
+                            documentId,
+                            ...(openMedResult.documentExtraction
+                                ? { result: openMedResult.documentExtraction }
+                                : {}),
+                            status: 'unsupported',
+                            warnings: openMedResult.warnings,
+                            message:
+                                'The current local extraction configuration does not support this document.',
+                        });
+                    } else {
+                        documentActions.fail({
+                            patientId,
+                            documentId,
+                            ...(openMedResult.documentExtraction
+                                ? { result: openMedResult.documentExtraction }
+                                : {}),
+                            warnings: openMedResult.warnings,
+                            message: openMedResult.warnings[0]
+                                || 'Local document extraction failed.',
+                        });
+                        auditActions.logEvent(
+                            'DOCUMENT_EXTRACTION_FAILED',
+                            patientId,
+                            `Local extraction failed for ${file.file.name}.`,
+                            'SYSTEM',
+                            { documentId, status: openMedResult.status },
+                        );
+                    }
+                    return;
+                }
+
+                // Auto mode reaches this branch only for unsupported or
+                // unavailable local extraction when fallback was explicitly enabled.
+                const fallbackCounts = await addGeminiCompatibilityCandidates();
+                documentActions.fail({
+                    patientId,
+                    documentId,
+                    ...(openMedResult.documentExtraction
+                        ? { result: openMedResult.documentExtraction }
+                        : {}),
+                    status: openMedResult.status === 'unsupported'
+                        ? 'unsupported'
+                        : 'failed',
+                    warnings: openMedResult.warnings,
+                    fallbackUsed: true,
+                    message: `Local extraction did not complete. Gemini compatibility fallback created ${fallbackCounts.created} candidate${fallbackCounts.created === 1 ? '' : 's'} with separate cloud provenance.`,
+                });
                 return;
             }
 
@@ -344,13 +503,36 @@ export const useEntityExtractor = () => {
         } catch (error) {
             if (!controller.signal.aborted) {
                 console.warn('Candidate extraction failed:', error);
+                if (localRoute) {
+                    documentActions.fail({
+                        patientId,
+                        documentId,
+                        message: error instanceof Error
+                            ? error.message
+                            : 'Candidate extraction failed.',
+                    });
+                    auditActions.logEvent(
+                        'DOCUMENT_EXTRACTION_FAILED',
+                        patientId,
+                        `Document extraction failed for ${file.file.name}.`,
+                        'SYSTEM',
+                        { documentId },
+                    );
+                }
+            } else if (localRoute) {
+                documentActions.cancel(patientId, documentId);
             }
         } finally {
             if (abortControllerRef.current === controller) {
                 abortControllerRef.current = null;
             }
         }
-    }, [clinicalRecordActions, settings]);
+    }, [
+        auditActions,
+        clinicalRecordActions,
+        documentActions,
+        settings,
+    ]);
 
     return { triggerExtraction };
 };
