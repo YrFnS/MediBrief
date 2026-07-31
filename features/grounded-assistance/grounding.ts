@@ -336,7 +336,7 @@ const labelFor = (resource: ClinicalRecordResource): string => {
         case 'ClinicalNote':
             return resource.title;
         default:
-            return resource.resourceType;
+            return 'Clinical record';
     }
 };
 
@@ -469,7 +469,7 @@ const statementFor = (resource: ClinicalRecordResource): string => {
                 resource.author ? `author ${sanitizeText(resource.author)}` : '',
             ].filter(Boolean).join('; ');
         default:
-            return `${resource.resourceType} record ${resource.id}`;
+            return 'Clinical record evidence';
     }
 };
 
