@@ -13,3 +13,4 @@ export * from './openMedDocumentClient';
 export * from './openMedExtractionService';
 export * from './schemas';
 export * from './types';
+export * from './useDocumentExtractionStore';
