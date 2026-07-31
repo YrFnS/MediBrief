@@ -42,7 +42,7 @@ describe('Phase 2 planning and follow-up modules', () => {
         );
 
         expect(tasks).toContain('does not send an external order');
-        expect(tasks).toContain('does not prove that care was performed');
+        expect(tasks).toContain('or prove that care was performed');
         expect(models).toContain('Proposal only — not an order');
         expect(models).toContain('external execution not confirmed');
         expect(models).toContain("return 'no-date'");
