@@ -60,6 +60,10 @@ const withAmendment = <T extends ClinicalRecordResource>(
  * Attach the original extracted values to the clinical resources produced by
  * the reviewed draft. Excluded rows are retained on the report amendment even
  * though no Observation is created for them.
+ *
+ * The graph builder preserves reviewed draft order for specimens and results,
+ * so review evidence can be mapped without embedding UI-local IDs in the
+ * clinical resource identity or external provenance identifier.
  */
 export const applyDiagnosticReviewEvidence = ({
     bundle,
@@ -91,10 +95,8 @@ export const applyDiagnosticReviewEvidence = ({
             amendedBy,
         }),
     ) as DiagnosticReportRecord;
-    const observations = bundle.observations.map(observation => {
-        const localId = observation.provenance.source.externalId
-            ?.split(':result:')[1]
-            ?.split(':')[0];
+    const observations = bundle.observations.map((observation, index) => {
+        const localId = draft.results[index]?.localId;
         const changes = localId
             ? evidence.resultChanges?.[localId] || []
             : [];
@@ -108,10 +110,8 @@ export const applyDiagnosticReviewEvidence = ({
             }),
         ) as ObservationRecord;
     });
-    const specimens = bundle.specimens.map(specimen => {
-        const localId = specimen.provenance.source.externalId
-            ?.split(':specimen:')[1]
-            ?.split(':')[0];
+    const specimens = bundle.specimens.map((specimen, index) => {
+        const localId = draft.specimens?.[index]?.localId;
         const changes = localId
             ? evidence.specimenChanges?.[localId] || []
             : [];
