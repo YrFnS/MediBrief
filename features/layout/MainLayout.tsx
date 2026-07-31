@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { v4 as uuidv4 } from 'uuid';
 import {
     DocumentTextIcon,
     EyeIcon,
@@ -8,6 +7,7 @@ import {
 } from '../../components/icons';
 import Header from '../../components/Header';
 import ImageViewer from '../../components/ImageViewer';
+import DisclaimerModal from '../../components/DisclaimerModal';
 import { useFileDragAndDrop } from '../../hooks/useFileDragAndDrop';
 import { useLiveSession } from '../../hooks/useLiveSession';
 import { useSecurityLock } from '../../hooks/useSecurityLock';
@@ -15,24 +15,15 @@ import { ChatMode as ChatModeEnum } from '../../types';
 import { scrubPII } from '../../utils/piiScrubber';
 import { useAuditStore } from '../audit/useAuditStore';
 import CDSSContainer from '../cdss/CDSSContainer';
-import { CLINICAL_RULES_DISABLED_REASON } from '../cdss/rulesEngine';
 import InputBar from '../chat/components/InputBar';
 import MessageList from '../chat/components/MessageList';
 import { useChatOrchestrator } from '../chat/hooks/useChatOrchestrator';
-import type { LabReport } from '../chat/schemas';
 import { useChatStore } from '../chat/stores/useChatStore';
-import LabVerificationModal from '../clinical-analysis/components/LabVerificationModal';
-import { useClinicalStore } from '../clinical-analysis/stores/useClinicalStore';
 import ClinicalCandidateReview from '../clinical-record/components/ClinicalCandidateReview';
 import { createProposedAppointmentRecord } from '../clinical-record/durableActions';
-import { createUnknownClinicalDate } from '../clinical-record/factories';
-import type {
-    ClinicalDate,
-    ObservationRecord,
-} from '../clinical-record/types';
 import { useClinicalRecordStore } from '../clinical-record/useClinicalRecordStore';
-import type { FHIRObservation } from '../fhir/types';
-import { normalizeValue } from '../fhir/unitService';
+import DiagnosticReportReviewWorkspace from '../diagnostic-reports/components/DiagnosticReportReviewWorkspace';
+import type { DiagnosticBundleCommitResult } from '../diagnostic-reports';
 import HeadsUpDisplay from '../hud/HeadsUpDisplay';
 import { usePatientStore } from '../patient-management/usePatientStore';
 import SidebarRoster from '../patient-roster/SidebarRoster';
@@ -41,7 +32,6 @@ import SettingsModal from '../settings/SettingsModal';
 import { useSettingsStore } from '../settings/useSettingsStore';
 import { useUIStore } from '../ui/UIContext';
 import BioMetricBackground from './BioMetricBackground';
-import DisclaimerModal from '../../components/DisclaimerModal';
 
 const useOnlineStatus = () => {
     const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -58,34 +48,6 @@ const useOnlineStatus = () => {
     return isOnline;
 };
 
-const parseReviewedClinicalDate = (value?: string): ClinicalDate => {
-    const sourceText = value?.trim();
-    if (
-        !sourceText
-        || ['not visible', 'unknown', 'not listed', 'n/a'].includes(
-            sourceText.toLowerCase(),
-        )
-    ) {
-        return createUnknownClinicalDate(sourceText);
-    }
-
-    const parsed = new Date(sourceText);
-    if (Number.isNaN(parsed.getTime())) {
-        return createUnknownClinicalDate(sourceText);
-    }
-
-    return {
-        value: parsed.toISOString().slice(0, 10),
-        precision: 'day',
-        sourceText,
-    };
-};
-
-const clinicalDateToDateTime = (date: ClinicalDate): string | undefined =>
-    date.value && date.precision === 'day'
-        ? `${date.value}T00:00:00.000Z`
-        : undefined;
-
 const displayRequestValue = (value: unknown): string =>
     typeof value === 'string' && value.trim()
         ? value.trim()
@@ -100,9 +62,6 @@ const MainLayout: React.FC = () => {
     const addMessage = useChatStore(state => state.actions.addMessage);
     const initializeChat = useChatStore(
         state => state.actions.initializeChat,
-    );
-    const ingestObservations = useClinicalStore(
-        state => state.actions.ingestObservations,
     );
     const clinicalRecordActions = useClinicalRecordStore(
         state => state.actions,
@@ -303,231 +262,21 @@ const MainLayout: React.FC = () => {
         [isLive, stopSession, startSession, activeMessages],
     );
 
-    const handleLabVerification = useCallback((verifiedReport: LabReport) => {
-        if (!verifiedReport.labs) return;
-
-        const reviewedAt = new Date().toISOString();
-        const clinicalDate = parseReviewedClinicalDate(verifiedReport.date);
-        const legacyEffectiveDateTime = clinicalDateToDateTime(clinicalDate);
-
-        const reviewedLabs = verifiedReport.labs.map(lab => {
-            const rawValue = Number.parseFloat(
-                String(lab.value).replace(/[^0-9.-]/g, ''),
-            );
-            if (Number.isNaN(rawValue)) return null;
-
-            const rangeMatch = lab.refRange
-                ? String(lab.refRange).match(/([\d.]+)\s*-\s*([\d.]+)/)
-                : null;
-            const normalized = normalizeValue(
-                rawValue,
-                lab.units || '',
-                lab.testName,
-                lab.loinc,
-            );
-
-            return {
-                id: uuidv4(),
-                lab,
-                rawValue,
-                rangeMatch,
-                normalized,
-            };
-        }).filter(Boolean) as Array<{
-            id: string;
-            lab: LabReport['labs'][number];
-            rawValue: number;
-            rangeMatch: RegExpMatchArray | null;
-            normalized: ReturnType<typeof normalizeValue>;
-        }>;
-
-        const newLegacyObservations: FHIRObservation[] = reviewedLabs.map(item => {
-            const { id, lab, normalized, rangeMatch } = item;
-            const observation: FHIRObservation = {
-                resourceType: 'Observation',
-                id,
-                status: 'final',
-                code: {
-                    text: lab.testName,
-                    coding: lab.loinc
-                        ? [{ system: 'http://loinc.org', code: lab.loinc }]
-                        : undefined,
-                },
-                subject: { reference: `Patient/${activePatientId}` },
-                valueQuantity: {
-                    value: normalized.value,
-                    unit: normalized.unit,
-                    system: 'http://unitsofmeasure.org',
-                },
-                ...(legacyEffectiveDateTime
-                    ? { effectiveDateTime: legacyEffectiveDateTime }
-                    : {}),
-                issued: reviewedAt,
-            };
-
-            if (normalized.warning) {
-                observation.note = [{
-                    text: `⚠️ DATA QUALITY: ${normalized.warning}`,
-                }];
-                observation.interpretation = [{ text: 'Data Quality Issue' }];
-            } else if (lab.flag && lab.flag !== 'Normal') {
-                observation.interpretation = [{ text: lab.flag }];
-            }
-
-            if (rangeMatch) {
-                observation.referenceRange = [{
-                    low: {
-                        value: Number.parseFloat(rangeMatch[1]),
-                        unit: lab.units,
-                        system: 'http://unitsofmeasure.org',
-                    },
-                    high: {
-                        value: Number.parseFloat(rangeMatch[2]),
-                        unit: lab.units,
-                        system: 'http://unitsofmeasure.org',
-                    },
-                    text: lab.refRange,
-                }];
-            }
-            return observation;
-        });
-
-        const newClinicalObservations: ObservationRecord[] = reviewedLabs.map(item => {
-            const { id, lab, rawValue, rangeMatch, normalized } = item;
-            const originalUnit = String(lab.units || '').trim();
-            const canUseNormalized = !!originalUnit && !!normalized.unit;
-
-            return {
-                id,
-                patientId: activePatientId,
-                resourceType: 'Observation',
-                verificationStatus: 'confirmed',
-                recordedAt: reviewedAt,
-                effective: clinicalDate,
-                assertion: {
-                    polarity: 'affirmed',
-                    certainty: 'certain',
-                    temporality: clinicalDate.value ? 'current' : 'unknown',
-                    experiencer: 'patient',
-                },
-                provenance: {
-                    source: {
-                        kind: 'ai-suggestion',
-                        description: 'Lab value extracted by AI and explicitly reviewed in the lab verification dialog.',
-                    },
-                    createdAt: reviewedAt,
-                    updatedAt: reviewedAt,
-                    confirmation: {
-                        reviewedAt,
-                        reason: 'User reviewed and accepted the extracted lab row.',
-                    },
-                },
-                amendments: [],
-                tags: ['lab-extraction', 'human-reviewed'],
-                status: 'final',
-                category: [{ text: 'Laboratory' }],
-                code: {
-                    text: lab.testName,
-                    coding: lab.loinc
-                        ? [{
-                            system: 'http://loinc.org',
-                            code: lab.loinc,
-                        }]
-                        : undefined,
-                },
-                value: {
-                    type: 'quantity',
-                    quantity: {
-                        original: {
-                            value: rawValue,
-                            ...(originalUnit ? { unit: originalUnit } : {}),
-                            ...(originalUnit
-                                ? { system: 'http://unitsofmeasure.org' }
-                                : {}),
-                        },
-                        ...(canUseNormalized
-                            ? {
-                                normalized: {
-                                    value: normalized.value,
-                                    unit: normalized.unit,
-                                    system: 'http://unitsofmeasure.org',
-                                },
-                            }
-                            : {}),
-                        ...(normalized.warning
-                            ? { normalizationWarning: normalized.warning }
-                            : {}),
-                    },
-                },
-                ...(lab.flag && lab.flag !== 'Normal'
-                    ? { interpretation: [{ text: lab.flag }] }
-                    : {}),
-                referenceRanges: rangeMatch
-                    ? [{
-                        low: {
-                            value: Number.parseFloat(rangeMatch[1]),
-                            ...(originalUnit ? { unit: originalUnit } : {}),
-                        },
-                        high: {
-                            value: Number.parseFloat(rangeMatch[2]),
-                            ...(originalUnit ? { unit: originalUnit } : {}),
-                        },
-                        text: lab.refRange,
-                    }]
-                    : [],
-                issuedAt: reviewedAt,
-                ...(normalized.warning
-                    ? { note: `Data-quality warning: ${normalized.warning}` }
-                    : {}),
-            };
-        });
-
-        if (newLegacyObservations.length > 0) {
-            ingestObservations(activePatientId, newLegacyObservations);
-            clinicalRecordActions.initializePatientRecord({
-                patientId: activePatientId,
-                displayName: activePatient?.name
-                    || `Patient ${activePatientId.slice(0, 4)}`,
-            });
-            newClinicalObservations.forEach(observation => {
-                clinicalRecordActions.addResource(observation);
-            });
-
-            logEvent(
-                'CLINICAL_OBSERVATIONS_CONFIRMED',
-                activePatientId,
-                `Confirmed and saved ${newClinicalObservations.length} reviewed numeric lab observations.`,
-                'USER',
-                {
-                    reportDate: clinicalDate.value,
-                    reportDatePrecision: clinicalDate.precision,
-                    observationIds: newClinicalObservations.map(item => item.id),
-                    automatedRulesEnabled: false,
-                },
-            );
-
-            addMessage(activePatientId, {
-                role: 'model',
-                content: `✅ **Reviewed lab data saved**\nAdded ${newClinicalObservations.length} numeric result${newClinicalObservations.length === 1 ? '' : 's'} to the structured patient record.${clinicalDate.value ? '' : ' The report date remains explicitly unknown.'}\n\n${CLINICAL_RULES_DISABLED_REASON}`,
-            });
-        }
-
+    const handleDiagnosticReportSaved = useCallback((
+        result: DiagnosticBundleCommitResult,
+    ) => {
         uiDispatch({ type: 'SET_PENDING_LAB_REPORT', payload: null });
-    }, [
-        activePatient,
-        activePatientId,
-        addMessage,
-        clinicalRecordActions,
-        ingestObservations,
-        logEvent,
-        uiDispatch,
-    ]);
+        addMessage(activePatientId, {
+            role: 'model',
+            content: `✅ **Reviewed diagnostic report saved**\n${result.message || 'The reviewed report graph was saved to the structured patient record.'}\n\nThe report, included results, linked specimens, and source relationship were saved together. Excluded extracted rows remain in the report review history. No automated diagnosis, order, or treatment action was performed.`,
+        });
+    }, [activePatientId, addMessage, uiDispatch]);
 
     const handleCancelVerification = useCallback(() => {
         uiDispatch({ type: 'SET_PENDING_LAB_REPORT', payload: null });
         addMessage(activePatientId, {
             role: 'model',
-            content: '🚫 **Ingestion Cancelled**\nLab data was discarded by user.',
+            content: '🚫 **Diagnostic report review discarded**\nNo report, result, specimen, or source relationship was added to the clinical record.',
         });
     }, [activePatientId, addMessage, uiDispatch]);
 
@@ -596,9 +345,11 @@ const MainLayout: React.FC = () => {
             />
 
             {pendingLabReport && (
-                <LabVerificationModal
-                    report={pendingLabReport}
-                    onConfirm={handleLabVerification}
+                <DiagnosticReportReviewWorkspace
+                    key={pendingLabReport.detectedAt}
+                    patientId={activePatientId}
+                    pending={pendingLabReport}
+                    onSaved={handleDiagnosticReportSaved}
                     onCancel={handleCancelVerification}
                 />
             )}
