@@ -58,7 +58,7 @@ describe('Phase 2 longitudinal clinical modules', () => {
 
         expect(immunizations).toContain('does not prove that the patient is unvaccinated');
         expect(documents).toContain('Upload time never replaces an unknown authored or clinical date');
-        expect(documents).toContain('Missing binary assets remain explicit');
+        expect(documents).toMatch(/Missing binary assets[^.]*remain explicit/);
     });
 
     it('provides provenance and source review across all five modules', () => {
