@@ -16,7 +16,9 @@ Phase 4 is accepted when all four slices pass the repository validation pipeline
 - Extraction output cannot bypass human review.
 - Comparator, qualitative, narrative, absent, uncertain, incompatible, and superseded results are not converted into misleading numeric trend points.
 - Exact duplicates create no second clinical graph.
+- Same-day reports with identical structured values remain advisory rather than blocking when no source document or accession identity connects them.
 - Corrections create new versions; prior reports and observations remain source-reviewable.
+- Every observation whose confirmed report memberships are superseded becomes historical, even when the corrected report omits that row and no one-to-one successor observation exists.
 - Invalid graphs and unresolved blocking conflicts write nothing.
 
 ## Validation evidence
