@@ -155,10 +155,10 @@ describe('Phase 3 OpenMed workspace contracts', () => {
             'PDF and image OCR are not enabled yet',
         );
         expect(plan).toContain(
-            'PDF and image content is never represented as text',
+            'PDF and image content is never represented as text without a real extraction or OCR step',
         );
         expect(plan).toContain(
-            'PDF and image processing needs a real local extraction or OCR pipeline',
+            'Add local PDF text extraction with page boundaries',
         );
     });
 });
