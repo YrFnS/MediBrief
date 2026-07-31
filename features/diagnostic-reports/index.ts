@@ -2,6 +2,7 @@ export { default as DiagnosticReportReviewWorkspace } from './components/Diagnos
 export { default as DiagnosticReportSourcePane } from './components/DiagnosticReportSourcePane';
 export * from './graph';
 export * from './legacyLabReview';
+export * from './normalization';
 export * from './resultIntelligence';
 export * from './reviewAmendments';
 export * from './reviewEvidence';
