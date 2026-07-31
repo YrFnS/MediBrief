@@ -7,6 +7,7 @@ import {
 import type {
     AllergyIntoleranceRecord,
     ClinicalDate,
+    ClinicalPeriod,
     ClinicalQuantity,
     ClinicalQuantityValue,
     ClinicalRecordResource,
@@ -40,6 +41,8 @@ import {
     humanizeToken,
 } from './viewModels';
 
+const UNKNOWN_CLINICAL_DATE_LABEL = 'Clinical date unknown';
+
 const SOURCE_KIND_LABELS: Record<
     ClinicalRecordResource['provenance']['source']['kind'],
     string
@@ -66,11 +69,45 @@ const matchesSearch = (searchText: string, search?: string): boolean => {
     return !query || searchText.includes(query);
 };
 
+const parsedTimestamp = (value?: string): number | null => {
+    if (!value) return null;
+    const timestamp = Date.parse(value);
+    return Number.isNaN(timestamp) ? null : timestamp;
+};
+
+const recordedTimestamp = (resource: ClinicalRecordResource): number =>
+    parsedTimestamp(resource.recordedAt) ?? 0;
+
+const isClinicalDate = (
+    value: ClinicalDate | ClinicalPeriod,
+): value is ClinicalDate => 'precision' in value;
+
+/**
+ * An explicitly unknown effective date is stronger than a secondary timestamp
+ * such as issuedAt or recordedAt. Those timestamps remain provenance and must
+ * never be promoted into the clinical event date.
+ */
+const hasExplicitUnknownEffectiveDate = (
+    resource: ClinicalRecordResource,
+): boolean => {
+    const effective = resource.effective;
+    if (!effective) return false;
+    if (isClinicalDate(effective)) {
+        return effective.precision === 'unknown' || effective.value === null;
+    }
+
+    const dates = [effective.start, effective.end].filter(Boolean) as ClinicalDate[];
+    return dates.length > 0 && dates.every(date =>
+        date.precision === 'unknown' || date.value === null,
+    );
+};
+
 const resourceSortTimestamp = (resource: ClinicalRecordResource): number => {
+    if (hasExplicitUnknownEffectiveDate(resource)) {
+        return recordedTimestamp(resource);
+    }
     const bounds = getResourceDateBounds(resource);
-    if (bounds.start !== null) return bounds.start;
-    const recorded = Date.parse(resource.recordedAt);
-    return Number.isNaN(recorded) ? 0 : recorded;
+    return bounds.start ?? recordedTimestamp(resource);
 };
 
 const clinicalDateView = (resource: ClinicalRecordResource): {
@@ -78,17 +115,24 @@ const clinicalDateView = (resource: ClinicalRecordResource): {
     label: string;
     sortTimestamp: number;
 } => {
+    if (hasExplicitUnknownEffectiveDate(resource)) {
+        return {
+            known: false,
+            label: UNKNOWN_CLINICAL_DATE_LABEL,
+            sortTimestamp: recordedTimestamp(resource),
+        };
+    }
+
     const bounds = getResourceDateBounds(resource);
     const known = !bounds.usesRecordedAtFallback;
-    const label = known
-        ? bounds.clinicalDate
-            ? formatClinicalDate(bounds.clinicalDate)
-            : formatDateTime(bounds.dateTime)
-        : 'Clinical date unknown';
     return {
         known,
-        label,
-        sortTimestamp: bounds.start ?? resourceSortTimestamp(resource),
+        label: known
+            ? bounds.clinicalDate
+                ? formatClinicalDate(bounds.clinicalDate)
+                : formatDateTime(bounds.dateTime)
+            : UNKNOWN_CLINICAL_DATE_LABEL,
+        sortTimestamp: bounds.start ?? recordedTimestamp(resource),
     };
 };
 
@@ -566,11 +610,8 @@ const observationItem = (
         categoryLabels,
         laboratory,
         valueLabel,
-        ...(originalValueLabel && originalValueLabel !== valueLabel
-            ? { originalValueLabel }
-            : {}),
+        originalValueLabel,
         ...(normalizedValueLabel
-            && normalizedValueLabel !== originalValueLabel
             ? { normalizedValueLabel }
             : {}),
         ...(observation.value?.type === 'quantity'
@@ -679,14 +720,13 @@ export const buildResultsModuleViewModel = (
     const content = options.content || 'all';
     const interpretation = options.interpretation || 'all';
     const category = options.category || 'all';
-    const search = options.search;
 
     const reports = (content === 'all' || content === 'reports'
         ? allReports
         : [])
         .filter(item => category === 'all'
             || item.categoryLabels.some(value => lower(value) === lower(category)))
-        .filter(item => matchesSearch(item.searchText, search))
+        .filter(item => matchesSearch(item.searchText, options.search))
         .sort((left, right) => {
             if (left.sortTimestamp !== right.sortTimestamp) {
                 return right.sortTimestamp - left.sortTimestamp;
@@ -705,7 +745,7 @@ export const buildResultsModuleViewModel = (
             || (interpretation === 'flagged' ? item.flagged : !item.flagged))
         .filter(item => category === 'all'
             || item.categoryLabels.some(value => lower(value) === lower(category)))
-        .filter(item => matchesSearch(item.searchText, search))
+        .filter(item => matchesSearch(item.searchText, options.search))
         .sort((left, right) => {
             if (left.sortTimestamp !== right.sortTimestamp) {
                 return right.sortTimestamp - left.sortTimestamp;
