@@ -87,7 +87,9 @@ describe('Phase 4 report-level review workspace contracts', () => {
             expect(workspace).toContain(eventType);
             expect(auditTypes).toContain(eventType);
         }
-        expect(workspace).toContain('saved together');
+        expect(workspace).toContain(
+            'Confirmation saves one connected report graph atomically',
+        );
         expect(workspace).toContain('does not diagnose the patient');
     });
 });
