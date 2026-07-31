@@ -1,7 +1,17 @@
 import type {
+    HealthDataModule,
     LinkedRecordView,
     ResourceProvenanceView,
 } from './coreModuleTypes';
+
+export type PlanningHealthDataModule =
+    | 'appointments'
+    | 'tasks'
+    | 'care-plans';
+
+export type PersonalHealthDataModule =
+    | HealthDataModule
+    | PlanningHealthDataModule;
 
 export type AppointmentTimingFilter =
     | 'all'
