@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useToast } from '../../../components/Toast';
 import {
     AlertTriangleIcon,
     BeakerIcon,
@@ -6,19 +7,36 @@ import {
     DocumentTextIcon,
     XCircleIcon,
 } from '../../../components/icons';
+import { useAuditStore } from '../../audit/useAuditStore';
 import type { LabReport } from '../../chat/schemas';
+import { useChatStore } from '../../chat/stores/useChatStore';
+import { useClinicalRecordStore } from '../../clinical-record';
+import {
+    buildDiagnosticReportDraftFromReviewedLabs,
+    createDiagnosticReportDraftCandidates,
+} from '../../diagnostic-reports';
 import type {
     PendingLabSource,
     ReviewedLabReport,
     ReviewedLabRow,
 } from '../../diagnostic-reports';
+import { usePatientStore } from '../../patient-management/usePatientStore';
+import type { PendingLabReportReview } from '../../ui/UIContext';
 
 interface LabVerificationModalProps {
-    report: LabReport;
+    report: LabReport | PendingLabReportReview;
     source?: PendingLabSource;
-    onConfirm: (review: ReviewedLabReport) => void;
+    /**
+     * Retained temporarily for compatibility with the assistant shell. Phase 4
+     * intentionally does not invoke this legacy immediate-ingestion callback.
+     */
+    onConfirm?: (verifiedReport: LabReport) => void;
     onCancel: () => void;
 }
+
+const isPendingReview = (
+    value: LabReport | PendingLabReportReview,
+): value is PendingLabReportReview => 'reviewId' in value && 'report' in value;
 
 const initialRows = (report: LabReport): ReviewedLabRow[] =>
     report.labs.map(lab => ({
@@ -36,30 +54,55 @@ const isoDateTime = (value: string): string | undefined => {
         : parsed.toISOString();
 };
 
-const LabVerificationModal: React.FC<LabVerificationModalProps> = ({
-    report,
-    source,
-    onConfirm,
-    onCancel,
-}) => {
+const LabVerificationModal: React.FC<LabVerificationModalProps> = props => {
+    const pending = isPendingReview(props.report)
+        ? props.report
+        : {
+            reviewId: 'legacy-review',
+            report: props.report,
+        };
+    const extractedReport = pending.report;
+    const source = props.source || pending.source;
+    const activePatientId = usePatientStore(state => state.activePatientId);
+    const sourcePatientId = useClinicalRecordStore(state => {
+        if (!source) return undefined;
+        return Object.values(state.records).find(record =>
+            record.resources.documents.some(document =>
+                document.id === source.documentId
+                && document.verificationStatus === 'confirmed'))?.patientId;
+    });
+    const addMessage = useChatStore(state => state.actions.addMessage);
+    const logEvent = useAuditStore(state => state.actions.logEvent);
+    const { showToast } = useToast();
+
     const [reportTitle, setReportTitle] = useState('Laboratory report');
-    const [reportDate, setReportDate] = useState(report.date || '');
+    const [reportDate, setReportDate] = useState(extractedReport.date || '');
     const [issuedAt, setIssuedAt] = useState('');
     const [performer, setPerformer] = useState('');
     const [specimenType, setSpecimenType] = useState('');
     const [collectionDate, setCollectionDate] = useState('');
     const [interpretation, setInterpretation] = useState(
-        report.interpretation || '',
+        extractedReport.interpretation || '',
     );
     const [rows, setRows] = useState<ReviewedLabRow[]>(() =>
-        initialRows(report));
+        initialRows(extractedReport));
+    const [saving, setSaving] = useState(false);
+    const [saveError, setSaveError] = useState<string | null>(null);
 
     const invalidRowCount = useMemo(() => rows.filter(row =>
         !row.testName.trim() || !String(row.value).trim()).length, [rows]);
+    const patientMismatch = Boolean(
+        sourcePatientId
+        && activePatientId
+        && sourcePatientId !== activePatientId,
+    );
     const canSave = Boolean(
         source
+        && sourcePatientId
+        && !patientMismatch
         && rows.length > 0
-        && invalidRowCount === 0,
+        && invalidRowCount === 0
+        && !saving,
     );
 
     const updateRow = (
@@ -75,33 +118,90 @@ const LabVerificationModal: React.FC<LabVerificationModalProps> = ({
             rowIndex !== index));
     };
 
-    const handleConfirm = (): void => {
-        if (!canSave) return;
-        onConfirm({
-            reportTitle: reportTitle.trim() || 'Laboratory report',
-            reportDate: reportDate.trim(),
-            ...(isoDateTime(issuedAt) ? { issuedAt: isoDateTime(issuedAt) } : {}),
-            ...(performer.trim() ? { performer: performer.trim() } : {}),
-            ...(specimenType.trim()
-                ? { specimenType: specimenType.trim() }
-                : {}),
-            ...(collectionDate.trim()
-                ? { collectionDate: collectionDate.trim() }
-                : {}),
-            rows: rows.map(row => ({
-                ...row,
-                testName: row.testName.trim(),
-                value: String(row.value).trim(),
-                loinc: row.loinc?.trim() || undefined,
-                units: row.units?.trim() || '',
-                refRange: row.refRange?.trim() || '',
-                effectiveDate: row.effectiveDate?.trim() || undefined,
-                sourceExcerpt: row.sourceExcerpt?.trim() || undefined,
-            })),
-            ...(interpretation.trim()
-                ? { interpretation: interpretation.trim() }
-                : {}),
-        });
+    const reviewedReport = (): ReviewedLabReport => ({
+        reportTitle: reportTitle.trim() || 'Laboratory report',
+        reportDate: reportDate.trim(),
+        ...(isoDateTime(issuedAt) ? { issuedAt: isoDateTime(issuedAt) } : {}),
+        ...(performer.trim() ? { performer: performer.trim() } : {}),
+        ...(specimenType.trim()
+            ? { specimenType: specimenType.trim() }
+            : {}),
+        ...(collectionDate.trim()
+            ? { collectionDate: collectionDate.trim() }
+            : {}),
+        rows: rows.map(row => ({
+            ...row,
+            testName: row.testName.trim(),
+            value: String(row.value).trim(),
+            loinc: row.loinc?.trim() || undefined,
+            units: row.units?.trim() || '',
+            refRange: row.refRange?.trim() || '',
+            effectiveDate: row.effectiveDate?.trim() || undefined,
+            sourceExcerpt: row.sourceExcerpt?.trim() || undefined,
+        })),
+        ...(interpretation.trim()
+            ? { interpretation: interpretation.trim() }
+            : {}),
+    });
+
+    const handleSaveCandidates = (): void => {
+        if (!canSave || !source || !sourcePatientId) return;
+        setSaving(true);
+        setSaveError(null);
+        try {
+            const review = reviewedReport();
+            const draft = buildDiagnosticReportDraftFromReviewedLabs({
+                patientId: sourcePatientId,
+                source,
+                review,
+                extractedReport,
+            });
+            const result = createDiagnosticReportDraftCandidates(draft);
+            if (!result.ok) {
+                const details = result.issues
+                    .map(issue => `${issue.path || 'report'}: ${issue.message}`)
+                    .join(' · ');
+                const message = details
+                    || result.message
+                    || 'The report candidate graph could not be created.';
+                setSaveError(message);
+                showToast('Report candidates were not saved.', 'error');
+                return;
+            }
+
+            logEvent(
+                'DIAGNOSTIC_REPORT_GRAPH_CREATED',
+                sourcePatientId,
+                result.status === 'duplicate'
+                    ? 'Skipped a same-source duplicate diagnostic report graph.'
+                    : `Created a candidate diagnostic report graph with ${review.rows.length} reviewed result row${review.rows.length === 1 ? '' : 's'}.`,
+                'USER',
+                {
+                    graphId: result.graphId,
+                    reportId: result.reportId,
+                    documentId: source.documentId,
+                    fileName: source.fileName,
+                    rowCount: review.rows.length,
+                    duplicate: result.status === 'duplicate',
+                },
+            );
+
+            addMessage(sourcePatientId, {
+                role: 'model',
+                content: result.status === 'duplicate'
+                    ? `ℹ️ **Report already pending review**\nThe same source-linked report candidate graph already exists. No duplicate report, result, or specimen candidates were added.\n\nOpen **Health Data → Labs & Reports** to review it.`
+                    : `🧪 **Diagnostic report candidates saved**\nCreated one report candidate with ${review.rows.length} linked result candidate${review.rows.length === 1 ? '' : 's'}${review.specimenType || review.collectionDate ? ' and one specimen candidate' : ''}.\n\nNothing was confirmed automatically. Open **Health Data → Labs & Reports** and compare the complete graph with the original source before confirming or rejecting it.`,
+            });
+            showToast(
+                result.status === 'duplicate'
+                    ? 'The same report is already pending review.'
+                    : 'Report candidates saved for review.',
+                result.status === 'duplicate' ? 'info' : 'success',
+            );
+            props.onCancel();
+        } finally {
+            setSaving(false);
+        }
     };
 
     return (
@@ -131,7 +231,7 @@ const LabVerificationModal: React.FC<LabVerificationModalProps> = ({
                     </div>
                     <button
                         type="button"
-                        onClick={onCancel}
+                        onClick={props.onCancel}
                         aria-label="Close diagnostic report review"
                         className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30"
                     >
@@ -217,7 +317,7 @@ const LabVerificationModal: React.FC<LabVerificationModalProps> = ({
                             <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">
                                 Source document
                             </span>
-                            <div className={`mt-1.5 flex min-h-[42px] items-center gap-2 rounded-xl border px-3 py-2 text-xs ${source
+                            <div className={`mt-1.5 flex min-h-[42px] items-center gap-2 rounded-xl border px-3 py-2 text-xs ${source && sourcePatientId && !patientMismatch
                                 ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/25 dark:text-emerald-200'
                                 : 'border-red-200 bg-red-50 text-red-800 dark:border-red-900/60 dark:bg-red-950/25 dark:text-red-200'
                             }`}>
@@ -242,7 +342,7 @@ const LabVerificationModal: React.FC<LabVerificationModalProps> = ({
                     </section>
 
                     <section className="overflow-x-auto">
-                        <table className="min-w-[1050px] w-full border-collapse text-left text-sm">
+                        <table className="w-full min-w-[1050px] border-collapse text-left text-sm">
                             <thead className="sticky top-0 z-10 bg-slate-100 text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 dark:bg-slate-900 dark:text-slate-400">
                                 <tr>
                                     <th className="border-b border-slate-200 px-4 py-3 dark:border-slate-800">Test / observation</th>
@@ -385,28 +485,34 @@ const LabVerificationModal: React.FC<LabVerificationModalProps> = ({
 
                 <footer className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50 px-4 py-4 dark:border-slate-800 dark:bg-slate-900/80 md:flex-row md:items-center md:justify-between md:px-6">
                     <div className="text-xs leading-relaxed text-slate-500 dark:text-slate-400">
-                        {!source
-                            ? 'Candidate creation is blocked because no original uploaded document is linked. Upload the source report and run the review again.'
-                            : invalidRowCount > 0
-                                ? `${invalidRowCount} row${invalidRowCount === 1 ? '' : 's'} require a test name and original value.`
-                                : 'The saved graph stays pending until report-level confirmation in Labs & Reports.'}
+                        {saveError
+                            ? <span className="font-semibold text-red-600 dark:text-red-300">{saveError}</span>
+                            : !source
+                                ? 'Candidate creation is blocked because no original uploaded document is linked. Upload the source report and run the review again.'
+                                : patientMismatch
+                                    ? 'The source document belongs to another patient record. Return to that patient before saving this report.'
+                                    : !sourcePatientId
+                                        ? 'The confirmed source-document record is not ready. Keep this review open while local document registration completes.'
+                                        : invalidRowCount > 0
+                                            ? `${invalidRowCount} row${invalidRowCount === 1 ? '' : 's'} require a test name and original value.`
+                                            : 'The saved graph stays pending until report-level confirmation in Labs & Reports.'}
                     </div>
                     <div className="flex flex-shrink-0 justify-end gap-2">
                         <button
                             type="button"
-                            onClick={onCancel}
+                            onClick={props.onCancel}
                             className="rounded-xl px-4 py-2.5 text-xs font-bold text-slate-600 transition-colors hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800"
                         >
                             Discard review
                         </button>
                         <button
                             type="button"
-                            onClick={handleConfirm}
+                            onClick={handleSaveCandidates}
                             disabled={!canSave}
                             className="flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-blue-500/20 transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                             <CheckIcon className="h-4 w-4" />
-                            Save report candidates
+                            {saving ? 'Saving…' : 'Save report candidates'}
                         </button>
                     </div>
                 </footer>
