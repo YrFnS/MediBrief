@@ -135,6 +135,16 @@ const OpenMedSettingsPanel: React.FC<OpenMedSettingsPanelProps> = props => {
                 </div>
             </div>
 
+            <div
+                role="note"
+                className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs leading-relaxed text-blue-900 dark:border-blue-900/60 dark:bg-blue-950/25 dark:text-blue-200"
+            >
+                <p className="font-bold">Accepted language boundary</p>
+                <p className="mt-1">
+                    English-dominant text may use the configured condition and medication models, but every result still requires source review. Arabic, mixed-script, other non-Latin, and measurement-only text are preserved as document evidence while default local clinical NER and English assertion context remain blocked. An OCR engine recognizing Arabic characters does not enable Arabic clinical extraction.
+                </p>
+            </div>
+
             <fieldset>
                 <legend className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-400">
                     Extraction route
