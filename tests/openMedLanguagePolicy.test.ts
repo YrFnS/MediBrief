@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { assessOpenMedClinicalLanguage } from '../features/openmed';
 
 describe('OpenMed clinical language routing', () => {
-    it('allows the evaluated English/default-model route for Latin-dominant clinical text', () => {
+    it('allows the evaluated English/default-model route only with lexical evidence', () => {
         const result = assessOpenMedClinicalLanguage(
             'Patient has asthma and takes albuterol 2 puffs twice daily.',
         );
@@ -10,12 +10,36 @@ describe('OpenMed clinical language routing', () => {
         expect(result).toMatchObject({
             route: 'evaluated-english-defaults',
             inferredLanguage: 'en',
-            basis: 'script-heuristic',
+            basis: 'script-and-lexical-heuristic',
             allowDefaultClinicalNer: true,
             allowEnglishContext: true,
             fallbackEligible: false,
         });
         expect(result.evidence.latinShare).toBe(1);
+        expect(result.evidence.englishMarkers).toEqual(
+            expect.arrayContaining(['daily', 'has', 'patient', 'takes', 'twice']),
+        );
+        expect(result.evidence.englishMarkerCount).toBeGreaterThanOrEqual(2);
+    });
+
+    it('does not confuse Latin script with established English', () => {
+        const spanish = assessOpenMedClinicalLanguage(
+            'El paciente tiene asma y usa albuterol.',
+        );
+        const isolatedLabels = assessOpenMedClinicalLanguage(
+            'Asthma albuterol metformin',
+        );
+
+        expect(spanish).toMatchObject({
+            route: 'latin-script-language-unverified',
+            inferredLanguage: 'unknown',
+            allowDefaultClinicalNer: false,
+            allowEnglishContext: false,
+            fallbackEligible: true,
+        });
+        expect(isolatedLabels.route).toBe('latin-script-language-unverified');
+        expect(isolatedLabels.evidence.englishMarkerCount).toBe(0);
+        expect(spanish.message).toContain('Latin script alone does not establish English');
     });
 
     it('keeps Arabic text as source evidence but blocks unevaluated default clinical NER', () => {
@@ -32,6 +56,7 @@ describe('OpenMed clinical language routing', () => {
         });
         expect(result.message).toContain('Arabic text was preserved');
         expect(result.message).toContain('clinical NER was skipped');
+        expect(result.message).toContain('Arabic OCR capability');
         expect(result.evidence.arabicShare).toBe(1);
     });
 
@@ -67,11 +92,12 @@ describe('OpenMed clinical language routing', () => {
 
     it('tolerates a small number of non-Latin symbols in an English note', () => {
         const result = assessOpenMedClinicalLanguage(
-            'The patient takes a β-blocker for hypertension.',
+            'The patient takes a β-blocker with treatment continuing daily.',
         );
 
         expect(result.route).toBe('evaluated-english-defaults');
         expect(result.allowDefaultClinicalNer).toBe(true);
         expect(result.evidence.otherLetters).toBe(1);
+        expect(result.evidence.englishMarkerCount).toBeGreaterThanOrEqual(2);
     });
 });
