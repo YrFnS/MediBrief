@@ -382,6 +382,8 @@ const DiagnosticReportReviewWorkspace: React.FC<
                 return;
             }
 
+            const excludedResultCount = seed.draft.results.filter(resultItem =>
+                !includedResultIds.has(resultItem.localId)).length;
             logEvent(
                 'DIAGNOSTIC_REPORT_REVIEW_CONFIRMED',
                 patientId,
@@ -393,8 +395,7 @@ const DiagnosticReportReviewWorkspace: React.FC<
                     createdResourceIds: result.commit.createdResourceIds,
                     resultCount: result.bundle.observations.length,
                     specimenCount: result.bundle.specimens.length,
-                    excludedResultCount:
-                        seed.draft.results.length - includedResultIds.size,
+                    excludedResultCount,
                     reviewEvidence: finalDraft.reviewEvidence,
                     warnings: result.bundle.warnings,
                 },
@@ -417,12 +418,20 @@ const DiagnosticReportReviewWorkspace: React.FC<
     const excludedCount = seed.draft.results.length
         - [...includedResultIds].filter(localId =>
             seed.draft.results.some(result => result.localId === localId)).length;
-    const resultChangeCount = Object.values(
+    const resultChangeCount = Object.keys(
         evidence?.resultChanges || {},
-    ).reduce((total, changes) => total + changes.length, 0);
-    const specimenChangeCount = Object.values(
+    ).reduce(
+        (total, localId) => total
+            + (evidence?.resultChanges?.[localId]?.length || 0),
+        0,
+    );
+    const specimenChangeCount = Object.keys(
         evidence?.specimenChanges || {},
-    ).reduce((total, changes) => total + changes.length, 0);
+    ).reduce(
+        (total, localId) => total
+            + (evidence?.specimenChanges?.[localId]?.length || 0),
+        0,
+    );
 
     return (
         <div
