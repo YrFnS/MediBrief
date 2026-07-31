@@ -51,7 +51,7 @@ describe('OpenMed clinical language routing', () => {
         expect(result.evidence.arabicLetters).toBeGreaterThan(0);
     });
 
-    it('does not invent a language route for numeric or punctuation-only content', () => {
+    it('does not invent a language route for measurement-only content', () => {
         const result = assessOpenMedClinicalLanguage('120/80 · 98% · 37.0°C');
 
         expect(result).toMatchObject({
@@ -61,7 +61,8 @@ describe('OpenMed clinical language routing', () => {
             allowEnglishContext: false,
             fallbackEligible: true,
         });
-        expect(result.evidence.totalLetters).toBe(0);
+        expect(result.evidence.totalLetters).toBe(1);
+        expect(result.message).toContain('not enough alphabetic clinical text');
     });
 
     it('tolerates a small number of non-Latin symbols in an English note', () => {
