@@ -5,6 +5,7 @@ import type {
     OpenMedOcrEngine,
     OpenMedOcrMode,
 } from './documentTypes';
+import type { OpenMedLanguageAssessment } from './languagePolicy';
 
 export type ClinicalExtractionMode = 'auto' | 'openmed' | 'gemini';
 
@@ -108,6 +109,7 @@ export interface OpenMedExtractionResult {
     contextStatus?: OpenMedContextApplicationStatus;
     contextAppliedCount?: number;
     documentExtraction?: OpenMedDocumentExtractionResponse;
+    languageAssessment?: OpenMedLanguageAssessment;
 }
 
 export interface OpenMedExtractionSettings {
