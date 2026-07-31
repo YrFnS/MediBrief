@@ -11,12 +11,6 @@ on:
     paths:
       - scripts/apply_phase4_slice4.py
       - .github/workflows/apply-phase4-slice4.yml
-  push:
-    branches:
-      - agent/phase-4-diagnostic-report-pipeline
-    paths:
-      - scripts/apply_phase4_slice4.py
-      - .github/workflows/apply-phase4-slice4.yml
 
 permissions:
   contents: write
@@ -90,7 +84,25 @@ jobs:
           exit_code=$?
 
           if [ "$exit_code" -eq 0 ]; then
-            rm scripts/apply_phase4_slice4.py .github/workflows/apply-phase4-slice4.yml
+            python - <<'PY' >> "$log" 2>&1
+          from pathlib import Path
+
+          path = Path('tests/diagnosticReportReviewWorkspace.test.ts')
+          text = path.read_text(encoding='utf-8')
+          old = "expect(workspace).toContain('validateDiagnosticReportBundleGraph');"
+          new = "expect(workspace).toContain('validateConflictAwareDiagnosticReportBundle');"
+          if text.count(old) != 1:
+              raise SystemExit('Expected the legacy review-workspace validator contract exactly once.')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+            exit_code=$?
+          fi
+
+          if [ "$exit_code" -eq 0 ]; then
+            rm -f \
+              scripts/apply_phase4_slice4.py \
+              scripts/phase4_slice4_failure.log \
+              .github/workflows/apply-phase4-slice4.yml
             run_step "Install dependencies" npm install --no-audit --no-fund
             exit_code=$?
           fi
@@ -115,7 +127,8 @@ jobs:
         if: steps.validate.outputs.exit_code != '0'
         shell: bash
         run: |
-          git reset --hard HEAD
+          git fetch origin agent/phase-4-diagnostic-report-pipeline
+          git reset --hard origin/agent/phase-4-diagnostic-report-pipeline
           cp /tmp/phase4-slice4-validation.log scripts/phase4_slice4_failure.log
           git config user.name "MediBrief automation"
           git config user.email "actions@users.noreply.github.com"
