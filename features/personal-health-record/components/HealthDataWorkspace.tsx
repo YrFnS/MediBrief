@@ -3,16 +3,20 @@ import {
     ActivityIcon,
     AlertTriangleIcon,
     BriefingIcon,
+    ClockIcon,
     DocumentTextIcon,
     DrugsIcon,
+    ListChecksIcon,
     RecordIcon,
     ShieldCheckIcon,
     UserIcon,
 } from '../../../components/icons';
 import { selectCandidateResources } from '../../clinical-record/selectors';
 import type { PatientClinicalRecord } from '../../clinical-record/types';
-import type { HealthDataModule } from '../coreModuleTypes';
+import type { PersonalHealthDataModule } from '../planningModuleTypes';
 import AllergiesModule from './AllergiesModule';
+import AppointmentsModule from './AppointmentsModule';
+import CarePlansModule from './CarePlansModule';
 import ConditionsModule from './ConditionsModule';
 import DocumentsModule from './DocumentsModule';
 import ImmunizationsModule from './ImmunizationsModule';
@@ -20,6 +24,7 @@ import MedicationsModule from './MedicationsModule';
 import NotesModule from './NotesModule';
 import ProceduresModule from './ProceduresModule';
 import ResultsModule from './ResultsModule';
+import TasksModule from './TasksModule';
 import VisitsModule from './VisitsModule';
 
 interface HealthDataWorkspaceProps {
@@ -28,7 +33,7 @@ interface HealthDataWorkspaceProps {
 }
 
 const MODULES: Array<{
-    value: HealthDataModule;
+    value: PersonalHealthDataModule;
     label: string;
     shortLabel: string;
     description: string;
@@ -97,13 +102,34 @@ const MODULES: Array<{
         description: 'Local sources and relationships',
         icon: DocumentTextIcon,
     },
+    {
+        value: 'appointments',
+        label: 'Appointments',
+        shortLabel: 'Appts',
+        description: 'Proposals and recorded booking states',
+        icon: ClockIcon,
+    },
+    {
+        value: 'tasks',
+        label: 'Tasks & Reminders',
+        shortLabel: 'Tasks',
+        description: 'Follow-up, due states, and ownership',
+        icon: ListChecksIcon,
+    },
+    {
+        value: 'care-plans',
+        label: 'Care Plans',
+        shortLabel: 'Plans',
+        description: 'Conditions, activities, and plan history',
+        icon: BriefingIcon,
+    },
 ];
 
 const HealthDataWorkspace: React.FC<HealthDataWorkspaceProps> = ({
     record,
     onReviewCandidates,
 }) => {
-    const [module, setModule] = useState<HealthDataModule>('conditions');
+    const [module, setModule] = useState<PersonalHealthDataModule>('conditions');
     const candidateCounts = useMemo(() => {
         const candidates = selectCandidateResources(record);
         return {
@@ -126,7 +152,13 @@ const HealthDataWorkspace: React.FC<HealthDataWorkspaceProps> = ({
                 resource.resourceType === 'Immunization').length,
             documents: candidates.filter(resource =>
                 resource.resourceType === 'DocumentReference').length,
-        } satisfies Record<HealthDataModule, number>;
+            appointments: candidates.filter(resource =>
+                resource.resourceType === 'Appointment').length,
+            tasks: candidates.filter(resource =>
+                resource.resourceType === 'ClinicalTask').length,
+            'care-plans': candidates.filter(resource =>
+                resource.resourceType === 'CarePlan').length,
+        } satisfies Record<PersonalHealthDataModule, number>;
     }, [record]);
 
     return (
@@ -227,6 +259,24 @@ const HealthDataWorkspace: React.FC<HealthDataWorkspaceProps> = ({
             )}
             {module === 'documents' && (
                 <DocumentsModule
+                    record={record}
+                    onReviewCandidates={onReviewCandidates}
+                />
+            )}
+            {module === 'appointments' && (
+                <AppointmentsModule
+                    record={record}
+                    onReviewCandidates={onReviewCandidates}
+                />
+            )}
+            {module === 'tasks' && (
+                <TasksModule
+                    record={record}
+                    onReviewCandidates={onReviewCandidates}
+                />
+            )}
+            {module === 'care-plans' && (
+                <CarePlansModule
                     record={record}
                     onReviewCandidates={onReviewCandidates}
                 />
