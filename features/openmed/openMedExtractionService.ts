@@ -31,11 +31,20 @@ export const extractOpenMedCandidatesFromUpload = async ({
     signal?: AbortSignal;
 }): Promise<OpenMedExtractionResult> => {
     const localText = extractLocalTextFromUpload(file);
-    if (localText.status !== 'ready' || !localText.text) {
+    if (localText.status !== 'ready') {
         return {
             status: localText.status,
             entities: [],
             warnings: [localText.message],
+        };
+    }
+    if (!localText.text) {
+        return {
+            status: 'invalid',
+            entities: [],
+            warnings: [
+                'The local decoder reported ready text without a text payload.',
+            ],
         };
     }
 
