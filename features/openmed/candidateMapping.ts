@@ -3,7 +3,6 @@ import { createUnknownClinicalDate } from '../clinical-record/factories';
 import type {
     ConditionRecord,
     MedicationRecord,
-    PatientClinicalResource,
     RecordSource,
 } from '../clinical-record/types';
 import type {
@@ -27,7 +26,6 @@ const MEDICATION_LABELS = new Set([
     'MEDICATION',
     'PHARMACEUTICAL',
     'SUBSTANCE',
-    'TREATMENT',
 ]);
 
 const normalizedText = (value: string): string =>
@@ -217,7 +215,7 @@ export const mapOpenMedEntitiesToCandidates = ({
     fileName: string;
     entities: OpenMedCandidateEntity[];
     now?: string;
-}): PatientClinicalResource[] =>
+}): Array<ConditionRecord | MedicationRecord> =>
     deduplicateOpenMedEntities(entities).map(entity =>
         mapOpenMedEntityToCandidate({
             patientId,
