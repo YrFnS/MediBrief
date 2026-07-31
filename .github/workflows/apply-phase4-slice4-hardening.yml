@@ -1,0 +1,66 @@
+name: Apply Phase 4 Slice 4 Hardening
+
+on:
+  pull_request:
+    branches:
+      - agent/phase-3-openmed-extraction
+    types:
+      - opened
+      - reopened
+      - synchronize
+    paths:
+      - scripts/apply_phase4_slice4_hardening.py
+      - .github/workflows/apply-phase4-slice4-hardening.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    name: Apply, validate, and publish lineage hardening
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out Phase 4 branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/phase-4-diagnostic-report-pipeline
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Apply hardening patch
+        run: python scripts/apply_phase4_slice4_hardening.py
+
+      - name: Remove temporary patch machinery
+        run: rm scripts/apply_phase4_slice4_hardening.py .github/workflows/apply-phase4-slice4-hardening.yml
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Run automated tests
+        run: npm run test:run
+
+      - name: Build production application
+        run: npm run build:app
+
+      - name: Commit and push validated hardening
+        run: |
+          git config user.name "MediBrief automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && { echo "No hardening changes were produced."; exit 1; }
+          git commit -m "fix: harden diagnostic duplicate and supersession rules"
+          git push origin HEAD:agent/phase-4-diagnostic-report-pipeline
