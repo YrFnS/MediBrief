@@ -1,3 +1,5 @@
+export { default as DiagnosticReportReviewWorkspace } from './components/DiagnosticReportReviewWorkspace';
+export { default as DiagnosticReportSourcePane } from './components/DiagnosticReportSourcePane';
 export * from './graph';
 export * from './legacyLabReview';
 export * from './reviewAmendments';
