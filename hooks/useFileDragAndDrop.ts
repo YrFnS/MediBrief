@@ -1,85 +1,131 @@
-
-import React, { useState, useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import type { UploadedFile } from '../types';
+import { isOpenMedTextFile } from '../features/openmed/documentText';
 import { blobStorage } from '../services/blobStorageService';
+import type { UploadedFile } from '../types';
+
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+
+const MIME_BY_EXTENSION: Record<string, string> = {
+    csv: 'text/csv',
+    htm: 'text/html',
+    html: 'text/html',
+    json: 'application/json',
+    markdown: 'text/markdown',
+    md: 'text/markdown',
+    text: 'text/plain',
+    tsv: 'text/tab-separated-values',
+    txt: 'text/plain',
+    xml: 'application/xml',
+};
+
+const fileExtension = (name: string): string =>
+    name.toLowerCase().match(/\.([a-z0-9]+)$/)?.[1] || '';
+
+const resolvedMimeType = (file: File): string =>
+    file.type
+    || MIME_BY_EXTENSION[fileExtension(file.name)]
+    || 'application/octet-stream';
+
+const isSupportedUpload = (file: File): boolean =>
+    file.type.startsWith('image/')
+    || file.type === 'application/pdf'
+    || fileExtension(file.name) === 'pdf'
+    || isOpenMedTextFile({ file, type: resolvedMimeType(file) });
 
 export const useFileDragAndDrop = () => {
     const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null);
     const [isDragging, setIsDragging] = useState(false);
 
-    const handleDragOver = useCallback((e: React.DragEvent) => {
-        e.preventDefault();
+    const handleDragOver = useCallback((event: React.DragEvent) => {
+        event.preventDefault();
         if ('ontouchstart' in window || navigator.maxTouchPoints > 0) return;
-        if (!e.dataTransfer.types.includes('Files')) return;
+        if (!event.dataTransfer.types.includes('Files')) return;
         if (!isDragging) setIsDragging(true);
     }, [isDragging]);
 
-    const handleDragLeave = useCallback((e: React.DragEvent) => {
-        e.preventDefault();
-        if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+    const handleDragLeave = useCallback((event: React.DragEvent) => {
+        event.preventDefault();
+        if (event.currentTarget.contains(event.relatedTarget as Node)) return;
         setIsDragging(false);
     }, []);
 
     const processFile = useCallback(async (file: File) => {
-        if (file.size > 10 * 1024 * 1024) { 
-            alert("File is too large. Please select a file smaller than 10MB.");
+        if (file.size > MAX_UPLOAD_BYTES) {
+            alert('File is too large. Please select a file smaller than 10 MB.');
             return;
         }
-        const isSupported = file.type.startsWith('image/') || file.type === 'application/pdf' || file.type === 'text/plain' || file.name.endsWith('.md') || file.name.endsWith('.txt');
-        if (!isSupported) {
-             alert("Unsupported file type. Please upload Images, PDFs, or Text files.");
-             return;
+        if (!isSupportedUpload(file)) {
+            alert(
+                'Unsupported file type. Upload an image, PDF, TXT, Markdown, CSV, TSV, JSON, XML, or HTML file.',
+            );
+            return;
         }
 
+        const mimeType = resolvedMimeType(file);
         const reader = new FileReader();
         reader.onloadend = async () => {
-            const base64 = (reader.result as string).split(',')[1];
+            if (typeof reader.result !== 'string') {
+                alert('The selected file could not be read.');
+                return;
+            }
+            const base64 = reader.result.split(',')[1];
+            if (!base64) {
+                alert('The selected file did not contain readable data.');
+                return;
+            }
             const storageId = uuidv4();
-            
-            // Persist to IndexedDB immediately to prevent memory issues
+
             try {
-                await blobStorage.saveFile(storageId, base64, file.type);
-            } catch (e) {
-                console.error("Failed to save to IDB", e);
+                await blobStorage.saveFile(storageId, base64, mimeType);
+            } catch (error) {
+                console.error('Failed to save the uploaded file locally.', error);
+                alert('The file could not be saved in the local vault.');
+                return;
             }
 
-            const uploadPayload: UploadedFile = { 
-                file, 
-                base64, // Keep base64 active for the *immediate* API call
-                type: file.type,
-                storageId 
+            const uploadPayload: UploadedFile = {
+                file,
+                base64,
+                type: mimeType,
+                storageId,
             };
-            
-            if (file.type.startsWith('image/')) {
+
+            if (mimeType.startsWith('image/')) {
                 uploadPayload.url = URL.createObjectURL(file);
             }
             setUploadedFile(uploadPayload);
         };
+        reader.onerror = () => {
+            alert('The selected file could not be read.');
+        };
         reader.readAsDataURL(file);
     }, []);
 
-    const handleDrop = useCallback((e: React.DragEvent) => {
-        e.preventDefault();
+    const handleDrop = useCallback((event: React.DragEvent) => {
+        event.preventDefault();
         setIsDragging(false);
-        const file = e.dataTransfer.files?.[0];
-        if (file) processFile(file);
+        const file = event.dataTransfer.files?.[0];
+        if (file) void processFile(file);
     }, [processFile]);
 
     const clearFile = useCallback(() => {
-        setUploadedFile(null);
+        setUploadedFile(current => {
+            if (current?.url) URL.revokeObjectURL(current.url);
+            return null;
+        });
     }, []);
 
     return {
         uploadedFile,
-        setUploadedFile, // Updated to potentially handle manual sets if needed
-        processFile, // Exposed for input[type=file]
+        setUploadedFile,
+        processFile,
         isDragging,
         clearFile,
         dragHandlers: {
             onDragOver: handleDragOver,
             onDragLeave: handleDragLeave,
-            onDrop: handleDrop
-        }
+            onDrop: handleDrop,
+        },
     };
 };
