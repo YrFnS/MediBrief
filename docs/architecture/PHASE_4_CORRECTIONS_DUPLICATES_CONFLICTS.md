@@ -15,9 +15,9 @@ Reverse “superseded by” views are derived from the new resources. Historical
 
 The detector compares only reviewed structured evidence and reports why a match was raised:
 
-- **Exact duplicate** — strong source/accession identity or same clinical event evidence with identical structured results. Confirmation is blocked until the reviewer chooses “duplicate”; no new clinical resource is written.
+- **Exact duplicate** — a shared source document or accession identity with identical structured results. Confirmation is blocked until the reviewer chooses “duplicate”; no new clinical resource is written.
 - **Same-event conflict** — shared source/accession identity with differing result content. Confirmation is blocked until the reviewer records `corrects`, `amends`, `replaces`, or an explicit distinct-report decision.
-- **Possible duplicate** — same reviewed title/date with meaningful result overlap but no strong event identifier. This is advisory because two legitimate reports may share those characteristics.
+- **Possible duplicate** — same reviewed title/date with meaningful or even identical result content but no strong event identifier. This is advisory because two legitimate reports may share those characteristics.
 
 No fuzzy title match alone can delete or merge data.
 
@@ -34,7 +34,7 @@ Status and relationship must agree: `amends` requires an amended report, while `
 
 ## Result lineage
 
-For corrected, amended, and replacement reports, member results are paired deterministically by confirmed LOINC identity or exact reviewed name plus specimen context. Matched new observations point to one predecessor observation. Unmatched rows remain legitimate additions; prior rows omitted from the new report remain preserved in the older report.
+For corrected, amended, and replacement reports, member results are paired deterministically by confirmed LOINC identity or exact reviewed name plus specimen context. Matched new observations point to one predecessor observation. Unmatched rows remain legitimate additions. Prior rows omitted from the new report remain preserved in the older report and become superseded through report lineage even when no one-to-one successor row exists.
 
 A predecessor cannot be superseded by multiple observations in the same version.
 

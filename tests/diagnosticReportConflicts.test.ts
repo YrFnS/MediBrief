@@ -234,6 +234,97 @@ describe('Phase 4 corrected report lineage and conflict resolution', () => {
         );
     });
 
+    it('moves an omitted member of a corrected report into immutable history', () => {
+        const originalDraft = draft({ documentId: 'source-1', value: '13.2' });
+        originalDraft.results.push({
+            localId: 'platelets',
+            testName: 'Platelets',
+            loincCode: '777-3',
+            status: 'final',
+            categoryTexts: ['Laboratory'],
+            valueText: '250',
+            unitText: '10*3/uL',
+            referenceRangeText: '150 - 400',
+            clinicalDate: '2026-07-31',
+            specimenLocalId: 'blood',
+            source: { pageNumber: 1, excerpt: 'Platelets 250 10*3/uL' },
+        });
+        const first = buildAndCommitReviewedDiagnosticReport(
+            originalDraft,
+            { now: NOW, committedAt: NOW, actor: 'tester', idFactory: ids('v1') },
+        );
+        const corrected = buildAndCommitReviewedDiagnosticReport(
+            draft({
+                documentId: 'source-3',
+                value: '12.8',
+                status: 'corrected',
+                conflictResolution: {
+                    relatedReportId: first.commit.reportId!,
+                    decision: 'corrects',
+                    reason: 'The corrected report intentionally omits the prior platelet row.',
+                },
+            }),
+            { now: NOW, committedAt: NOW, actor: 'tester', idFactory: ids('v2') },
+        );
+        const record = useClinicalRecordStore.getState().actions
+            .getPatientRecord(PATIENT_ID)!;
+        const originalReport = record.resources.diagnosticReports.find(item =>
+            item.id === first.commit.reportId)!;
+        const originalPlatelets = record.resources.observations.find(item =>
+            originalReport.resultIds.includes(item.id)
+            && item.code.text === 'Platelets')!;
+        const plateletView = buildDiagnosticResultsIntelligence(record)
+            .supersededResults.find(item => item.id === originalPlatelets.id)!;
+
+        expect(plateletView).toMatchObject({
+            isSuperseded: true,
+            supersededByObservationIds: [],
+            supersededByReportIds: [corrected.commit.reportId],
+        });
+        expect(buildDiagnosticResultsIntelligence(record).trendExclusions)
+            .toContainEqual(expect.objectContaining({
+                observationId: originalPlatelets.id,
+                reason: 'superseded-result',
+            }));
+    });
+
+    it('keeps identical same-day reports advisory when accessions and sources differ', () => {
+        const first = buildAndCommitReviewedDiagnosticReport(
+            draft({ documentId: 'source-1', value: '13.2', accession: 'ACC-A' }),
+            { now: NOW, committedAt: NOW, actor: 'tester', idFactory: ids('v1') },
+        );
+        expect(first.commit.ok).toBe(true);
+
+        const secondDraft = draft({
+            documentId: 'source-4',
+            value: '13.2',
+            accession: 'ACC-B',
+        });
+        const record = useClinicalRecordStore.getState().actions
+            .getPatientRecord(PATIENT_ID)!;
+        const bundle = buildReviewedDiagnosticReportBundle(secondDraft, {
+            now: NOW,
+            actor: 'tester',
+            idFactory: ids('distinct-identical'),
+            record,
+        });
+        const analysis = analyzeDiagnosticReportConflicts(record, bundle);
+        const committed = buildAndCommitReviewedDiagnosticReport(secondDraft, {
+            now: NOW,
+            committedAt: NOW,
+            actor: 'tester',
+            idFactory: ids('distinct-identical'),
+        });
+
+        expect(analysis.candidates[0]).toMatchObject({
+            kind: 'possible-duplicate',
+            blocking: false,
+            recommendedDecision: 'distinct',
+        });
+        expect(analysis.requiresResolution).toBe(false);
+        expect(committed.commit.status).toBe('created');
+    });
+
     it('keeps a same-day similar report advisory when no strong event identifier matches', () => {
         const first = buildAndCommitReviewedDiagnosticReport(
             draft({ documentId: 'source-1', value: '13.2', accession: 'ACC-A' }),

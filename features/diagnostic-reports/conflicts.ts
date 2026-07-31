@@ -231,10 +231,13 @@ const compareCandidate = ({
             ? 'amends'
             : 'corrects';
     } else if (sameTitle && sameDate && exactContent) {
-        kind = 'exact-duplicate';
-        score = 90;
-        blocking = true;
-        recommendedDecision = 'duplicate';
+        kind = 'possible-duplicate';
+        score = 85;
+        blocking = false;
+        recommendedDecision = 'distinct';
+        evidence.push(
+            'No shared source document or accession identifier was found, so identical same-day content remains advisory.',
+        );
     } else if (sameTitle && sameDate && overlap >= 0.5) {
         kind = 'possible-duplicate';
         score = Math.round(60 + overlap * 25);

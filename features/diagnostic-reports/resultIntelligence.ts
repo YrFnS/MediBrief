@@ -70,6 +70,7 @@ export interface DiagnosticResultView {
     note?: string;
     isSuperseded: boolean;
     supersededByObservationIds: string[];
+    supersededByReportIds: string[];
     lineage?: ObservationRecord['lineage'];
 }
 
@@ -509,11 +510,13 @@ const resultView = ({
     observation,
     reports,
     successorIds,
+    supersededByReportIds,
 }: {
     record: PatientClinicalRecord;
     observation: ObservationRecord;
     reports: DiagnosticReportRecord[];
     successorIds: string[];
+    supersededByReportIds: string[];
 }): DiagnosticResultView => {
     const date = clinicalDateForObservation(observation);
     const labels = resultValueLabels(observation);
@@ -547,8 +550,10 @@ const resultView = ({
             }
             : {}),
         ...(observation.note ? { note: observation.note } : {}),
-        isSuperseded: successorIds.length > 0,
+        isSuperseded:
+            successorIds.length > 0 || supersededByReportIds.length > 0,
         supersededByObservationIds: successorIds,
+        supersededByReportIds,
         ...(observation.lineage ? { lineage: observation.lineage } : {}),
     };
 };
@@ -833,11 +838,19 @@ export const buildDiagnosticResultsIntelligence = (
     const membership = reportMembership(reports);
     const resultViews = new Map<string, DiagnosticResultView>();
     observations.forEach(observation => {
+        const reportMemberships = membership.get(observation.id) || [];
+        const supersededByReportIds = reportMemberships.length > 0
+            && reportMemberships.every(report =>
+                reportSuccessorMap.has(report.id))
+            ? [...new Set(reportMemberships.flatMap(report =>
+                reportSuccessorMap.get(report.id) || []))]
+            : [];
         resultViews.set(observation.id, resultView({
             record,
             observation,
-            reports: membership.get(observation.id) || [],
+            reports: reportMemberships,
             successorIds: observationSuccessorMap.get(observation.id) || [],
+            supersededByReportIds,
         }));
     });
 
@@ -894,7 +907,9 @@ export const buildDiagnosticResultsIntelligence = (
             record,
             observation,
             reports: membership.get(observation.id) || [],
-            superseded: observationSuccessorMap.has(observation.id),
+            superseded:
+                resultViews.get(observation.id)?.isSuperseded
+                || observationSuccessorMap.has(observation.id),
         });
         if (result.candidate) trendCandidates.push(result.candidate);
         if (result.exclusion) trendExclusions.push(result.exclusion);
@@ -954,6 +969,7 @@ export const diagnosticResultMatchesSearch = (
         result.lineage?.relationship,
         result.lineage?.predecessorObservationId,
         result.supersededByObservationIds.join(' '),
+        result.supersededByReportIds.join(' '),
     ].some(value => normalizeText(value).includes(normalized));
 };
 

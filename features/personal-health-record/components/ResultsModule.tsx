@@ -168,7 +168,10 @@ const ResultCard: React.FC<{
                     )}
                     {result.isSuperseded && (
                         <p className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-2 text-[10px] leading-relaxed text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
-                            Superseded by {result.supersededByObservationIds.join(', ')}. This value is excluded from current trends but remains source-reviewable.
+                            {result.supersededByObservationIds.length > 0
+                                ? `Superseded by observation ${result.supersededByObservationIds.join(', ')}.`
+                                : `The containing report was superseded by report ${result.supersededByReportIds.join(', ')}.`}
+                            {' '}This value is excluded from current trends but remains source-reviewable.
                         </p>
                     )}
 
