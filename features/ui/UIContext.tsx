@@ -1,27 +1,35 @@
-
-import React, { createContext, useContext, useReducer, useEffect } from 'react';
+import React, {
+    createContext,
+    useContext,
+    useEffect,
+    useReducer,
+} from 'react';
 import { ChatMode } from '../../types';
-import { LabReport } from '../chat/schemas';
+import type { LabReport } from '../chat/schemas';
+import type { PendingLabSource } from '../diagnostic-reports';
 
-// --- State Definition ---
+export interface PendingLabReportReview {
+    reviewId: string;
+    report: LabReport;
+    source?: PendingLabSource;
+}
 
 export interface UIState {
     isLoading: boolean;
     error: string | null;
     chatMode: ChatMode;
-    pendingLabReport: LabReport | null; // Quarantine state for OCR verification
+    pendingLabReport: PendingLabReportReview | null;
 }
-
-// --- Actions ---
 
 export type UIAction =
     | { type: 'SET_LOADING'; payload: boolean }
     | { type: 'SET_ERROR'; payload: string | null }
     | { type: 'SET_CHAT_MODE'; payload: ChatMode }
-    | { type: 'SET_PENDING_LAB_REPORT'; payload: LabReport | null }
+    | {
+        type: 'SET_PENDING_LAB_REPORT';
+        payload: PendingLabReportReview | null;
+    }
     | { type: 'CLEAR_ERROR' };
-
-// --- Initial State ---
 
 const STORAGE_KEY_MODE = 'mediBrief_chatMode_v1';
 
@@ -31,7 +39,9 @@ const getInitialMode = (): ChatMode => {
         if (saved && Object.values(ChatMode).includes(saved as ChatMode)) {
             return saved as ChatMode;
         }
-    } catch (e) { }
+    } catch {
+        // Session storage can be unavailable in privacy-restricted contexts.
+    }
     return ChatMode.Standard;
 };
 
@@ -41,8 +51,6 @@ const initialState: UIState = {
     chatMode: getInitialMode(),
     pendingLabReport: null,
 };
-
-// --- Reducer ---
 
 const uiReducer = (state: UIState, action: UIAction): UIState => {
     switch (action.type) {
@@ -61,8 +69,6 @@ const uiReducer = (state: UIState, action: UIAction): UIState => {
     }
 };
 
-// --- Context ---
-
 interface UIContextType {
     uiState: UIState;
     uiDispatch: React.Dispatch<UIAction>;
@@ -70,23 +76,24 @@ interface UIContextType {
 
 const UIContext = createContext<UIContextType | undefined>(undefined);
 
-export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const UIProvider: React.FC<{ children: React.ReactNode }> = ({
+    children,
+}) => {
     const [uiState, uiDispatch] = useReducer(uiReducer, initialState);
 
-    // Persistence
     useEffect(() => {
         sessionStorage.setItem(STORAGE_KEY_MODE, uiState.chatMode);
     }, [uiState.chatMode]);
 
     return React.createElement(UIContext.Provider, {
-        value: { uiState, uiDispatch }
+        value: { uiState, uiDispatch },
     }, children);
 };
 
-export const useUIStore = () => {
+export const useUIStore = (): UIContextType => {
     const context = useContext(UIContext);
     if (!context) {
-        throw new Error("useUIStore must be used within a UIProvider");
+        throw new Error('useUIStore must be used within a UIProvider');
     }
     return context;
 };
