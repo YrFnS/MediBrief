@@ -97,6 +97,23 @@ export const deduplicateOpenMedEntities = (
     });
 };
 
+const methodLabel = (entity: OpenMedCandidateEntity): string => {
+    const evidence = entity.documentEvidence;
+    if (!evidence) return 'Locally decoded source text';
+    const method = evidence.method === 'embedded-pdf'
+        ? 'Embedded PDF text'
+        : evidence.method === 'ocr'
+            ? 'OCR-derived text'
+            : evidence.method === 'hybrid'
+                ? 'Hybrid PDF/OCR text'
+                : 'Locally derived text';
+    if (evidence.pageNumbers.length === 0) return method;
+    if (evidence.pageNumbers.length === 1) {
+        return `${method} · page ${evidence.pageNumbers[0]}`;
+    }
+    return `${method} · pages ${evidence.pageNumbers.join(', ')}`;
+};
+
 const candidateSource = ({
     documentId,
     fileName,
@@ -110,22 +127,27 @@ const candidateSource = ({
     document: {
         documentId,
         fileName,
+        ...(entity.documentEvidence?.pageNumber
+            ? { pageNumber: entity.documentEvidence.pageNumber }
+            : {}),
         startOffset: entity.start,
         endOffset: entity.end,
         excerpt: entity.text,
-        section: entity.context?.section?.label || 'Locally decoded source text',
+        section: entity.context?.section?.label || methodLabel(entity),
     },
     externalSystem: 'openmed:rest',
     externalId: [
         documentId,
         entity.kind,
         entity.modelName,
+        entity.documentEvidence?.textSha256 || 'direct-text',
         entity.start,
         entity.end,
         normalizedText(entity.text),
     ].join(':'),
-    description:
-        'Candidate extracted locally by OpenMed named-entity recognition. Assertion context, when present, remains advisory and reviewable.',
+    description: entity.documentEvidence
+        ? 'Candidate extracted locally by OpenMed from page-aware derived PDF or OCR text. The original uploaded file remains authoritative, and all assertion context remains reviewable.'
+        : 'Candidate extracted locally by OpenMed named-entity recognition. Assertion context, when present, remains advisory and reviewable.',
 });
 
 /**
@@ -192,6 +214,24 @@ const contextAmendment = (
     };
 };
 
+const documentAmendment = (
+    entity: OpenMedCandidateEntity,
+): ClinicalAmendment | null => {
+    const evidence = entity.documentEvidence;
+    if (!evidence) return null;
+    return {
+        id: uuidv4(),
+        amendedAt: evidence.extractedAt,
+        amendedBy: evidence.engine,
+        reason:
+            'Page-aware local PDF/OCR provenance attached to this extraction candidate. Derived text remains secondary to the original uploaded document.',
+        changedFields: ['provenance.source.document'],
+        previousValues: {
+            openMedDocumentEvidence: evidence,
+        },
+    };
+};
+
 const candidateBase = ({
     patientId,
     source,
@@ -203,7 +243,10 @@ const candidateBase = ({
     entity: OpenMedCandidateEntity;
     now: string;
 }) => {
-    const amendment = contextAmendment(entity);
+    const amendments = [
+        documentAmendment(entity),
+        contextAmendment(entity),
+    ].filter((item): item is ClinicalAmendment => !!item);
     return {
         id: uuidv4(),
         patientId,
@@ -216,7 +259,9 @@ const candidateBase = ({
         provenance: {
             source,
             createdAt: now,
-            updatedAt: entity.context?.evaluatedAt || now,
+            updatedAt: entity.context?.evaluatedAt
+                || entity.documentEvidence?.extractedAt
+                || now,
             extraction: {
                 engine: 'OpenMed local REST NER',
                 model: entity.modelName,
@@ -227,11 +272,14 @@ const candidateBase = ({
                 extractedAt: now,
             },
         },
-        amendments: amendment ? [amendment] : [],
+        amendments,
         tags: [
             'local-extraction',
             'needs-review',
             'openmed-extracted',
+            ...(entity.documentEvidence
+                ? ['openmed-document-text', `openmed-${entity.documentEvidence.method}`]
+                : []),
             ...(entity.context ? ['openmed-context'] : []),
             ...(entity.context?.medicationSig ? ['openmed-medication-sig'] : []),
         ],
@@ -290,6 +338,18 @@ const contextSummary = (entity: OpenMedCandidateEntity): string => {
     ].join(' ');
 };
 
+const documentSummary = (entity: OpenMedCandidateEntity): string => {
+    const evidence = entity.documentEvidence;
+    if (!evidence) return '';
+    const pages = evidence.pageNumbers.length > 0
+        ? `page${evidence.pageNumbers.length === 1 ? '' : 's'} ${evidence.pageNumbers.join(', ')}`
+        : 'an unresolved page';
+    const confidence = evidence.averageOcrConfidence === undefined
+        ? ''
+        : ` Average OCR confidence for the covered words was ${Math.round(evidence.averageOcrConfidence * 100)}%.`;
+    return `The span came from ${evidence.method} on ${pages}.${confidence} Character offsets refer to the derived local text; the original uploaded document is authoritative.`;
+};
+
 export const mapOpenMedEntityToCandidate = ({
     patientId,
     documentId,
@@ -314,8 +374,9 @@ export const mapOpenMedEntityToCandidate = ({
             clinicalStatus: 'unknown',
             note: [
                 'OpenMed identified a disease or condition span.',
+                documentSummary(entity),
                 contextSummary(entity),
-            ].join(' '),
+            ].filter(Boolean).join(' '),
         };
     }
 
@@ -332,11 +393,12 @@ export const mapOpenMedEntityToCandidate = ({
             : {}),
         note: [
             'OpenMed identified a medication-related span.',
+            documentSummary(entity),
             contextSummary(entity),
             entity.context?.medicationSig
                 ? `Medication instructions were parsed from the local source window; unresolved fields: ${entity.context.medicationSig.missing.join(', ') || 'none listed'}.`
                 : 'Dose, route, frequency, duration, indication, status, and patient attribution require review.',
-        ].join(' '),
+        ].filter(Boolean).join(' '),
     };
 };
 
