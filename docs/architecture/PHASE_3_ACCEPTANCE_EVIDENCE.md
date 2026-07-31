@@ -12,7 +12,8 @@ It is not accepted as:
 - a substitute for reviewing the original source;
 - a validated Arabic clinical-NER or assertion-context system;
 - proof that a configured OCR engine is accurate on a particular document;
-- proof that OpenMed or Gemini is more accurate than another provider.
+- proof that OpenMed or Gemini is more accurate than another provider;
+- a general-purpose language detector.
 
 Every extracted clinical statement remains:
 
@@ -33,7 +34,9 @@ Direct text / embedded PDF text / local OCR
         ↓
 Strict derived-text, page, hash, and offset validation
         ↓
-OpenMed condition and medication NER
+Conservative language-route assessment
+        ↓
+OpenMed condition and medication NER when eligible
         ↓
 Evidence-backed English assertion-context enrichment when eligible
         ↓
@@ -50,13 +53,16 @@ The original uploaded file remains authoritative. Derived text, OCR geometry, co
 
 | Source evidence | Local OCR | Default condition/medication NER | English assertion context | Application decision |
 |---|---:|---:|---:|---|
-| English-dominant clinical text | Optional | Allowed for candidate generation | Allowed when the bridge is available | Candidate-only route |
-| Arabic-dominant text | Allowed when the selected engine supports it | Blocked | Blocked | Preserve source text and pages; do not create default local clinical candidates |
-| Mixed Latin/Arabic or mixed-script text | Allowed when supported | Blocked | Blocked | Preserve for manual review |
+| Latin-dominant text with sufficient English routing evidence | Optional | Allowed for candidate generation | Allowed when the bridge is available | Candidate-only English route |
+| Latin-dominant text without sufficient English routing evidence | Optional | Blocked | Blocked | Preserve source text; route remains unverified |
+| Arabic-dominant text | Allowed when the selected OCR engine supports it | Blocked | Blocked | Preserve source text and pages; create no default local clinical candidates |
+| Mixed Latin/Arabic or other mixed-script text | Allowed when supported | Blocked | Blocked | Preserve for manual review |
 | Other non-Latin text | Allowed when supported | Blocked | Blocked | Preserve for manual review |
 | Numeric, punctuation, or measurement-only text | Not relevant or optional | Blocked | Blocked | Language route remains undetermined |
 
-The language detector is deliberately a conservative script heuristic, not a claim of general language identification.
+The router is deliberately a **script-and-lexical heuristic**, not a claim of comprehensive language identification.
+
+Latin script alone does not establish English. Isolated diagnoses and medication names are not language evidence because many clinical terms are shared internationally. The English/default-model route requires multiple distinct English clinical or function-word markers in addition to Latin-script dominance.
 
 A small amount of non-Latin notation in a substantive English note does not block the English route. A single unit suffix, such as the `C` in a temperature measurement, is not enough evidence to classify a measurement-only string as English.
 
@@ -70,7 +76,7 @@ Phase 3 separates three capabilities:
 
 Evidence for one capability does not establish the others.
 
-The repository now includes a PHI-free Arabic clinical-NER gold corpus and metric tooling, but no accepted measured prediction file from a named Arabic clinical model. The accepted application route therefore remains:
+The repository includes a PHI-free Arabic clinical-NER gold corpus and metric tooling, but no accepted measured prediction file from a named Arabic clinical model. The accepted application route therefore remains:
 
 ```text
 Arabic OCR/source preservation: allowed when available
@@ -118,21 +124,48 @@ The evaluators also accept measured files captured from a named model or OCR eng
 
 The `--require-measured-predictions` gates fail when contract fixtures are supplied where measured evidence is required.
 
+Phase 3 architecture acceptance does not pretend that deployment-specific runtime accuracy was measured in CI. Instead, it provides reproducible capture and scoring tools while preserving conservative application routing.
+
 ## PHI-free evaluation assets
 
 The Phase 3 evaluation workspace contains:
 
 - a 12-case English condition/medication span corpus;
 - a 6-case Arabic research corpus whose application route remains blocked;
-- English and Arabic OCR text/page fixtures;
+- English and Arabic OCR text/page references;
 - exact-span OpenMed-shaped contract predictions;
 - separate Gemini-shaped contract predictions;
 - OCR contract predictions;
-- a live OpenMed prediction-capture command;
+- a live OpenMed NER prediction-capture command;
+- a live local document-bridge OCR prediction-capture command;
+- an example PHI-free OCR fixture manifest;
 - independent NER and OCR metric evaluators;
 - a provider comparison command.
 
 These assets make future measured evaluation reproducible without weakening the current application boundary.
+
+## Live measurement commands
+
+Measured OpenMed NER output can be captured from a running local service with:
+
+```bash
+python -m openmed_bridge.capture_ner_predictions \
+  --gold evaluation/phase3/clinical_ner_en_gold.json \
+  --output evaluation/phase3/clinical_ner_en_openmed_measured.json \
+  --base-url http://127.0.0.1:8080
+```
+
+Measured OCR output can be captured from the local document bridge with:
+
+```bash
+python -m openmed_bridge.capture_ocr_predictions \
+  --gold evaluation/phase3/ocr_gold.json \
+  --fixtures evaluation/phase3/ocr_fixture_manifest.local.json \
+  --output evaluation/phase3/ocr_measured.json \
+  --base-url http://127.0.0.1:8080
+```
+
+Fixture files must be PHI-free and match the committed gold text exactly. Capturing Arabic OCR output does not enable Arabic clinical NER or context.
 
 ## Provider comparison boundary
 
@@ -155,7 +188,7 @@ The comparison tool does not:
 - change the user's extraction settings;
 - report contract fixtures as provider performance.
 
-A real provider decision requires separately captured measured outputs and an explicit review of precision, recall, span correctness, failure modes, cost, privacy, and operational availability.
+A real provider decision requires separately captured measured outputs and explicit review of precision, recall, span correctness, failure modes, cost, privacy, and operational availability.
 
 ## Fallback policy
 
@@ -185,11 +218,12 @@ Each candidate can preserve distinct evidence for:
 3. page and character offsets;
 4. word bounding boxes and OCR confidence where available;
 5. source-file and derived-text hashes;
-6. OpenMed NER model and confidence;
-7. assertion-context engine, cues, sections, and medication instructions;
-8. human review corrections and amendments.
+6. language-route evidence;
+7. OpenMed NER model and confidence;
+8. assertion-context engine, cues, sections, and medication instructions;
+9. human review corrections and amendments.
 
-OCR confidence is never represented as NER confidence, and assertion context is never attributed to the NER model.
+OCR confidence is never represented as NER confidence, assertion context is never attributed to the NER model, and a script heuristic is never represented as clinical-model evidence.
 
 ## Failure and recovery acceptance
 
@@ -212,7 +246,7 @@ Retries preserve attempt counts, warnings, hashes, and candidate counts. Same-so
 
 The accepted Phase 3 branch must pass, in one GitHub Actions workflow:
 
-- all Python bridge and evaluation tests;
+- all Python bridge, capture, comparison, and evaluation tests;
 - the synthetic English context gate;
 - NER/OCR metric-contract validation;
 - separate OpenMed/Gemini comparison-contract validation;
@@ -228,6 +262,7 @@ The final validated commit and exact totals are recorded in PR #3 after the comp
 - Deployment OCR availability remains engine- and operating-system-specific.
 - Real medical scans, handwriting, stamps, rotated pages, dense tables, and poor contrast remain unvalidated.
 - English model quality remains model-, version-, threshold-, and corpus-specific.
+- The script-and-lexical router can decline ambiguous English text; this is a deliberate fail-closed tradeoff.
 - Arabic clinical NER and Arabic assertion context remain unsupported.
 - Mixed-script clinical extraction remains unsupported.
 - Allergy relationship extraction remains deferred.
