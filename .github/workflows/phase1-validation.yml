@@ -5,10 +5,12 @@ on:
     branches:
       - main
       - agent/phase-1-clinical-foundation
+      - agent/phase-2-personal-health-record
   push:
     branches:
       - agent/phase-1-clinical-foundation
       - agent/phase-2-personal-health-record
+      - agent/phase-3-openmed-extraction
 
 permissions:
   contents: read
