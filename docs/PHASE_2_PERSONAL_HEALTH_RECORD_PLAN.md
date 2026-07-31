@@ -5,7 +5,7 @@
 > **Branch:** `agent/phase-2-personal-health-record`  
 > **Base:** `agent/phase-1-clinical-foundation`  
 > **Started:** 2026-07-31  
-> **Current focus:** Slice 5 — Manual entry, amendments, and entered-in-error workflows
+> **Current focus:** Slice 6 — Cross-record search, export, accessibility, responsive validation, and final Phase 2 acceptance
 
 ## Product goal
 
@@ -23,6 +23,9 @@ Phase 2 makes the structured clinical record understandable and useful without r
 - Appointment dates do not imply bookings.
 - Reminders are local views over confirmed tasks, not external notifications or clinical orders.
 - Proposal, plan, option, and order intents never imply external execution.
+- Manual entries are schema-validated and explicitly confirmed by the user.
+- Confirmed-record corrections require a reason and preserve prior values.
+- Reviewed history is never hard-deleted; incorrect records remain visible as entered-in-error history.
 - Emergency summaries are generated deterministically from confirmed structured data.
 - Chat is an assistant surface, not the primary navigation model or medical record.
 - Every view supports sparse records and grows naturally as resources are added.
@@ -50,7 +53,7 @@ Status: `[x] Complete`
 - `features/layout/Phase2Workspace.tsx` owns the top-level destination.
 - The assistant opens the existing assistant layout only when a provider key is available.
 - Without a key, only the Assistant workspace is gated; the medical record remains available.
-- Health Data contains scalable internal navigation for domain-specific clinical modules.
+- Health Data contains scalable internal navigation for domain-specific clinical modules and record management.
 
 ## P2.1 — Patient overview
 
@@ -181,13 +184,32 @@ Status: `[x] Complete for the current versioned schema`
 
 ## P2.5 — Manual entry and correction
 
-Status: `[ ] Not started`
+Status: `[x] Complete`
 
-- [ ] Add safe manual-entry forms for supported resource types.
-- [ ] Add amendment flows for confirmed records.
-- [ ] Add entered-in-error flows with required reasons.
-- [ ] Preserve prior values and provenance.
-- [ ] Validate dates, quantities, relationships, and required clinical fields before persistence.
+- [x] Add safe guided manual-entry forms for 13 structured resource types.
+- [x] Save successful manual entries as explicitly confirmed user-entered resources with manual provenance.
+- [x] Keep documents in the existing upload workflow so binary assets and metadata remain connected.
+- [x] Add amendment flows for confirmed records.
+- [x] Require a non-empty correction reason.
+- [x] Preserve stable resource IDs, previous field values, changed-field lists, actors, timestamps, and reasons.
+- [x] Add entered-in-error flows with a required reason and explicit acknowledgement.
+- [x] Keep entered-in-error records in protected history while excluding them from confirmed patient views.
+- [x] Validate required fields, dates, date-times, quantities, value types, statuses, intents, priorities, and clinical schemas before persistence.
+- [x] Validate patient-scoped relationships and expose broken or invalid targets before persistence.
+- [x] Prevent clinical notes from amending themselves.
+- [x] Preserve nested structures that the compact correction form does not safely replace.
+- [x] Add a searchable history view across confirmed, candidate, rejected, and entered-in-error resources.
+- [x] Show provenance, source preview, amendment reasons, changed fields, and retained previous values.
+- [x] Add explicit audit events for manual creation, amendment, and entered-in-error transitions.
+
+### P2.5 implementation notes
+
+- `features/personal-health-record/manualRecordManagement.ts` owns deterministic form definitions, resource construction, schema validation, date parsing, relationship checks, correction previews, and history summaries.
+- `features/personal-health-record/components/RecordManagementModule.tsx` provides Add, Correct / invalidate, and History workflows.
+- Unknown clinical dates remain explicit; storage time is never substituted.
+- Manually authored clinical notes may use the current authored timestamp because the note is created at that moment.
+- Multiple allergy reactions, medication dosage arrays, task relationships, and note-section arrays are preserved by compact correction forms. When those structures are wrong, the safe workflow is entered-in-error plus a replacement record.
+- See `docs/architecture/PHASE_2_MANUAL_RECORD_MANAGEMENT.md`.
 
 ## P2.6 — Search, export, accessibility, and acceptance evidence
 
@@ -202,9 +224,10 @@ Status: `[-] In progress`
 - [x] Add core clinical-module behavior tests.
 - [x] Add longitudinal-module behavior tests.
 - [x] Add planning and follow-up behavior tests.
-- [x] Add source-level uncertainty, provenance, booking-boundary, reminder-boundary, care-plan-intent, device-boundary, document-date, and medication-boundary guards.
+- [x] Add manual-entry, correction, entered-in-error, relationship, and history behavior tests.
+- [x] Add source-level uncertainty, provenance, booking-boundary, reminder-boundary, care-plan-intent, device-boundary, document-date, medication-boundary, correction-reason, and no-hard-delete guards.
 - [x] Extend GitHub Actions validation to the Phase 2 branch and stacked PR.
-- [x] Run repository type-check, automated tests, and production build for Slices 1–4.
+- [x] Run repository type-check, automated tests, and production build for Slices 1–5.
 - [ ] Record final Phase 2 acceptance evidence after every Phase 2 slice is complete.
 
 ---
@@ -308,38 +331,57 @@ Status: `[x] Complete`
 
 ### Slice 4 validation
 
-The complete repository pipeline passed after aligning one source-level wording guard with the actual UI sentence:
-
 - TypeScript: `tsc --noEmit` passed.
 - Test files: **22 of 22 passed**.
 - Tests: **91 of 91 passed**.
 - Production build: `vite build` passed.
 - Production modules transformed: **1017**.
 
-The implementation behavior tests passed on the first complete run. One source-level regression expected the phrase `does not prove` while the UI sentence used the equivalent construction `or prove`; the guard was corrected to match the actual safety copy without weakening the semantic requirement.
-
-The build continues to report the existing non-blocking bundle-size, mixed-import, and runtime stylesheet warnings. These remain a separate performance workstream.
+One source-level regression expected the phrase `does not prove` while the UI sentence used the equivalent construction `or prove`; the guard was corrected to match the actual safety copy without weakening the semantic requirement.
 
 See `docs/architecture/PHASE_2_PLANNING_FOLLOW_UP.md`.
 
 ## Slice 5 — Manual entry and amendments
 
-Status: `[ ] Not started`
+Status: `[x] Complete`
 
-- Resource forms
-- Corrections and amendments
-- Entered-in-error handling
-- Provenance review
-- Field and relationship validation
+- [x] Guided resource forms for 13 supported structured resource types
+- [x] Confirmed manual-entry provenance
+- [x] Required-field, date, quantity, value-type, status, and relationship validation
+- [x] Confirmed-record corrections with required reasons
+- [x] Stable IDs and retained previous values
+- [x] Entered-in-error handling with explicit acknowledgement
+- [x] Protected reviewed history instead of hard deletion
+- [x] Searchable verification and amendment history
+- [x] Original-source preview
+- [x] Manual-change audit events
+- [x] Repository type-check, tests, and production build
+
+### Slice 5 validation
+
+The complete repository pipeline passed after correcting one exact-phrase source guard to match the actual unknown-date warning:
+
+- TypeScript: `tsc --noEmit` passed.
+- Test files: **24 of 24 passed**.
+- Tests: **100 of 100 passed**.
+- Production build: `vite build` passed.
+- Production modules transformed: **1019**.
+
+The behavior tests passed before the wording correction. The only failed assertion expected a different sentence for the already-implemented rule that blank clinical dates remain unknown; the source guard was aligned with the actual UI copy.
+
+The build continues to report the existing non-blocking bundle-size, mixed-import, and runtime stylesheet warnings. These remain a separate performance workstream.
+
+See `docs/architecture/PHASE_2_MANUAL_RECORD_MANAGEMENT.md`.
 
 ## Slice 6 — Search, export, and final validation
 
-Status: `[ ] Not started`
+Status: `[-] In progress`
 
-- Cross-record search
-- Patient summary export
-- Accessibility and responsive validation
-- Phase 2 acceptance suite
+- [ ] Cross-record search
+- [ ] Complete patient-summary export
+- [ ] Keyboard and screen-reader validation
+- [ ] Responsive layout validation
+- [ ] Phase 2 acceptance suite and evidence
 
 ---
 
@@ -359,6 +401,9 @@ Status: `[ ] Not started`
 | 2026-07-31 | Treat appointment status—not the presence of a date—as the booking state. | A requested time can exist without clinic acceptance or reservation. |
 | 2026-07-31 | Derive reminders from confirmed task due dates without creating external notifications or orders. | The current local app can accurately present follow-up state without claiming external execution. |
 | 2026-07-31 | Display care-plan and task intent exactly while keeping execution unconfirmed. | Proposal, plan, option, and order semantics must not be collapsed into completed care. |
+| 2026-07-31 | Save guided manual entries as confirmed user facts only after schema validation. | Manual entry is an explicit user assertion rather than an extraction candidate, but it still requires the same strict resource contract. |
+| 2026-07-31 | Require reasons for confirmed-record corrections and entered-in-error transitions. | Clinical history must explain why it changed and retain the prior values rather than silently replacing or deleting them. |
+| 2026-07-31 | Preserve complex nested structures when the compact correction form cannot safely edit them. | Partial array replacement could destroy reaction, dosage, relationship, or note-section details; entered-in-error plus replacement is safer. |
 
 ---
 
@@ -371,12 +416,13 @@ Status: `[ ] Not started`
 | 2026-07-31 | P2.4 / Slice 2 | Added Conditions, Allergies, Medications, and Results modules with search, filters, history, provenance, source preview, and strict unknown-date/original-value behavior. | Repository type-check passed; 18/18 test files and 72/72 tests passed; production build passed with 1006 modules transformed. | `feat: add core clinical record modules` |
 | 2026-07-31 | P2.4 / Slice 3 | Added Visits, Notes, Procedures/device evidence, Immunizations, and Documents modules with cross-resource links, source review, and clinically honest sparse states. | Repository type-check passed; 20/20 test files and 82/82 tests passed; production build passed with 1012 modules transformed. | `feat: add longitudinal record modules` |
 | 2026-07-31 | P2.4 / Slice 4 | Added Appointments, Tasks/Reminders, and Care Plans modules with explicit booking and execution boundaries, due-state logic, relationships, and source review. | Repository type-check passed; 22/22 test files and 91/91 tests passed; production build passed with 1017 modules transformed. | `feat: add planning and follow-up modules` |
+| 2026-07-31 | P2.5 / Slice 5 | Added guided manual entry, confirmed-record corrections, entered-in-error handling, retained prior values, relationship validation, history review, source preview, and audit events. | Repository type-check passed; 24/24 test files and 100/100 tests passed; production build passed with 1019 modules transformed. | `feat: add manual record management` |
 
 ---
 
 # Current open questions and deferred choices
 
-These do not block the completed Slices 1–4:
+These do not block the completed Slices 1–5:
 
 - Whether to adopt official FHIR TypeScript definitions later or retain the smaller application-owned subset.
 - How to add a backward-compatible, versioned standalone Device resource and migrate existing procedure/document evidence.
@@ -387,3 +433,4 @@ These do not block the completed Slices 1–4:
 - Whether a global review inbox should complement the patient-scoped review queue.
 - When to remove the dual-written legacy observation store after compatibility tests pass.
 - Whether the assistant should later become an embedded panel inside the record shell instead of temporarily reusing the existing full assistant layout.
+- Whether later forms should add dedicated editors for complex repeated structures such as multiple allergy reactions, medication dosages, task relationships, and multi-section notes.
