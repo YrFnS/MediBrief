@@ -44,6 +44,29 @@ jobs:
         with:
           node-version: 24
 
+      - name: Repair staged patch script syntax
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('scripts/apply_phase4_slice4.py')
+          text = path.read_text(encoding='utf-8')
+          needle = """    \"\"\"import { validateDiagnosticReportBundleGraph } from '../graph';
+          \"\"\",
+              \"\"\",
+          )
+          """
+          replacement = """    \"\"\"import { validateDiagnosticReportBundleGraph } from '../graph';
+          \"\"\",
+              \"\",
+          )
+          """
+          if text.count(needle) != 1:
+              raise SystemExit('Could not find the staged empty-string syntax defect exactly once.')
+          path.write_text(text.replace(needle, replacement, 1), encoding='utf-8')
+          PY
+
       - name: Apply and validate Slice 4
         id: validate
         shell: bash
@@ -96,7 +119,7 @@ jobs:
           cp /tmp/phase4-slice4-validation.log scripts/phase4_slice4_failure.log
           git config user.name "MediBrief automation"
           git config user.email "actions@users.noreply.github.com"
-          git add scripts/phase4_slice4_failure.log
+          git add -f scripts/phase4_slice4_failure.log
           git commit -m "chore: record phase 4 slice 4 validation failure"
           git push origin HEAD:agent/phase-4-diagnostic-report-pipeline
           exit 1
