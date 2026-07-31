@@ -46,7 +46,6 @@ const PersonalHealthRecordShell: React.FC<PersonalHealthRecordShellProps> = ({
                     record={record}
                     onOpenTimeline={() => onNavigate('timeline')}
                     onOpenEmergency={() => onNavigate('emergency')}
-                    onOpenHealthData={() => onNavigate('health-data')}
                 />
             );
         case 'health-data':
