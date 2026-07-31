@@ -117,6 +117,31 @@ const ObservationDraftSchema = z.object({
     }
 });
 
+const ReviewFieldChangeSchema = z.object({
+    field: z.string().trim().min(1),
+    previousValue: z.unknown().optional(),
+}).strict();
+
+const ExcludedResultEvidenceSchema = z.object({
+    localId: z.string().trim().min(1),
+    testName: z.string().trim().min(1),
+    previousValue: ObservationDraftSchema,
+}).strict();
+
+const ReviewEvidenceSchema = z.object({
+    reason: z.string().trim().min(1),
+    reportChanges: z.array(ReviewFieldChangeSchema).optional(),
+    resultChanges: z.record(
+        z.string().trim().min(1),
+        z.array(ReviewFieldChangeSchema),
+    ).optional(),
+    specimenChanges: z.record(
+        z.string().trim().min(1),
+        z.array(ReviewFieldChangeSchema),
+    ).optional(),
+    excludedResults: z.array(ExcludedResultEvidenceSchema).optional(),
+}).strict();
+
 export const ReviewedDiagnosticReportDraftSchema = z.object({
     patientId: z.string().trim().min(1),
     reportTitle: z.string().trim().min(1),
@@ -144,6 +169,7 @@ export const ReviewedDiagnosticReportDraftSchema = z.object({
     verificationStatus: z.enum(['candidate', 'confirmed']).optional(),
     reviewedAt: optionalTrimmed,
     reviewedBy: optionalTrimmed,
+    reviewEvidence: ReviewEvidenceSchema.optional(),
 }).strict().superRefine((draft, context) => {
     const specimenIds = (draft.specimens || []).map(specimen => specimen.localId);
     if (new Set(specimenIds).size !== specimenIds.length) {
@@ -173,6 +199,26 @@ export const ReviewedDiagnosticReportDraftSchema = z.object({
                 code: z.ZodIssueCode.custom,
                 path: ['results', index, 'specimenLocalId'],
                 message: `Unknown specimenLocalId: ${result.specimenLocalId}`,
+            });
+        }
+    });
+
+    const knownResults = new Set(resultIds);
+    Object.keys(draft.reviewEvidence?.resultChanges || {}).forEach(localId => {
+        if (!knownResults.has(localId)) {
+            context.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['reviewEvidence', 'resultChanges', localId],
+                message: `Review evidence references unknown result ${localId}`,
+            });
+        }
+    });
+    Object.keys(draft.reviewEvidence?.specimenChanges || {}).forEach(localId => {
+        if (!knownSpecimens.has(localId)) {
+            context.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['reviewEvidence', 'specimenChanges', localId],
+                message: `Review evidence references unknown specimen ${localId}`,
             });
         }
     });
