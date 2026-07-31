@@ -1,1 +1,1 @@
-openmed[hf,service]>=2.0,<3
+openmed[hf,service,multimodal]>=2.0,<3
