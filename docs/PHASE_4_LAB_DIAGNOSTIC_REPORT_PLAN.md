@@ -68,6 +68,7 @@ Status: `[x] Complete for the Slice 1 compatibility layer`
 - [x] Preserve specimen identifiers, collection method, body site, collector, and notes without discarding source evidence.
 - [x] Preserve absent-result reasons and result method/body-site evidence.
 - [x] Preserve exact clinical dates and issue timestamps without inventing missing values.
+- [x] Distinguish an omitted result date from an explicitly unknown result date.
 - [x] Keep all graph output backward-compatible with existing Phase 1–3 records and backups.
 - [x] Add strict Zod validation for reviewed report drafts.
 - [x] Add cross-resource diagnostic graph validation.
@@ -137,6 +138,7 @@ Status: `[-] In progress`
 - [x] Add specimen/report/result relationship tests.
 - [x] Add patient, source-document, resource-conflict, and duplicate-report validation tests.
 - [x] Add atomic-write and no-partial-mutation tests.
+- [x] Add explicit-unknown versus inherited result-date tests.
 - [x] Run TypeScript, all automated tests, and production build for Slice 1.
 - [ ] Add report-review and correction-history tests.
 - [ ] Add panel, trend, normalization, duplicate-lineage, and conflict tests.
@@ -154,6 +156,7 @@ Delivered:
 
 - reviewed report, specimen, result, identifier, and source-span contracts;
 - numeric, comparator, qualitative, absent, text, date, issue-time, reference-range, interpretation, and conservative unit parsing;
+- explicit distinction between omitted dates and reviewed-as-unknown dates;
 - connected `DiagnosticReport`, `Observation`, and `Specimen` construction;
 - candidate or explicitly reviewed/confirmed output;
 - strict graph validation;
@@ -165,11 +168,13 @@ Delivered:
 
 Validation at the completed Slice 1 head:
 
+- Validated branch head: `0d18b2adeaafee91a3f93e42110bbcf5b6cc6c21`.
+- GitHub Actions run: **463** (`30659686134`).
 - Python bridge and evaluation tests: **24 / 24 passed**.
 - TypeScript: `tsc --noEmit` passed.
-- TypeScript test files: **37 / 37 passed**.
-- TypeScript tests: **163 / 163 passed**.
-- Phase 4 diagnostic foundation tests: **9 / 9 passed**.
+- TypeScript test files: **38 / 38 passed**.
+- TypeScript tests: **165 / 165 passed**.
+- Phase 4 diagnostic tests: **11 / 11 passed**.
 - Production build: passed.
 - Production modules transformed: **1046**.
 - Main bundle: approximately **1.99 MB minified / 536 kB gzip**.
@@ -226,6 +231,8 @@ Planned delivery:
 | Report, observations, and specimens form one patient-scoped graph | Passed |
 | Original source document remains authoritative and linked | Passed |
 | Unknown clinical dates remain unknown | Passed |
+| Explicitly unknown result dates do not inherit the report date | Passed |
+| Omitted result dates may inherit known report context | Passed |
 | Numeric comparators are preserved | Passed |
 | Qualitative, textual, and absent results remain distinct | Passed |
 | Reference-range source text is retained | Passed |
@@ -248,6 +255,7 @@ Planned delivery:
 | 2026-07-31 | Extend the report pipeline backward-compatibly before replacing the UI. | Existing local records and backups must continue to hydrate. |
 | 2026-07-31 | Require atomic diagnostic graph writes. | A report without its referenced results or specimens is an invalid partial record. |
 | 2026-07-31 | Preserve original result strings even when a structured value can be parsed. | Source truth must survive parsing and normalization. |
+| 2026-07-31 | Treat `null` as explicitly unknown and `undefined` as eligible for report-context inheritance. | A reviewed unknown date must not silently become the report date. |
 | 2026-07-31 | Keep reference ranges contextual and non-diagnostic. | A range can vary by laboratory, method, population, age, sex, specimen, and other context. |
 | 2026-07-31 | Keep LOINC and UCUM optional evidence rather than inferred authority. | Coding or normalization must not replace the source report or create unsupported clinical meaning. |
 
@@ -257,4 +265,4 @@ Planned delivery:
 
 | Date | Slice | Work completed | Validation |
 |---|---|---|---|
-| 2026-07-31 | Slice 1 | Branch, plan, reviewed-report drafts, value parsing, diagnostic graph construction, graph validation, atomic persistence, duplicate protection, source-document linking, tests, and architecture note. | 24/24 Python tests; 37/37 TypeScript files; 163/163 TypeScript tests; build passed with 1046 modules. |
+| 2026-07-31 | Slice 1 | Branch, plan, reviewed-report drafts, value parsing, diagnostic graph construction, graph validation, atomic persistence, duplicate protection, source-document linking, explicit-unknown date policy, tests, and architecture note. | 24/24 Python tests; 38/38 TypeScript files; 165/165 TypeScript tests; build passed with 1046 modules. |
