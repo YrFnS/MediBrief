@@ -28,7 +28,7 @@ interface ResultsModuleProps {
     onReviewCandidates: () => void;
 }
 
-type WorkspaceView = 'overview' | 'panels' | 'trends' | 'other';
+type WorkspaceView = 'overview' | 'panels' | 'trends' | 'other' | 'history';
 
 const formatNumber = new Intl.NumberFormat(undefined, {
     maximumFractionDigits: 4,
@@ -129,6 +129,14 @@ const ResultCard: React.FC<{
                         {result.flagged && (
                             <StatusBadge tone="warning">Source flag</StatusBadge>
                         )}
+                        {result.isSuperseded && (
+                            <StatusBadge tone="warning">Superseded history</StatusBadge>
+                        )}
+                        {result.lineage && (
+                            <StatusBadge tone="info">
+                                {result.lineage.relationship} prior result
+                            </StatusBadge>
+                        )}
                     </div>
 
                     <p className="mt-3 text-[9px] font-mono font-bold uppercase tracking-wider text-slate-400">
@@ -150,6 +158,17 @@ const ResultCard: React.FC<{
                     {result.normalizationWarning && (
                         <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-[10px] leading-relaxed text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200">
                             Normalization warning: {result.normalizationWarning}
+                        </p>
+                    )}
+
+                    {result.lineage && (
+                        <p className="mt-2 rounded-lg border border-blue-200 bg-blue-50 p-2 text-[10px] leading-relaxed text-blue-800 dark:border-blue-900/50 dark:bg-blue-950/20 dark:text-blue-200">
+                            This result {result.lineage.relationship} observation {result.lineage.predecessorObservationId}. The prior value remains preserved in history.
+                        </p>
+                    )}
+                    {result.isSuperseded && (
+                        <p className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-2 text-[10px] leading-relaxed text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+                            Superseded by {result.supersededByObservationIds.join(', ')}. This value is excluded from current trends but remains source-reviewable.
                         </p>
                     )}
 
@@ -227,6 +246,9 @@ const PanelCard: React.FC<{
                             : 'neutral'}>
                             {panel.clinicalDateLabel}
                         </StatusBadge>
+                        {panel.isSuperseded && (
+                            <StatusBadge tone="warning">Superseded report</StatusBadge>
+                        )}
                     </span>
                     <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">
                         {panel.memberResults.length} explicit member result{panel.memberResults.length === 1 ? '' : 's'} from DiagnosticReport.resultIds
@@ -272,6 +294,22 @@ const PanelCard: React.FC<{
                     <p className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-800 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-200">
                         Missing or non-confirmed report members: {panel.missingMemberIds.join(', ')}
                     </p>
+                )}
+
+                {(panel.relationships.length > 0 || panel.isSuperseded) && (
+                    <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/20 dark:text-blue-100">
+                        <p className="font-bold">Report version history</p>
+                        {panel.relationships.map(relationship => (
+                            <p key={relationship.id} className="mt-1 text-[10px] leading-relaxed">
+                                This report {relationship.type} report {relationship.relatedReportId}. Reason: {relationship.reason}
+                            </p>
+                        ))}
+                        {panel.isSuperseded && (
+                            <p className="mt-1 text-[10px] leading-relaxed">
+                                Superseded by report {panel.supersededByReportIds.join(', ')}. The complete original report remains available below.
+                            </p>
+                        )}
+                    </div>
                 )}
 
                 <div className="mt-4 grid gap-3 xl:grid-cols-2">
@@ -522,6 +560,9 @@ const ResultsModule: React.FC<ResultsModuleProps> = ({
     const absentResults = filterResults(intelligence.absentResults);
     const otherResults = filterResults(intelligence.otherResults);
     const unlinkedResults = filterResults(intelligence.unlinkedResults);
+    const supersededResults = filterResults(intelligence.supersededResults);
+    const currentPanels = panels.filter(panel => !panel.isSuperseded);
+    const historicalPanels = panels.filter(panel => panel.isSuperseded);
     const trendSeries = intelligence.trendSeries.filter(series =>
         !normalizedSearch || [
             series.name,
@@ -542,6 +583,7 @@ const ResultsModule: React.FC<ResultsModuleProps> = ({
     const showPanels = view === 'overview' || view === 'panels';
     const showTrends = view === 'overview' || view === 'trends';
     const showOther = view === 'overview' || view === 'other';
+    const showHistory = view === 'overview' || view === 'history';
     const nonNumericSections: Array<{
         title: string;
         description: string;
@@ -600,7 +642,7 @@ const ResultsModule: React.FC<ResultsModuleProps> = ({
                             </button>
                         )}
                     </div>
-                    <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
                         <MetricCard
                             label="Reports / panels"
                             value={intelligence.reportCount}
@@ -621,6 +663,11 @@ const ResultsModule: React.FC<ResultsModuleProps> = ({
                             value={intelligence.flaggedCount}
                             helper="recorded interpretations, not diagnoses"
                             warning={intelligence.flaggedCount > 0}
+                        />
+                        <MetricCard
+                            label="Version history"
+                            value={intelligence.historicalReportCount + intelligence.supersededResults.length}
+                            helper={`${intelligence.lineageCount} reviewed relationship${intelligence.lineageCount === 1 ? '' : 's'}`}
                         />
                     </div>
                 </header>
@@ -656,6 +703,7 @@ const ResultsModule: React.FC<ResultsModuleProps> = ({
                                 ['panels', 'Panels'],
                                 ['trends', 'Trends'],
                                 ['other', 'Other values'],
+                                ['history', 'Version history'],
                             ] as Array<[WorkspaceView, string]>).map(([value, label]) => (
                                 <button
                                     key={value}
@@ -691,9 +739,9 @@ const ResultsModule: React.FC<ResultsModuleProps> = ({
                                 Members are resolved from each confirmed report’s result IDs, never from test-name guessing.
                             </p>
                         </div>
-                        {panels.length > 0 ? (
+                        {currentPanels.length > 0 ? (
                             <div className="space-y-3">
-                                {panels.map(panel => (
+                                {currentPanels.map(panel => (
                                     <PanelCard
                                         key={panel.id}
                                         record={record}
@@ -812,6 +860,64 @@ const ResultsModule: React.FC<ResultsModuleProps> = ({
                                     ))}
                                 </div>
                             </div>
+                        )}
+                    </section>
+                )}
+
+
+                {showHistory && (
+                    <section className="space-y-4" aria-labelledby="diagnostic-history-heading">
+                        <div>
+                            <p className="text-[9px] font-mono font-bold uppercase tracking-[0.2em] text-slate-400">
+                                Immutable source history
+                            </p>
+                            <h2
+                                id="diagnostic-history-heading"
+                                className="mt-1 text-lg font-bold text-slate-950 dark:text-white"
+                            >
+                                Corrected, amended, and superseded versions
+                            </h2>
+                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                Prior reports and result values are never overwritten. Superseded results are excluded from current trends while their original source, provenance, and values remain reviewable here.
+                            </p>
+                        </div>
+
+                        {historicalPanels.length > 0 && (
+                            <div className="space-y-3">
+                                {historicalPanels.map(panel => (
+                                    <PanelCard
+                                        key={panel.id}
+                                        record={record}
+                                        panel={panel}
+                                        onOpenSource={setSource}
+                                    />
+                                ))}
+                            </div>
+                        )}
+
+                        {supersededResults.length > 0 && (
+                            <div>
+                                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                                    Superseded result values
+                                </h3>
+                                <div className="mt-2 grid gap-3 xl:grid-cols-2">
+                                    {supersededResults.map(result => (
+                                        <ResultCard
+                                            key={result.id}
+                                            record={record}
+                                            result={result}
+                                            onOpenSource={setSource}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {historicalPanels.length === 0 && supersededResults.length === 0 && (
+                            <EmptyState
+                                title="No superseded diagnostic versions"
+                                description="Corrected or amended report relationships will appear here after explicit source review."
+                            />
                         )}
                     </section>
                 )}

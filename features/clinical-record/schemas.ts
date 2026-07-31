@@ -118,6 +118,32 @@ export const ClinicalReferenceSchema = z.object({
     display: z.string().min(1).optional(),
 }).strict();
 
+export const DiagnosticVersionRelationshipTypeSchema = z.enum([
+    'amends',
+    'corrects',
+    'replaces',
+]);
+
+export const DiagnosticReportRelationshipSchema = z.object({
+    id: z.string().min(1),
+    type: z.union([
+        DiagnosticVersionRelationshipTypeSchema,
+        z.enum(['duplicate-of', 'distinct-from']),
+    ]),
+    relatedReportId: z.string().min(1),
+    recordedAt: IsoDateTimeSchema,
+    recordedBy: z.string().min(1).optional(),
+    reason: z.string().min(1),
+}).strict();
+
+export const ObservationLineageSchema = z.object({
+    relationship: DiagnosticVersionRelationshipTypeSchema,
+    predecessorObservationId: z.string().min(1),
+    recordedAt: IsoDateTimeSchema,
+    recordedBy: z.string().min(1).optional(),
+    reason: z.string().min(1),
+}).strict();
+
 export const ClinicalQuantityValueSchema = z.object({
     value: z.number().finite(),
     unit: z.string().optional(),
@@ -397,6 +423,7 @@ export const ObservationRecordSchema = z.object({
     specimenId: z.string().min(1).optional(),
     encounterId: z.string().min(1).optional(),
     diagnosticReportId: z.string().min(1).optional(),
+    lineage: ObservationLineageSchema.optional(),
     issuedAt: IsoDateTimeSchema.optional(),
     performer: z.array(z.string().min(1)).optional(),
     note: z.string().optional(),
@@ -427,6 +454,7 @@ export const DiagnosticReportRecordSchema = z.object({
     conclusionCodes: z.array(ClinicalCodeableConceptSchema).optional(),
     encounterId: z.string().min(1).optional(),
     performer: z.array(z.string().min(1)).optional(),
+    relationships: z.array(DiagnosticReportRelationshipSchema).optional(),
 }).strict();
 
 export const SpecimenRecordSchema = z.object({

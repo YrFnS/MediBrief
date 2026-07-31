@@ -36,7 +36,8 @@ export type TrendExclusionReason =
     | 'clinical-date-not-exact'
     | 'identity-insufficient'
     | 'unit-missing'
-    | 'single-point-only';
+    | 'single-point-only'
+    | 'superseded-result';
 
 export interface ReviewCodingSuggestion {
     system: typeof LOINC_SYSTEM;
@@ -67,6 +68,9 @@ export interface DiagnosticResultView {
     codingSuggestion?: ReviewCodingSuggestion;
     normalizationWarning?: string;
     note?: string;
+    isSuperseded: boolean;
+    supersededByObservationIds: string[];
+    lineage?: ObservationRecord['lineage'];
 }
 
 export interface DiagnosticPanelView {
@@ -83,6 +87,9 @@ export interface DiagnosticPanelView {
     codingSuggestion?: ReviewCodingSuggestion;
     conclusion?: string;
     membershipBasis: 'diagnostic-report-resultIds';
+    relationships: NonNullable<DiagnosticReportRecord['relationships']>;
+    isSuperseded: boolean;
+    supersededByReportIds: string[];
 }
 
 export interface TrendPoint {
@@ -131,13 +138,16 @@ export interface DiagnosticResultsIntelligence {
     narrativeResults: DiagnosticResultView[];
     absentResults: DiagnosticResultView[];
     otherResults: DiagnosticResultView[];
+    supersededResults: DiagnosticResultView[];
     trendSeries: DiagnosticTrendSeries[];
     trendExclusions: TrendExclusion[];
     unitConflicts: UnitConflict[];
     candidateCount: number;
     reportCount: number;
+    historicalReportCount: number;
     observationCount: number;
     flaggedCount: number;
+    lineageCount: number;
 }
 
 interface TrendCandidate {
@@ -392,6 +402,42 @@ const specimenLabelForObservation = (
     return specimen?.type?.text || specimen?.note || 'Linked specimen';
 };
 
+const observationSuccessors = (
+    observations: ObservationRecord[],
+): Map<string, string[]> => {
+    const successors = new Map<string, string[]>();
+    observations.forEach(observation => {
+        const predecessor = observation.lineage?.predecessorObservationId;
+        if (!predecessor) return;
+        successors.set(predecessor, [
+            ...(successors.get(predecessor) || []),
+            observation.id,
+        ]);
+    });
+    return successors;
+};
+
+const reportSuccessors = (
+    reports: DiagnosticReportRecord[],
+): Map<string, string[]> => {
+    const successors = new Map<string, string[]>();
+    reports.forEach(report => {
+        (report.relationships || [])
+            .filter(relationship => [
+                'amends',
+                'corrects',
+                'replaces',
+            ].includes(relationship.type))
+            .forEach(relationship => {
+                successors.set(relationship.relatedReportId, [
+                    ...(successors.get(relationship.relatedReportId) || []),
+                    report.id,
+                ]);
+            });
+    });
+    return successors;
+};
+
 const reportMembership = (
     reports: DiagnosticReportRecord[],
 ): Map<string, DiagnosticReportRecord[]> => {
@@ -462,10 +508,12 @@ const resultView = ({
     record,
     observation,
     reports,
+    successorIds,
 }: {
     record: PatientClinicalRecord;
     observation: ObservationRecord;
     reports: DiagnosticReportRecord[];
+    successorIds: string[];
 }): DiagnosticResultView => {
     const date = clinicalDateForObservation(observation);
     const labels = resultValueLabels(observation);
@@ -499,6 +547,9 @@ const resultView = ({
             }
             : {}),
         ...(observation.note ? { note: observation.note } : {}),
+        isSuperseded: successorIds.length > 0,
+        supersededByObservationIds: successorIds,
+        ...(observation.lineage ? { lineage: observation.lineage } : {}),
     };
 };
 
@@ -517,10 +568,12 @@ const trendCandidateFor = ({
     record,
     observation,
     reports,
+    superseded,
 }: {
     record: PatientClinicalRecord;
     observation: ObservationRecord;
     reports: DiagnosticReportRecord[];
+    superseded: boolean;
 }): { candidate?: TrendCandidate; exclusion?: TrendExclusion } => {
     if (observation.verificationStatus !== 'confirmed') {
         return {
@@ -537,6 +590,15 @@ const trendCandidateFor = ({
                 observation,
                 'not-patient-applicable',
                 'Negated, hypothetical, family, or other-person evidence is excluded.',
+            ),
+        };
+    }
+    if (superseded) {
+        return {
+            exclusion: trendExclusion(
+                observation,
+                'superseded-result',
+                'A newer reviewed report version supersedes this result. It remains available in diagnostic history but is excluded from current trends.',
             ),
         };
     }
@@ -766,6 +828,8 @@ export const buildDiagnosticResultsIntelligence = (
     const observationsById = new Map(
         observations.map(observation => [observation.id, observation]),
     );
+    const observationSuccessorMap = observationSuccessors(observations);
+    const reportSuccessorMap = reportSuccessors(reports);
     const membership = reportMembership(reports);
     const resultViews = new Map<string, DiagnosticResultView>();
     observations.forEach(observation => {
@@ -773,6 +837,7 @@ export const buildDiagnosticResultsIntelligence = (
             record,
             observation,
             reports: membership.get(observation.id) || [],
+            successorIds: observationSuccessorMap.get(observation.id) || [],
         }));
     });
 
@@ -807,11 +872,21 @@ export const buildDiagnosticResultsIntelligence = (
                 : {}),
             ...(report.conclusion ? { conclusion: report.conclusion } : {}),
             membershipBasis: 'diagnostic-report-resultIds' as const,
+            relationships: report.relationships || [],
+            isSuperseded: reportSuccessorMap.has(report.id),
+            supersededByReportIds: reportSuccessorMap.get(report.id) || [],
         };
-    }).sort((left, right) => left.name.localeCompare(right.name));
+    }).sort((left, right) => {
+        if (left.isSuperseded !== right.isSuperseded) {
+            return left.isSuperseded ? 1 : -1;
+        }
+        return left.name.localeCompare(right.name);
+    });
 
     const views = [...resultViews.values()];
-    const unlinkedResults = views.filter(view => view.reportNames.length === 0);
+    const activeViews = views.filter(view => !view.isSuperseded);
+    const supersededResults = views.filter(view => view.isSuperseded);
+    const unlinkedResults = activeViews.filter(view => view.reportNames.length === 0);
     const trendCandidates: TrendCandidate[] = [];
     const trendExclusions: TrendExclusion[] = [];
     record.resources.observations.forEach(observation => {
@@ -819,13 +894,14 @@ export const buildDiagnosticResultsIntelligence = (
             record,
             observation,
             reports: membership.get(observation.id) || [],
+            superseded: observationSuccessorMap.has(observation.id),
         });
         if (result.candidate) trendCandidates.push(result.candidate);
         if (result.exclusion) trendExclusions.push(result.exclusion);
     });
     const trendOutput = trendSeriesFromCandidates(trendCandidates);
 
-    const byKind = (kind: ResultPresentationKind) => views.filter(view =>
+    const byKind = (kind: ResultPresentationKind) => activeViews.filter(view =>
         view.kind === kind);
 
     return {
@@ -837,6 +913,7 @@ export const buildDiagnosticResultsIntelligence = (
         narrativeResults: byKind('narrative'),
         absentResults: byKind('absent'),
         otherResults: byKind('other'),
+        supersededResults,
         trendSeries: trendOutput.series,
         trendExclusions: [...trendExclusions, ...trendOutput.exclusions],
         unitConflicts: trendOutput.conflicts,
@@ -845,9 +922,14 @@ export const buildDiagnosticResultsIntelligence = (
             ...record.resources.observations,
             ...record.resources.specimens,
         ].filter(resource => resource.verificationStatus === 'candidate').length,
-        reportCount: reports.length,
-        observationCount: observations.length,
-        flaggedCount: views.filter(view => view.flagged).length,
+        reportCount: panels.filter(panel => !panel.isSuperseded).length,
+        historicalReportCount: panels.filter(panel => panel.isSuperseded).length,
+        observationCount: activeViews.length,
+        flaggedCount: activeViews.filter(view => view.flagged).length,
+        lineageCount: reports.reduce(
+            (total, report) => total + (report.relationships?.length || 0),
+            0,
+        ),
     };
 };
 
@@ -868,6 +950,10 @@ export const diagnosticResultMatchesSearch = (
         result.reportNames.join(' '),
         result.note,
         result.source?.fileName,
+        result.isSuperseded ? 'superseded history' : 'current result',
+        result.lineage?.relationship,
+        result.lineage?.predecessorObservationId,
+        result.supersededByObservationIds.join(' '),
     ].some(value => normalizeText(value).includes(normalized));
 };
 
@@ -886,6 +972,9 @@ export const diagnosticPanelMatchesSearch = (
         panel.specimenLabels.join(' '),
         panel.memberResults.map(result => result.name).join(' '),
         panel.source?.fileName,
+        panel.isSuperseded ? 'superseded history' : 'current report',
+        panel.relationships.map(item => `${item.type} ${item.relatedReportId}`).join(' '),
+        panel.supersededByReportIds.join(' '),
     ].some(value => normalizeText(value).includes(normalized));
 };
 

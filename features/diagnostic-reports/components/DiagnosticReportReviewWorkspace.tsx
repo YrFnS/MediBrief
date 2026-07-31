@@ -14,14 +14,19 @@ import {
 import { useAuditStore } from '../../audit/useAuditStore';
 import { useClinicalRecordStore } from '../../clinical-record';
 import {
+    analyzeDiagnosticReportConflicts,
+    validateConflictAwareDiagnosticReportBundle,
+} from '../conflicts';
+import {
     buildAndCommitReviewedDiagnosticReport,
     buildReviewedDiagnosticReportBundle,
 } from '../reviewAmendments';
 import { buildDiagnosticReviewEvidence } from '../reviewEvidence';
 import { createLegacyLabReviewSeed } from '../legacyLabReview';
-import { validateDiagnosticReportBundleGraph } from '../graph';
 import type {
     DiagnosticBundleCommitResult,
+    DiagnosticConflictDecision,
+    DiagnosticReportConflictAnalysis,
     DiagnosticReportReviewEvidence,
     PendingLegacyLabReview,
     ReviewedDiagnosticReportDraft,
@@ -107,7 +112,8 @@ interface PreparedReview {
     draft: ReviewedDiagnosticReportDraft;
     evidence?: DiagnosticReportReviewEvidence;
     bundle: ReturnType<typeof buildReviewedDiagnosticReportBundle>;
-    validation: ReturnType<typeof validateDiagnosticReportBundleGraph>;
+    validation: ReturnType<typeof validateConflictAwareDiagnosticReportBundle>;
+    conflicts: DiagnosticReportConflictAnalysis;
 }
 
 const DiagnosticReportReviewWorkspace: React.FC<
@@ -133,6 +139,11 @@ const DiagnosticReportReviewWorkspace: React.FC<
     );
     const [commitError, setCommitError] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
+    const [relatedReportId, setRelatedReportId] = useState('');
+    const [conflictDecision, setConflictDecision] = useState<
+        DiagnosticConflictDecision | ''
+    >('');
+    const [conflictReason, setConflictReason] = useState('');
 
     useEffect(() => {
         logEvent(
@@ -323,23 +334,37 @@ const DiagnosticReportReviewWorkspace: React.FC<
                 includedResultIds,
                 reason: reviewReason.trim() || DEFAULT_REVIEW_REASON,
             });
+            const resolution = conflictDecision
+                && relatedReportId
+                && conflictReason.trim()
+                ? {
+                    relatedReportId,
+                    decision: conflictDecision,
+                    reason: conflictReason.trim(),
+                }
+                : undefined;
             const reviewedDraft: ReviewedDiagnosticReportDraft = {
                 ...withoutEvidence,
                 ...(evidence ? { reviewEvidence: evidence } : {}),
+                ...(resolution ? { conflictResolution: resolution } : {}),
             };
             const bundle = buildReviewedDiagnosticReportBundle(reviewedDraft, {
                 now: reviewedAt,
                 actor: REVIEW_ACTOR,
+                record,
             });
+            const conflicts = analyzeDiagnosticReportConflicts(record, bundle);
             return {
                 value: {
                     draft: reviewedDraft,
                     ...(evidence ? { evidence } : {}),
                     bundle,
-                    validation: validateDiagnosticReportBundleGraph(
+                    conflicts,
+                    validation: validateConflictAwareDiagnosticReportBundle({
                         bundle,
                         record,
-                    ),
+                        resolution,
+                    }),
                 },
             };
         } catch (error) {
@@ -350,11 +375,14 @@ const DiagnosticReportReviewWorkspace: React.FC<
             };
         }
     }, [
+        conflictDecision,
+        conflictReason,
         draft,
         includedResultIds,
         patientId,
         pending.detectedAt,
         record,
+        relatedReportId,
         reviewReason,
         seed.draft,
     ]);
@@ -384,19 +412,30 @@ const DiagnosticReportReviewWorkspace: React.FC<
 
             const excludedResultCount = seed.draft.results.filter(resultItem =>
                 !includedResultIds.has(resultItem.localId)).length;
+            const auditType = result.commit.status === 'resolved-duplicate'
+                ? 'DIAGNOSTIC_REPORT_DUPLICATE_SKIPPED'
+                : finalDraft.conflictResolution
+                    ? 'DIAGNOSTIC_REPORT_CONFLICT_RESOLVED'
+                    : 'DIAGNOSTIC_REPORT_REVIEW_CONFIRMED';
             logEvent(
-                'DIAGNOSTIC_REPORT_REVIEW_CONFIRMED',
+                auditType,
                 patientId,
-                'Confirmed and atomically saved a reviewed diagnostic report graph.',
+                result.commit.status === 'resolved-duplicate'
+                    ? 'Confirmed that the reviewed upload duplicates an existing diagnostic report; no clinical resource was created.'
+                    : finalDraft.conflictResolution
+                        ? 'Confirmed and atomically saved a reviewed diagnostic report relationship while preserving prior versions.'
+                        : 'Confirmed and atomically saved a reviewed diagnostic report graph.',
                 'USER',
                 {
                     reportId: result.commit.reportId,
+                    duplicateOf: result.commit.duplicateOf,
                     documentId: pending.source.documentId,
                     createdResourceIds: result.commit.createdResourceIds,
                     resultCount: result.bundle.observations.length,
                     specimenCount: result.bundle.specimens.length,
                     excludedResultCount,
                     reviewEvidence: finalDraft.reviewEvidence,
+                    conflictResolution: finalDraft.conflictResolution,
                     warnings: result.bundle.warnings,
                 },
             );
@@ -413,6 +452,7 @@ const DiagnosticReportReviewWorkspace: React.FC<
     };
 
     const validationIssues = prepared.value?.validation.issues || [];
+    const conflictCandidates = prepared.value?.conflicts.candidates || [];
     const parsingWarnings = prepared.value?.bundle.warnings || [];
     const evidence = prepared.value?.evidence;
     const excludedCount = seed.draft.results.length
@@ -1080,6 +1120,117 @@ const DiagnosticReportReviewWorkspace: React.FC<
                                     })}
                                 </div>
                             </section>
+
+
+                            {conflictCandidates.length > 0 && (
+                                <section className="rounded-2xl border border-violet-200 bg-violet-50 p-4 dark:border-violet-900/50 dark:bg-violet-950/20">
+                                    <div className="flex items-start gap-3">
+                                        <AlertTriangleIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-violet-600 dark:text-violet-300" />
+                                        <div className="min-w-0 flex-1">
+                                            <h3 className="text-sm font-bold text-violet-950 dark:text-violet-100">
+                                                Potential duplicate or corrected report
+                                            </h3>
+                                            <p className="mt-1 text-xs leading-relaxed text-violet-800 dark:text-violet-200">
+                                                Blocking matches require an explicit reviewed decision. A corrected or amended report creates a new version and preserves every prior report and result.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-3 space-y-2">
+                                        {conflictCandidates.map(candidate => (
+                                            <article
+                                                key={candidate.reportId}
+                                                className={`rounded-xl border p-3 ${candidate.blocking
+                                                    ? 'border-red-200 bg-white dark:border-red-900/60 dark:bg-slate-950/60'
+                                                    : 'border-violet-200 bg-white dark:border-violet-900/50 dark:bg-slate-950/60'
+                                                }`}
+                                            >
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <span className="text-xs font-bold text-slate-900 dark:text-white">
+                                                        {candidate.reportTitle}
+                                                    </span>
+                                                    <span className="rounded-full bg-slate-100 px-2 py-1 font-mono text-[9px] uppercase tracking-wider text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                                                        {fieldLabel(candidate.kind)}
+                                                    </span>
+                                                    <span className="rounded-full bg-slate-100 px-2 py-1 font-mono text-[9px] text-slate-500 dark:bg-slate-800">
+                                                        score {candidate.score}
+                                                    </span>
+                                                    {candidate.blocking && (
+                                                        <span className="rounded-full bg-red-100 px-2 py-1 font-mono text-[9px] uppercase tracking-wider text-red-700 dark:bg-red-950/40 dark:text-red-300">
+                                                            Decision required
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">
+                                                    {candidate.clinicalDateLabel} · {candidate.sourceLabel} · report {candidate.reportId}
+                                                </p>
+                                                <ul className="mt-2 list-disc space-y-1 pl-5 text-[10px] text-slate-600 dark:text-slate-300">
+                                                    {candidate.evidence.map(item => (
+                                                        <li key={item}>{item}</li>
+                                                    ))}
+                                                </ul>
+                                            </article>
+                                        ))}
+                                    </div>
+
+                                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                                        <label>
+                                            <span className={labelClass}>Related existing report</span>
+                                            <select
+                                                value={relatedReportId}
+                                                onChange={event => setRelatedReportId(event.target.value)}
+                                                className={inputClass}
+                                            >
+                                                <option value="">Select a report</option>
+                                                {conflictCandidates.map(candidate => (
+                                                    <option key={candidate.reportId} value={candidate.reportId}>
+                                                        {candidate.reportTitle} · {fieldLabel(candidate.kind)}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </label>
+                                        <label>
+                                            <span className={labelClass}>Reviewed decision</span>
+                                            <select
+                                                value={conflictDecision}
+                                                onChange={event => {
+                                                    const decision = event.target.value as DiagnosticConflictDecision | '';
+                                                    setConflictDecision(decision);
+                                                    if (decision === 'corrects') {
+                                                        setReportField('status', 'corrected');
+                                                    } else if (decision === 'amends') {
+                                                        setReportField('status', 'amended');
+                                                    } else if (decision === 'replaces' && ![
+                                                        'final',
+                                                        'amended',
+                                                        'corrected',
+                                                    ].includes(draft.status || '')) {
+                                                        setReportField('status', 'final');
+                                                    }
+                                                }}
+                                                className={inputClass}
+                                            >
+                                                <option value="">Select a decision</option>
+                                                <option value="duplicate">Duplicate — do not save another copy</option>
+                                                <option value="corrects">Corrects the selected report</option>
+                                                <option value="amends">Amends the selected report</option>
+                                                <option value="replaces">Replaces the selected report</option>
+                                                <option value="distinct">Keep both as distinct reports</option>
+                                            </select>
+                                        </label>
+                                        <label className="sm:col-span-2">
+                                            <span className={labelClass}>Conflict-resolution reason</span>
+                                            <textarea
+                                                value={conflictReason}
+                                                onChange={event => setConflictReason(event.target.value)}
+                                                rows={2}
+                                                placeholder="State what the original reports show and why this relationship is correct."
+                                                className={inputClass}
+                                            />
+                                        </label>
+                                    </div>
+                                </section>
+                            )}
 
                             <section className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900/60">
                                 <h3 className="text-sm font-bold text-slate-900 dark:text-white">

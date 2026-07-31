@@ -142,6 +142,18 @@ const ReviewEvidenceSchema = z.object({
     excludedResults: z.array(ExcludedResultEvidenceSchema).optional(),
 }).strict();
 
+const ConflictResolutionSchema = z.object({
+    relatedReportId: z.string().trim().min(1),
+    decision: z.enum([
+        'amends',
+        'corrects',
+        'replaces',
+        'duplicate',
+        'distinct',
+    ]),
+    reason: z.string().trim().min(1),
+}).strict();
+
 export const ReviewedDiagnosticReportDraftSchema = z.object({
     patientId: z.string().trim().min(1),
     reportTitle: z.string().trim().min(1),
@@ -170,6 +182,7 @@ export const ReviewedDiagnosticReportDraftSchema = z.object({
     reviewedAt: optionalTrimmed,
     reviewedBy: optionalTrimmed,
     reviewEvidence: ReviewEvidenceSchema.optional(),
+    conflictResolution: ConflictResolutionSchema.optional(),
 }).strict().superRefine((draft, context) => {
     const specimenIds = (draft.specimens || []).map(specimen => specimen.localId);
     if (new Set(specimenIds).size !== specimenIds.length) {
@@ -222,6 +235,32 @@ export const ReviewedDiagnosticReportDraftSchema = z.object({
             });
         }
     });
+
+    const resolution = draft.conflictResolution;
+    if (resolution?.decision === 'amends' && draft.status !== 'amended') {
+        context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['status'],
+            message: 'An amended relationship requires report status amended',
+        });
+    }
+    if (resolution?.decision === 'corrects' && draft.status !== 'corrected') {
+        context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['status'],
+            message: 'A corrected relationship requires report status corrected',
+        });
+    }
+    if (
+        resolution?.decision === 'replaces'
+        && !['final', 'amended', 'corrected'].includes(draft.status || '')
+    ) {
+        context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['status'],
+            message: 'A replacement report must be final, amended, or corrected',
+        });
+    }
 });
 
 export const parseReviewedDiagnosticReportDraft = (

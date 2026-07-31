@@ -82,6 +82,42 @@ export interface ClinicalReference {
     display?: string;
 }
 
+export type DiagnosticVersionRelationshipType =
+    | 'amends'
+    | 'corrects'
+    | 'replaces';
+
+export type DiagnosticReportRelationshipType =
+    | DiagnosticVersionRelationshipType
+    | 'duplicate-of'
+    | 'distinct-from';
+
+/**
+ * Records a reviewed relationship between two diagnostic reports. The related
+ * report remains immutable; reverse relationships are derived by scanning the
+ * patient record rather than rewriting historical source truth.
+ */
+export interface DiagnosticReportRelationship {
+    id: string;
+    type: DiagnosticReportRelationshipType;
+    relatedReportId: string;
+    recordedAt: string;
+    recordedBy?: string;
+    reason: string;
+}
+
+/**
+ * Links a newly reviewed result to the prior result it supersedes. The prior
+ * Observation remains in the record and is presented as superseded history.
+ */
+export interface ObservationLineage {
+    relationship: DiagnosticVersionRelationshipType;
+    predecessorObservationId: string;
+    recordedAt: string;
+    recordedBy?: string;
+    reason: string;
+}
+
 export interface ClinicalQuantityValue {
     value: number;
     unit?: string;
@@ -376,6 +412,7 @@ export interface ObservationRecord extends BaseClinicalResource {
     specimenId?: string;
     encounterId?: string;
     diagnosticReportId?: string;
+    lineage?: ObservationLineage;
     issuedAt?: string;
     performer?: string[];
     note?: string;
@@ -406,6 +443,7 @@ export interface DiagnosticReportRecord extends BaseClinicalResource {
     conclusionCodes?: ClinicalCodeableConcept[];
     encounterId?: string;
     performer?: string[];
+    relationships?: DiagnosticReportRelationship[];
 }
 
 export type SpecimenStatus = 'available' | 'unavailable' | 'unsatisfactory' | 'entered-in-error' | 'unknown';

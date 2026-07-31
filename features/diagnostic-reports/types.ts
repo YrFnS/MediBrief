@@ -111,6 +111,44 @@ export interface DiagnosticReportReviewEvidence {
     excludedResults?: ExcludedDiagnosticResultEvidence[];
 }
 
+export type DiagnosticReportConflictKind =
+    | 'exact-duplicate'
+    | 'same-event-conflict'
+    | 'possible-duplicate';
+
+export type DiagnosticConflictDecision =
+    | 'amends'
+    | 'corrects'
+    | 'replaces'
+    | 'duplicate'
+    | 'distinct';
+
+export interface ReviewedDiagnosticConflictResolution {
+    relatedReportId: string;
+    decision: DiagnosticConflictDecision;
+    reason: string;
+}
+
+export interface DiagnosticReportConflictCandidate {
+    reportId: string;
+    reportTitle: string;
+    reportStatus: DiagnosticReportRecord['status'];
+    clinicalDateLabel: string;
+    sourceLabel: string;
+    kind: DiagnosticReportConflictKind;
+    score: number;
+    blocking: boolean;
+    evidence: string[];
+    differingResultKeys: string[];
+    recommendedDecision: DiagnosticConflictDecision;
+}
+
+export interface DiagnosticReportConflictAnalysis {
+    candidates: DiagnosticReportConflictCandidate[];
+    blockingCandidates: DiagnosticReportConflictCandidate[];
+    requiresResolution: boolean;
+}
+
 export interface ReviewedDiagnosticReportDraft {
     patientId: string;
     reportTitle: string;
@@ -129,6 +167,7 @@ export interface ReviewedDiagnosticReportDraft {
     reviewedAt?: string;
     reviewedBy?: string;
     reviewEvidence?: DiagnosticReportReviewEvidence;
+    conflictResolution?: ReviewedDiagnosticConflictResolution;
 }
 
 export type ParsedObservationValueKind =
@@ -189,7 +228,13 @@ export type DiagnosticGraphValidationCode =
     | 'missing-source-document'
     | 'source-document-patient-mismatch'
     | 'resource-id-conflict'
-    | 'duplicate-report-source';
+    | 'duplicate-report-source'
+    | 'duplicate-report-content'
+    | 'unresolved-report-conflict'
+    | 'invalid-conflict-resolution'
+    | 'related-report-missing'
+    | 'related-report-patient-mismatch'
+    | 'result-lineage-invalid';
 
 export interface DiagnosticGraphValidationIssue {
     code: DiagnosticGraphValidationCode;
@@ -204,6 +249,7 @@ export interface DiagnosticGraphValidationResult {
 
 export type DiagnosticBundleCommitStatus =
     | 'created'
+    | 'resolved-duplicate'
     | 'duplicate'
     | 'patient-not-found'
     | 'invalid-graph'

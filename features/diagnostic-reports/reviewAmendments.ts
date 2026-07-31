@@ -5,13 +5,18 @@ import {
     type ClinicalRecordResource,
     type DiagnosticReportRecord,
     type ObservationRecord,
+    type PatientClinicalRecord,
     type SpecimenRecord,
+    useClinicalRecordStore,
 } from '../clinical-record';
 import {
     buildDiagnosticReportBundle,
-    commitDiagnosticReportBundle,
     type BuildDiagnosticReportBundleOptions,
 } from './graph';
+import {
+    applyDiagnosticConflictResolution,
+    commitConflictAwareDiagnosticReportBundle,
+} from './conflicts';
 import { normalizeDiagnosticReportBundle } from './normalization';
 import type {
     DiagnosticBundleCommitResult,
@@ -57,15 +62,6 @@ const withAmendment = <T extends ClinicalRecordResource>(
     }) as T
     : resource;
 
-/**
- * Attach the original extracted values to the clinical resources produced by
- * the reviewed draft. Excluded rows are retained on the report amendment even
- * though no Observation is created for them.
- *
- * The graph builder preserves reviewed draft order for specimens and results,
- * so review evidence can be mapped without embedding UI-local IDs in the
- * clinical resource identity or external provenance identifier.
- */
 export const applyDiagnosticReviewEvidence = ({
     bundle,
     draft,
@@ -136,19 +132,36 @@ export const applyDiagnosticReviewEvidence = ({
     };
 };
 
+export interface BuildReviewedDiagnosticReportBundleOptions
+    extends BuildDiagnosticReportBundleOptions {
+    record?: PatientClinicalRecord;
+}
+
 export const buildReviewedDiagnosticReportBundle = (
     draft: ReviewedDiagnosticReportDraft,
-    options: BuildDiagnosticReportBundleOptions = {},
-): DiagnosticReportBundle => applyDiagnosticReviewEvidence({
-    bundle: normalizeDiagnosticReportBundle(
-        buildDiagnosticReportBundle(draft, options),
-    ),
-    draft,
-});
+    options: BuildReviewedDiagnosticReportBundleOptions = {},
+): DiagnosticReportBundle => {
+    const reviewed = applyDiagnosticReviewEvidence({
+        bundle: normalizeDiagnosticReportBundle(
+            buildDiagnosticReportBundle(draft, options),
+        ),
+        draft,
+    });
+    const record = options.record
+        || useClinicalRecordStore.getState().actions.getPatientRecord(draft.patientId);
+    const now = options.now || draft.reviewedAt || new Date().toISOString();
+    return applyDiagnosticConflictResolution({
+        bundle: reviewed,
+        draft,
+        record,
+        now,
+        actor: options.actor || draft.reviewedBy,
+    });
+};
 
 export const buildAndCommitReviewedDiagnosticReport = (
     draft: ReviewedDiagnosticReportDraft,
-    options: BuildDiagnosticReportBundleOptions & {
+    options: BuildReviewedDiagnosticReportBundleOptions & {
         committedAt?: string;
     } = {},
 ): {
@@ -158,9 +171,13 @@ export const buildAndCommitReviewedDiagnosticReport = (
     const bundle = buildReviewedDiagnosticReportBundle(draft, options);
     return {
         bundle,
-        commit: commitDiagnosticReportBundle(bundle, {
-            actor: options.actor || draft.reviewedBy,
-            committedAt: options.committedAt || options.now,
-        }),
+        commit: commitConflictAwareDiagnosticReportBundle(
+            bundle,
+            draft,
+            {
+                actor: options.actor || draft.reviewedBy,
+                committedAt: options.committedAt || options.now,
+            },
+        ),
     };
 };

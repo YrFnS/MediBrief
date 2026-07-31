@@ -17,7 +17,7 @@ describe('Phase 4 report-level review workspace contracts', () => {
         expect(workspace).toContain('Original source + report + specimens + results');
         expect(workspace).toContain('buildDiagnosticReviewEvidence');
         expect(workspace).toContain('buildAndCommitReviewedDiagnosticReport');
-        expect(workspace).toContain('validateDiagnosticReportBundleGraph');
+        expect(workspace).toContain('validateConflictAwareDiagnosticReportBundle');
         expect(workspace).toContain('Confirm report graph');
         expect(sourcePane).toContain('blobStorage.getFile');
         expect(sourcePane).toContain('Original report');
