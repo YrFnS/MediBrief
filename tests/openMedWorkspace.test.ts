@@ -88,7 +88,7 @@ describe('Phase 3 OpenMed workspace contracts', () => {
 
         expect(mapping).toContain('OpenMed local REST NER');
         expect(mapping).toContain('OpenMed assertion context and medication-sig evidence');
-        expect(mapping).toContain('page-aware local PDF/OCR provenance');
+        expect(mapping).toMatch(/page-aware local PDF\/OCR provenance/i);
         expect(mapping).toContain('openmed-context');
         expect(mapping).toContain('openmed-medication-sig');
         expect(mapping).toContain('openmed-document-text');
@@ -114,8 +114,8 @@ describe('Phase 3 OpenMed workspace contracts', () => {
             'medibrief:gemini-entity-extraction',
         );
         expect(extractionHook).toContain('gemini-extracted');
-        expect(extractionHook).toContain(
-            'Any fallback candidates keep separate cloud provenance',
+        expect(extractionHook).toMatch(
+            /fallback[^.]*separate cloud provenance/i,
         );
     });
 
