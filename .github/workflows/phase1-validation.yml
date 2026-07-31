@@ -54,6 +54,13 @@ jobs:
           --maximum-word-error-rate 0
           --minimum-page-text-accuracy 1
 
+      - name: Validate separate OpenMed and Gemini comparison contracts
+        run: >-
+          python -m openmed_bridge.compare_ner_predictions
+          --gold evaluation/phase3/clinical_ner_en_gold.json
+          --provider OpenMed=evaluation/phase3/clinical_ner_en_reference_predictions.json
+          --provider Gemini=evaluation/phase3/clinical_ner_en_gemini_reference_predictions.json
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
