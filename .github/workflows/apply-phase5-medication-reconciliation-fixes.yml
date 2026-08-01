@@ -1,0 +1,103 @@
+name: Apply Phase 5 Medication Reconciliation Fixes
+
+on:
+  push:
+    branches:
+      - agent/phase-5-grounded-assistance
+    paths:
+      - .github/workflows/apply-phase5-medication-reconciliation-fixes.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    name: Patch, validate, and publish medication reconciliation fixes
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out Phase 5 branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/phase-5-grounded-assistance
+          fetch-depth: 0
+
+      - name: Apply focused fixes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              target = Path(path)
+              text = target.read_text(encoding='utf-8')
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(
+                      f'Expected one match in {path}, found {count}: {old[:100]!r}'
+                  )
+              target.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          replace_once(
+              'features/medication-reconciliation/reconciliation.ts',
+              """    return text
+                  ? `text:${text}${codeLabel ? `|code:${codeLabel}` : ''}`
+                  : `code:${codeLabel || record.id}`;
+          """,
+              """    // Exact reviewed source text is the conservative grouping key when it
+              // exists. Coding remains evidence on each record, but an optional code must
+              // not split otherwise identical coded and uncoded source records.
+              return text
+                  ? `text:${text}`
+                  : `code:${codeLabel || record.id}`;
+          """,
+          )
+
+          replace_once(
+              'tests/medicationReconciliation.test.ts',
+              """        expect(types).toEqual(expect.objectContaining({
+                      has: expect.any(Function),
+                  }));
+          """,
+              """,
+          )
+          PY
+
+      - name: Remove temporary workflow
+        run: rm .github/workflows/apply-phase5-medication-reconciliation-fixes.yml
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Test OpenMed bridge
+        run: |
+          python -m pip install --disable-pip-version-check "openmed[service]==2.0.0" pytest
+          python -m pytest -q openmed_bridge/tests
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Run automated tests
+        run: npm run test:run
+
+      - name: Build production application
+        run: npm run build:app
+
+      - name: Commit and push validated fixes
+        run: |
+          git config user.name "MediBrief automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && { echo "No fixes produced."; exit 1; }
+          git commit -m "fix: harden medication reconciliation grouping"
+          git push origin HEAD:agent/phase-5-grounded-assistance
