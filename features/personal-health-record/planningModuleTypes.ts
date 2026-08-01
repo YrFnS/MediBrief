@@ -8,6 +8,7 @@ export type PlanningHealthDataModule =
     | 'appointments'
     | 'tasks'
     | 'care-plans'
+    | 'medication-reconciliation'
     | 'manage';
 
 export type PersonalHealthDataModule =
