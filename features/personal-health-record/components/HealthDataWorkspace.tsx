@@ -18,6 +18,10 @@ import {
     buildMedicationReconciliationViewModel,
 } from '../../medication-reconciliation';
 import MedicationReconciliationWorkspace from '../../medication-reconciliation/components/MedicationReconciliationWorkspace';
+import {
+    buildExplicitReminderViewModel,
+} from '../../trend-reminders';
+import TrendAndReminderWorkspace from '../../trend-reminders/components/TrendAndReminderWorkspace';
 import type { PersonalHealthDataModule } from '../planningModuleTypes';
 import AllergiesModule from './AllergiesModule';
 import AppointmentsModule from './AppointmentsModule';
@@ -79,6 +83,13 @@ const MODULES: Array<{
         shortLabel: 'Results',
         description: 'Observations and diagnostic reports',
         icon: DocumentTextIcon,
+    },
+    {
+        value: 'trend-reminders',
+        label: 'Trends & Reminders',
+        shortLabel: 'Trends',
+        description: 'Recorded arithmetic and explicit date reminders',
+        icon: ActivityIcon,
     },
     {
         value: 'visits',
@@ -155,7 +166,11 @@ const HealthDataWorkspace: React.FC<HealthDataWorkspaceProps> = ({
         () => buildMedicationReconciliationViewModel(record, auditLogs),
         [auditLogs, record],
     );
-    const candidateCounts = useMemo(() => {
+    const reminderSummary = useMemo(
+        () => buildExplicitReminderViewModel(record),
+        [record],
+    );
+    const moduleBadges = useMemo(() => {
         const candidates = selectCandidateResources(record);
         return {
             conditions: candidates.filter(resource =>
@@ -171,6 +186,7 @@ const HealthDataWorkspace: React.FC<HealthDataWorkspaceProps> = ({
             results: candidates.filter(resource =>
                 resource.resourceType === 'Observation'
                 || resource.resourceType === 'DiagnosticReport').length,
+            'trend-reminders': reminderSummary.actionableCount,
             visits: candidates.filter(resource =>
                 resource.resourceType === 'Encounter').length,
             notes: candidates.filter(resource =>
@@ -189,7 +205,7 @@ const HealthDataWorkspace: React.FC<HealthDataWorkspaceProps> = ({
                 resource.resourceType === 'CarePlan').length,
             manage: candidates.length,
         } satisfies Record<PersonalHealthDataModule, number>;
-    }, [reconciliation, record]);
+    }, [reconciliation, record, reminderSummary]);
 
     const handleModuleKeyDown = (
         event: React.KeyboardEvent<HTMLButtonElement>,
@@ -225,7 +241,7 @@ const HealthDataWorkspace: React.FC<HealthDataWorkspaceProps> = ({
                     {MODULES.map((item, index) => {
                         const Icon = item.icon;
                         const active = module === item.value;
-                        const pending = candidateCounts[item.value];
+                        const pending = moduleBadges[item.value];
                         return (
                             <button
                                 key={item.value}
@@ -300,6 +316,12 @@ const HealthDataWorkspace: React.FC<HealthDataWorkspaceProps> = ({
                 )}
                 {module === 'results' && (
                     <ResultsModule
+                        record={record}
+                        onReviewCandidates={onReviewCandidates}
+                    />
+                )}
+                {module === 'trend-reminders' && (
+                    <TrendAndReminderWorkspace
                         record={record}
                         onReviewCandidates={onReviewCandidates}
                     />
