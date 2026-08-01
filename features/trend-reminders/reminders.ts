@@ -663,7 +663,7 @@ export const createReminderFollowUpTaskRecord = ({
         }],
         note: [
             'This is a local proposal task created by explicit user action.',
-            'It does not send a notification, place an order or prescription, book anything, deliver a treatment instruction, or prove that any external action occurred.',
+            'It does not send a notification or book anything. It is not an order, prescription, treatment instruction, or proof that any external action occurred.',
             reminder.actionBoundary,
         ].join(' '),
     }) as ClinicalTaskRecord;

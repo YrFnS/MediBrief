@@ -409,7 +409,7 @@ const ReminderCard: React.FC<{
                             />
                         </label>
                         <p className="mt-2 text-[10px] text-blue-800 dark:text-blue-200">
-                            The task is a routine local proposal. It does not send a notification, contact a clinic, place an order, or instruct medication changes.
+                            The task is a routine local proposal. It does not send notifications, contact a clinic, place an order, or instruct medication changes.
                         </p>
                         <div className="mt-3 flex flex-wrap gap-2">
                             <button
