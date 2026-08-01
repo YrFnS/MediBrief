@@ -13,63 +13,39 @@ General educational chat and source-document analysis remain separate from patie
 
 `buildDeterministicPatientSummary()` consumes the same `PatientGroundingBundle` used by the Assistant. It never invokes an AI provider.
 
-The summary separates:
+The summary separates patient profile, current problems, allergies, active medications, recent results/reports, visits, plans/appointments, tasks/reminders, selected confirmed history, and missing information.
 
-- patient profile;
-- current problems;
-- allergies and intolerances;
-- active medications;
-- recent results and reports;
-- visits and encounters;
-- plans and appointments;
-- tasks and reminders;
-- selected confirmed history;
-- missing or incomplete information.
+Each item retains its stable `MB:<ResourceType>:<resourceId>` evidence ID, date precision, and source label. Candidate content is counted but not rendered as fact. Diagnostic graph and unit-comparability conflicts are described as review issues rather than diagnoses.
 
-Every included record item retains its stable `MB:<ResourceType>:<resourceId>` evidence ID, clinical-date precision, and source label. Candidate content is counted but not rendered as fact. Diagnostic graph and unit-comparability conflicts are counted and described as review issues, not diagnoses.
-
-Unknown dates remain `Clinical date unknown`. Empty allergy, medication, and condition sections use cautious wording and never assert NKDA, no medications, or no conditions.
+Unknown dates remain `Clinical date unknown`. Empty allergy, medication, and condition sections never assert NKDA, no medications, or no conditions.
 
 ## Assistant routing
 
-The Assistant uses a deterministic request classifier for explicit record commands and patient-record questions. It does not ask a model to decide whether the model itself should receive patient data.
+A deterministic classifier handles explicit summary commands and recognizable patient-record questions. It does not ask a model to decide whether the model should receive patient data.
 
-Recognized record questions are mapped to relevant resource types where possible. Historical evidence is included only when the question explicitly asks for history, prior, past, resolved, completed, or superseded information.
+Recognized questions are mapped to relevant resource types where possible. History is included only when the question explicitly asks for past, prior, resolved, completed, or superseded evidence.
 
 A patient-record request uses a fresh evidence bundle and an empty model conversation history. Previous chat messages therefore cannot become patient facts.
 
-The prompt contract requires:
-
-- exact local citations after patient-specific statements;
-- no invented local evidence IDs;
-- no substitution of candidate, rejected, entered-in-error, negated, hypothetical, or non-patient evidence;
-- preservation of unknown dates, uncertainty, original values, and planning/completion states;
-- `INSUFFICIENT_CONFIRMED_EVIDENCE` when the selected bundle cannot answer the question;
-- no diagnosis, prescribing, dose changes, medication-safety verdict, triage, or external-action claims.
+The prompt contract requires exact local citations, preservation of unknowns and source wording, `INSUFFICIENT_CONFIRMED_EVIDENCE` when needed, and no diagnosis, prescribing, dose change, medication-safety verdict, triage, or external-action claim.
 
 ## Buffered validation
 
-Patient-record answers are buffered instead of streamed into the visible chat. After generation:
+Patient-record answers are buffered instead of streamed visibly. Valid citation IDs allow display with a limitation footer. Missing or invented citations cause the entire generated answer to be withheld.
 
-- an exact insufficient-evidence response becomes a standardized local message;
-- valid local citation IDs allow the answer to be displayed with a limitation footer;
-- missing or invented citations cause the complete generated answer to be withheld.
-
-The current validator proves only citation syntax and membership in the selected evidence bundle. It does not prove sentence-level entailment, completeness, clinical correctness, or real-world guideline validity.
+The validator proves citation syntax and selected-bundle membership only. It does not prove sentence-level entailment, completeness, clinical correctness, or guideline validity.
 
 ## No-AI availability
 
-The Assistant access screen displays the deterministic summary even when no AI provider key is configured. The `/summary`, `/patient`, `/record`, and `/brief` commands also produce the same deterministic summary without a model call when the Assistant is available.
+The Assistant access screen displays the deterministic summary without a provider key. `/summary`, `/patient`, `/record`, and `/brief` produce the same summary without a model call when the chat interface is available.
 
 ## Audit boundary
 
-The integration records separate events for deterministic summary generation, grounding-bundle selection, successful grounded answers, and citation-rejected answers. No event implies that an answer was clinically validated.
+Separate events record deterministic summary generation, grounding selection, successful grounded responses, and citation rejection. No audit event implies clinical validation.
 
 ## Validation
 
-Final Slice 2 head: `e288967f529dcc83765b56c7a6c22d9b84e8e884`
-
-GitHub Actions run **628** (`30675197979`) passed:
+The implementation was validated at head `dd880f138e39f4d7fdaaf8ba9b7125ab8b40e56e` by GitHub Actions run **630** (`30675265526`):
 
 - Python OpenMed bridge tests: **24 / 24**;
 - TypeScript type-check;
@@ -79,8 +55,8 @@ GitHub Actions run **628** (`30675197979`) passed:
 - production Vite build;
 - **1062** transformed modules.
 
-The main application chunk is approximately **2.10 MB minified / 569 kB gzip**. Existing bundle-size, mixed-import, runtime stylesheet, dependency-maintenance, and action-runtime warnings remain separate performance/dependency workstreams.
+The main application chunk is approximately **2.10 MB minified / 569 kB gzip**. Existing bundle-size, mixed-import, runtime stylesheet, dependency-maintenance, and action-runtime warnings remain separate workstreams.
 
 ## Out of scope
 
-This slice does not implement medication reconciliation, trend interpretation, reminders, validated pilot rules, statement-level semantic entailment, autonomous record changes, diagnosis, prescribing, or treatment recommendations.
+Medication reconciliation, trend interpretation, reminders, validated pilot rules, statement-level semantic entailment, autonomous record changes, diagnosis, prescribing, and treatment recommendations remain out of scope for this slice.
