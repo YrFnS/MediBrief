@@ -105,9 +105,9 @@ Status: `[x] Complete`
 
 ### Slice 2 validation
 
-Validated head: `a590692401c821861150202a622083a104c2a705`
+Final validated head: `6617acb8e02b701cf2dec62e36f7a596f465c61d`
 
-GitHub Actions run **624** (`30674939150`) passed:
+GitHub Actions run **626** (`30675089841`) passed:
 
 - Python OpenMed bridge tests: **24 / 24**
 - TypeScript type-check: passed
