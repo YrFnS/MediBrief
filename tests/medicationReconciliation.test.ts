@@ -191,7 +191,7 @@ describe('Phase 5 medication reconciliation selection boundary', () => {
             .toEqual(['confirmed']);
     });
 
-    it('groups equal source text even when only one record carries coding', () => {
+    it('keeps coded and uncoded identities separate until coding is confirmed', () => {
         const coded = medication({
             id: 'coded',
             coding: [{
@@ -207,10 +207,10 @@ describe('Phase 5 medication reconciliation selection boundary', () => {
             recordWith([coded, uncoded]),
         );
 
-        expect(view.groupCount).toBe(1);
-        expect(view.groups[0].records).toHaveLength(2);
-        expect(view.groups[0].issues.some(issue =>
-            issue.type === 'possible-duplicate')).toBe(true);
+        expect(view.groupCount).toBe(2);
+        expect(view.groups.every(group => group.records.length === 1)).toBe(true);
+        expect(view.issues.some(issue =>
+            issue.type === 'possible-duplicate')).toBe(false);
     });
 });
 
@@ -245,9 +245,6 @@ describe('Phase 5 medication discrepancy detection', () => {
         ]));
         const types = new Set(view.issues.map(issue => issue.type));
 
-        expect(types).toEqual(expect.objectContaining({
-            has: expect.any(Function),
-        }));
         expect(types.has('possible-duplicate')).toBe(true);
         expect(types.has('status-conflict')).toBe(true);
         expect(types.has('direction-conflict')).toBe(true);
