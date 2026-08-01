@@ -22,13 +22,6 @@ import type {
 } from './types';
 
 const DAY_MS = 86_400_000;
-const OPEN_TASK_STATUSES = new Set<ClinicalTaskRecord['status']>([
-    'draft',
-    'requested',
-    'received',
-    'accepted',
-    'in-progress',
-]);
 const CLOSED_TASK_STATUSES = new Set<ClinicalTaskRecord['status']>([
     'completed',
 ]);
@@ -670,7 +663,7 @@ export const createReminderFollowUpTaskRecord = ({
         }],
         note: [
             'This is a local proposal task created by explicit user action.',
-            'It is not an order, prescription, booking, notification delivery, treatment instruction, or proof that any external action occurred.',
+            'It does not send a notification, place an order or prescription, book anything, deliver a treatment instruction, or prove that any external action occurred.',
             reminder.actionBoundary,
         ].join(' '),
     }) as ClinicalTaskRecord;
