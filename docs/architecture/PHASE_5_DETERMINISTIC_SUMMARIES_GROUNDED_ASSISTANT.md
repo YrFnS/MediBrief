@@ -65,6 +65,22 @@ The Assistant access screen displays the deterministic summary even when no AI p
 
 The integration records separate events for deterministic summary generation, grounding-bundle selection, successful grounded answers, and citation-rejected answers. No event implies that an answer was clinically validated.
 
+## Validation
+
+Final Slice 2 head: `e288967f529dcc83765b56c7a6c22d9b84e8e884`
+
+GitHub Actions run **628** (`30675197979`) passed:
+
+- Python OpenMed bridge tests: **24 / 24**;
+- TypeScript type-check;
+- **46 / 46** Vitest files;
+- **203 / 203** TypeScript tests;
+- **6 / 6** deterministic-summary and grounded-Assistant tests;
+- production Vite build;
+- **1062** transformed modules.
+
+The main application chunk is approximately **2.10 MB minified / 569 kB gzip**. Existing bundle-size, mixed-import, runtime stylesheet, dependency-maintenance, and action-runtime warnings remain separate performance/dependency workstreams.
+
 ## Out of scope
 
 This slice does not implement medication reconciliation, trend interpretation, reminders, validated pilot rules, statement-level semantic entailment, autonomous record changes, diagnosis, prescribing, or treatment recommendations.
