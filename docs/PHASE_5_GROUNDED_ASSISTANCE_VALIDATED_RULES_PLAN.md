@@ -123,7 +123,22 @@ GitHub Actions run **670** (`30677222206`) passed:
 - [x] State explicitly that proposal tasks do not send notifications, book appointments, place orders or prescriptions, deliver treatment instructions, or prove external execution.
 - [x] Add source review, audit events, behavior tests, and workspace contract tests.
 
-Slice 4 implementation is complete. Final repository validation is running on the current branch head before Slice 4 is formally accepted.
+Validated Slice 4 implementation head: `94822d1dc8c7a37ce9abab9eeb7d49ec09f5187e`
+
+GitHub Actions run **710** (`30678772175`) passed:
+
+- Python OpenMed bridge tests: **24 / 24**
+- Synthetic context, extraction-metric, and separate-provider comparison contracts: **passed**
+- TypeScript type-check: **passed**
+- Test files: **50 / 50 passed**
+- Tests: **222 / 222 passed**
+- Trend and reminder behavior tests: **4 / 4 passed**
+- Trend and reminder workspace tests: **5 / 5 passed**
+- Production build: **passed**
+- Modules transformed: **1074**
+- Main chunk: approximately **2.19 MB minified / 590 kB gzip**
+
+Slice 4 is accepted. The deterministic and optional-model tests validate software evidence boundaries, citation coverage, date routing, and proposal-task semantics; they are not claims of clinical trend interpretation accuracy, real-world reminder delivery, or medical safety.
 
 ## Next — Slice 5 low-risk rules and final acceptance
 
