@@ -3,13 +3,17 @@
 Branch: `agent/phase-5-grounded-assistance`  
 Base: accepted Phase 4 head `7dcc74d61bc4aec3bcc7effd6bd9496ccff83e88`  
 Status: in progress  
-Next: conservative trend explanations and explicit reminders
+Next: low-risk validated rule pilots and final acceptance
 
 ## Safety boundary
 
 Patient-specific assistance uses confirmed, patient-applicable, source-linked evidence. Candidates, rejected or entered-in-error resources, negated or hypothetical assertions, non-patient evidence, and superseded diagnostic evidence do not silently become current patient facts. Original values remain authoritative, unknown dates remain unknown, and citation membership is not semantic or clinical validation.
 
 Medication reconciliation compares source-linked records and records human workflow decisions. It does not establish adherence, prescribing intent, regimen safety, or permission to start, stop, or change treatment.
+
+Trend descriptions report deterministic arithmetic over already eligible recorded points. They do not establish clinical significance, improvement, worsening, cause, prognosis, treatment effect, diagnosis, or a recommended action.
+
+Reminder views derive only from explicit durable record fields. They do not send notifications, contact clinics, place orders, book appointments, or prove that an action occurred.
 
 ## Completed
 
@@ -75,33 +79,59 @@ Synthetic fixtures validate software contracts and routing, not clinical accurac
 - [x] Keep source-backed medication corrections in the existing Manage Records workflow.
 - [x] Add regression coverage for selection, discrepancies, cross-kind boundaries, durable decisions, non-mutation, task semantics, source review, and UI integration.
 
-Slice 3 final validation is recorded in PR #5 after the complete repository gate passes on the immutable final head.
+Validated Slice 3 head: `1a68db1abd7d5977bf58fd5d23530965d1b94f78`
 
-## Next — Slice 4 trend explanations and reminders
+GitHub Actions run **670** (`30677222206`) passed:
 
-### Conservative trend explanations
+- Python OpenMed tests: **24 / 24**
+- TypeScript type-check
+- Test files: **48 / 48**
+- Tests: **213 / 213**
+- Medication reconciliation behavior tests: **6 / 6**
+- Medication reconciliation workspace tests: **4 / 4**
+- Production build
+- Modules transformed: **1067**
+- Main chunk: approximately **2.14 MB minified / 578 kB gzip**
 
-- [ ] Consume only Phase 4 trend-eligible current points.
-- [ ] Generate deterministic values, dates, ranges, change, and descriptive statistics first.
-- [ ] Cite every point used by an optional model explanation.
-- [ ] State unit, normalization basis, specimen context, date precision, and exclusion reasons.
-- [ ] Exclude superseded, comparator, qualitative, unknown-date, partial-date, incompatible-unit, and otherwise ineligible points.
-- [ ] Avoid diagnosis, causality, prognosis, treatment recommendations, and unsupported clinical-significance claims.
+### Slice 4 — Conservative trend explanations and explicit reminders
 
-### Explicit reminders
+#### Trend explanations
 
-- [ ] Derive reminders only from durable appointments, tasks, care plans, medication dates, or reviewed rule outputs.
-- [ ] Distinguish due, overdue, completed, cancelled, unknown-date, and unscheduled states.
-- [ ] Never manufacture a due date from `recordedAt`, upload time, extraction time, review time, or model output.
-- [ ] Create local proposal tasks only after explicit user action.
-- [ ] Never claim external booking, order transmission, notification delivery, or completed care.
+- [x] Consume the existing Phase 4 result-intelligence output rather than creating a weaker eligibility engine.
+- [x] Include only confirmed, patient-applicable, current, exact numeric, non-comparator, exact-day, compatible-unit points from series containing at least two observations.
+- [x] Preserve every plotted point's original value, optional normalized view, exact date, source report, source document, page, and stable `MB:Observation:<id>` evidence ID.
+- [x] Generate deterministic point count, date span, first and last values, recorded higher/lower/unchanged direction, absolute change, minimum, maximum, and elapsed days before any model call.
+- [x] State grouping basis, LOINC when confirmed, specimen context, unit, normalization basis, quality notices, matching exclusions, and unit conflicts.
+- [x] Keep superseded, candidate, comparator, qualitative, narrative, absent, unknown-date, partial-date, single-point, normalization-warning, insufficient-identity, missing-unit, and incompatible-unit evidence outside the explanation.
+- [x] Provide deterministic no-AI wording in a dedicated Health Data workspace.
+- [x] Restrict optional model wording to the exact plotted observations with no web tools and no prior chat.
+- [x] Buffer optional model wording and withhold it for missing, invented, or incomplete plotted-point citations.
+- [x] Require every plotted point to be cited at least once.
+- [x] Avoid diagnosis, causality, prognosis, treatment recommendations, dose changes, and unsupported clinical-significance claims.
 
-## Later — Slice 5 low-risk rules and final acceptance
+#### Explicit reminders
+
+- [x] Derive reminders only from confirmed, patient-applicable appointments, clinical tasks, care plans, medication dates, and durable reviewed-advisory tasks.
+- [x] Exclude candidate, rejected, entered-in-error, negated, hypothetical, family, and other-person evidence from reminder content.
+- [x] Use only appointment start/requested periods, task due fields, care-plan periods, medication end dates, and exact future medication start dates.
+- [x] Never manufacture a due date from `recordedAt`, upload time, extraction time, review time, storage time, or model output.
+- [x] Keep historical medication starts as context instead of turning them into future reminders.
+- [x] Distinguish recorded-date-passed, due-today, upcoming, later, completed, cancelled, unknown/imprecise-date, and unscheduled states.
+- [x] Preserve original source status, source label, document/page, date precision, evidence ID, and action boundary.
+- [x] Create a routine local proposal task only after explicit user action and a required reason.
+- [x] Copy a due date only when a future or same-day exact source date is safe; otherwise keep the task due date unknown.
+- [x] State explicitly that proposal tasks do not send notifications, book appointments, place orders or prescriptions, deliver treatment instructions, or prove external execution.
+- [x] Add source review, audit events, behavior tests, and workspace contract tests.
+
+Slice 4 implementation is complete. Final repository validation is running on the current branch head before Slice 4 is formally accepted.
+
+## Next — Slice 5 low-risk rules and final acceptance
 
 - [ ] Add only reviewed low-risk workflow/data-quality pilot rules with complete metadata and PHI-free regression packages.
+- [ ] Keep diagnosis, treatment, prescribing, medication-safety, dose-adjustment, emergency-triage, and protocol-state rules disabled.
 - [ ] Add an evidence drawer and source preview for grounded answers and validated advisories.
-- [ ] Add audit review for grounding, reconciliation, reminders, rule evaluation, and advisory actions.
-- [ ] Complete PHI-free contract corpora and final acceptance evidence.
+- [ ] Add audit review for grounding, reconciliation, trends, reminders, rule evaluation, and advisory actions.
+- [ ] Complete PHI-free contract corpora and final Phase 5 acceptance evidence.
 - [ ] Run the complete Python, TypeScript, Vitest, evaluation-contract, and production-build gates on the immutable final head.
 
 Diagnosis, prescribing, treatment, dose adjustment, emergency triage, drug-interaction safety, and protocol-state rules remain disabled unless separately validated.
