@@ -11,8 +11,13 @@ import {
     ShieldCheckIcon,
     UserIcon,
 } from '../../../components/icons';
+import { useAuditStore } from '../../audit/useAuditStore';
 import { selectCandidateResources } from '../../clinical-record/selectors';
 import type { PatientClinicalRecord } from '../../clinical-record/types';
+import {
+    buildMedicationReconciliationViewModel,
+} from '../../medication-reconciliation';
+import MedicationReconciliationWorkspace from '../../medication-reconciliation/components/MedicationReconciliationWorkspace';
 import type { PersonalHealthDataModule } from '../planningModuleTypes';
 import AllergiesModule from './AllergiesModule';
 import AppointmentsModule from './AppointmentsModule';
@@ -60,6 +65,13 @@ const MODULES: Array<{
         shortLabel: 'Meds',
         description: 'Current use and medication history',
         icon: DrugsIcon,
+    },
+    {
+        value: 'medication-reconciliation',
+        label: 'Medication Reconciliation',
+        shortLabel: 'Reconcile',
+        description: 'Compare sources and review discrepancies',
+        icon: ListChecksIcon,
     },
     {
         value: 'results',
@@ -138,6 +150,11 @@ const HealthDataWorkspace: React.FC<HealthDataWorkspaceProps> = ({
     onReviewCandidates,
 }) => {
     const [module, setModule] = useState<PersonalHealthDataModule>('conditions');
+    const auditLogs = useAuditStore(state => state.logs);
+    const reconciliation = useMemo(
+        () => buildMedicationReconciliationViewModel(record, auditLogs),
+        [auditLogs, record],
+    );
     const candidateCounts = useMemo(() => {
         const candidates = selectCandidateResources(record);
         return {
@@ -147,6 +164,10 @@ const HealthDataWorkspace: React.FC<HealthDataWorkspaceProps> = ({
                 resource.resourceType === 'AllergyIntolerance').length,
             medications: candidates.filter(resource =>
                 resource.resourceType === 'Medication').length,
+            'medication-reconciliation':
+                reconciliation.unreviewedCount
+                + reconciliation.actionPendingCount
+                + reconciliation.candidateMedicationCount,
             results: candidates.filter(resource =>
                 resource.resourceType === 'Observation'
                 || resource.resourceType === 'DiagnosticReport').length,
@@ -168,7 +189,7 @@ const HealthDataWorkspace: React.FC<HealthDataWorkspaceProps> = ({
                 resource.resourceType === 'CarePlan').length,
             manage: candidates.length,
         } satisfies Record<PersonalHealthDataModule, number>;
-    }, [record]);
+    }, [reconciliation, record]);
 
     const handleModuleKeyDown = (
         event: React.KeyboardEvent<HTMLButtonElement>,
@@ -267,6 +288,12 @@ const HealthDataWorkspace: React.FC<HealthDataWorkspaceProps> = ({
                 )}
                 {module === 'medications' && (
                     <MedicationsModule
+                        record={record}
+                        onReviewCandidates={onReviewCandidates}
+                    />
+                )}
+                {module === 'medication-reconciliation' && (
+                    <MedicationReconciliationWorkspace
                         record={record}
                         onReviewCandidates={onReviewCandidates}
                     />
