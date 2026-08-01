@@ -230,6 +230,7 @@ const Phase2Workspace: React.FC = () => {
                         ) : view === 'assistant' ? (
                             <AssistantAccessPrompt
                                 onOpenSettings={() => setIsSettingsOpen(true)}
+                                record={activeRecord}
                             />
                         ) : (
                             <PersonalHealthRecordShell
