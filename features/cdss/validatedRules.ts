@@ -1,10 +1,13 @@
+import { parseLocalEvidenceId } from '../grounded-assistance/evidenceReview';
 import type {
     AlertLevel,
     CDSSAction,
     CDSSAlert,
 } from './types';
+import { LOW_RISK_VALIDATED_RULES } from './lowRiskPilotRules';
 
 export type ClinicalRuleValidationStatus = 'draft' | 'validated' | 'retired';
+export type ClinicalRuleRiskClass = 'workflow' | 'data-quality';
 
 export interface ClinicalRuleEvidenceCitation {
     id: string;
@@ -13,6 +16,16 @@ export interface ClinicalRuleEvidenceCitation {
     versionOrDate: string;
     locator?: string;
     note?: string;
+}
+
+export interface ClinicalRuleRegressionPackage {
+    id: string;
+    phiFree: boolean;
+    caseCount: number;
+    fixtureFile: string;
+    testFile: string;
+    reviewedBy: string;
+    reviewedAt: string;
 }
 
 export interface ValidatedClinicalRuleDefinition<TInput = unknown> {
@@ -28,6 +41,11 @@ export interface ValidatedClinicalRuleDefinition<TInput = unknown> {
     evidence: ClinicalRuleEvidenceCitation[];
     validationStatus: ClinicalRuleValidationStatus;
     validatedAt?: string;
+    riskClass?: ClinicalRuleRiskClass;
+    reviewedBy?: string;
+    reviewedAt?: string;
+    safetyBoundaries?: string[];
+    regressionPackage?: ClinicalRuleRegressionPackage;
     evaluate: (input: TInput) => CDSSAlert | null;
 }
 
@@ -36,7 +54,10 @@ export type ValidatedRuleSkipReason =
     | 'retired'
     | 'metadata-incomplete'
     | 'evaluation-error'
-    | 'disallowed-output-level';
+    | 'disallowed-output-level'
+    | 'risk-boundary-mismatch'
+    | 'evidence-missing'
+    | 'invalid-evidence-id';
 
 export interface ValidatedRuleEvaluation {
     ruleId: string;
@@ -106,6 +127,53 @@ export const validatedRuleMetadataIssues = <TInput>(
     ) {
         issues.push('A validated rule requires a validation date.');
     }
+
+    // Slice 5 pilot rules opt into a stronger low-risk contract. Legacy test
+    // definitions without a risk class continue to validate against the Slice 1
+    // executor contract, while registered pilots fail closed unless every
+    // review and PHI-free regression field is present.
+    if (rule.riskClass) {
+        if (rule.allowedLevels.length !== 1 || rule.allowedLevels[0] !== 'Info') {
+            issues.push('A low-risk pilot rule must be Info-only.');
+        }
+        if (rule.exclusions.length === 0
+            || rule.exclusions.some(exclusion => !hasText(exclusion))) {
+            issues.push('A low-risk pilot rule requires explicit exclusions.');
+        }
+        if (!hasText(rule.reviewedBy)) {
+            issues.push('A low-risk pilot rule requires a named reviewer.');
+        }
+        if (!hasText(rule.reviewedAt)) {
+            issues.push('A low-risk pilot rule requires a review date.');
+        }
+        if (!rule.safetyBoundaries?.length
+            || rule.safetyBoundaries.some(boundary => !hasText(boundary))) {
+            issues.push('A low-risk pilot rule requires explicit safety boundaries.');
+        }
+        if (!rule.regressionPackage) {
+            issues.push('A low-risk pilot rule requires a PHI-free regression package.');
+        }
+    }
+
+    if (rule.regressionPackage) {
+        const regression = rule.regressionPackage;
+        if (!hasText(regression.id)) {
+            issues.push('Regression package ID is required.');
+        }
+        if (!regression.phiFree) {
+            issues.push('Regression package must be explicitly PHI-free.');
+        }
+        if (!Number.isInteger(regression.caseCount) || regression.caseCount < 1) {
+            issues.push('Regression package requires at least one recorded case.');
+        }
+        if (!hasText(regression.fixtureFile) || !hasText(regression.testFile)) {
+            issues.push('Regression package fixture and test files are required.');
+        }
+        if (!hasText(regression.reviewedBy) || !hasText(regression.reviewedAt)) {
+            issues.push('Regression package review metadata is incomplete.');
+        }
+    }
+
     return issues;
 };
 
@@ -193,6 +261,32 @@ export const evaluateValidatedRule = <TInput>(
             `Rule emitted ${result.level}, which is outside its reviewed output contract.`,
         );
     }
+    if (rule.riskClass && result.advisoryKind !== rule.riskClass) {
+        return skippedEvaluation(
+            rule as ValidatedClinicalRuleDefinition<unknown>,
+            'risk-boundary-mismatch',
+            [],
+            `Rule declared ${rule.riskClass} but emitted ${result.advisoryKind}.`,
+        );
+    }
+    if (rule.riskClass && (!result.evidenceIds || result.evidenceIds.length === 0)) {
+        return skippedEvaluation(
+            rule as ValidatedClinicalRuleDefinition<unknown>,
+            'evidence-missing',
+            [],
+            'A low-risk pilot advisory must identify the exact local evidence snapshot that triggered it.',
+        );
+    }
+    const invalidEvidenceIds = (result.evidenceIds || [])
+        .filter(id => parseLocalEvidenceId(id) === null);
+    if (invalidEvidenceIds.length > 0) {
+        return skippedEvaluation(
+            rule as ValidatedClinicalRuleDefinition<unknown>,
+            'invalid-evidence-id',
+            [],
+            `Rule emitted invalid local evidence identifiers: ${invalidEvidenceIds.join(', ')}.`,
+        );
+    }
 
     const sourceCitation = rule.evidence.map(citationLabel).join('; ');
     const advisory: CDSSAlert = {
@@ -201,6 +295,16 @@ export const evaluateValidatedRule = <TInput>(
         actions: safeActions(result.actions),
         validationStatus: 'validated',
         sourceCitation,
+        ...(rule.riskClass ? { advisoryKind: rule.riskClass } : {}),
+        ...(rule.regressionPackage
+            ? { validationPackageId: rule.regressionPackage.id }
+            : {}),
+        ...(rule.reviewedBy ? { reviewedBy: rule.reviewedBy } : {}),
+        ...(rule.reviewedAt ? { reviewedAt: rule.reviewedAt } : {}),
+        limitations: [
+            ...(result.limitations || []),
+            ...(rule.safetyBoundaries || []),
+        ].filter((value, index, values) => values.indexOf(value) === index),
     };
 
     return {
@@ -227,8 +331,10 @@ export const evaluateValidatedRuleSet = <TInput>(
 };
 
 /**
- * No clinical conclusion is enabled by the Phase 5 foundation itself.
- * Rules are added only after their metadata, evidence, review, and regression
- * package are complete.
+ * The registry is intentionally limited to reviewed workflow and data-quality
+ * pilots. Diagnosis, treatment, prescribing, medication-safety, dose-adjustment,
+ * emergency-triage, and protocol-state rules remain disabled.
  */
-export const VALIDATED_RULE_REGISTRY: ValidatedClinicalRuleDefinition<unknown>[] = [];
+export const VALIDATED_RULE_REGISTRY: ValidatedClinicalRuleDefinition<any>[] = [
+    ...LOW_RISK_VALIDATED_RULES,
+];

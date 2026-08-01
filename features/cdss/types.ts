@@ -4,6 +4,11 @@ export type AdvisoryValidationStatus =
     | 'validated'
     | 'unvalidated-legacy';
 
+export type AdvisoryKind =
+    | 'clinical'
+    | 'workflow'
+    | 'data-quality';
+
 export type CDSSActionType =
     | 'create-task'
     | 'dismiss'
@@ -27,6 +32,13 @@ export interface CDSSAlert {
     actions: CDSSAction[];
     validationStatus?: AdvisoryValidationStatus;
     sourceCitation?: string;
+    advisoryKind?: AdvisoryKind;
+    evidenceIds?: string[];
+    fingerprint?: string;
+    validationPackageId?: string;
+    reviewedBy?: string;
+    reviewedAt?: string;
+    limitations?: string[];
 }
 
 export interface ClinicalRule {

@@ -1,0 +1,118 @@
+{
+  "schemaVersion": 1,
+  "corpusId": "medibrief-phase5-low-risk-rule-pilots-v1",
+  "phiFree": true,
+  "purpose": "Contract and behavior fixtures for workflow and data-quality pilots only. These cases do not validate diagnosis, treatment, medication safety, urgency, or clinical accuracy.",
+  "cases": [
+    {
+      "id": "date-001-missing-confirmed",
+      "ruleId": "mb-confirmed-record-clinical-date-review",
+      "resourceType": "Condition",
+      "verificationStatus": "confirmed",
+      "dateMode": "missing",
+      "expectedMatched": true
+    },
+    {
+      "id": "date-002-exact-confirmed",
+      "ruleId": "mb-confirmed-record-clinical-date-review",
+      "resourceType": "Condition",
+      "verificationStatus": "confirmed",
+      "dateMode": "exact",
+      "expectedMatched": false
+    },
+    {
+      "id": "date-003-candidate-excluded",
+      "ruleId": "mb-confirmed-record-clinical-date-review",
+      "resourceType": "Condition",
+      "verificationStatus": "candidate",
+      "dateMode": "missing",
+      "expectedMatched": false
+    },
+    {
+      "id": "date-004-negated-excluded",
+      "ruleId": "mb-confirmed-record-clinical-date-review",
+      "resourceType": "Condition",
+      "verificationStatus": "confirmed",
+      "dateMode": "missing",
+      "assertionMode": "negated",
+      "expectedMatched": false
+    },
+    {
+      "id": "med-001-missing-directions",
+      "ruleId": "mb-active-medication-directions-review",
+      "resourceType": "Medication",
+      "verificationStatus": "confirmed",
+      "status": "active",
+      "directionsMode": "missing",
+      "expectedMatched": true
+    },
+    {
+      "id": "med-002-directions-present",
+      "ruleId": "mb-active-medication-directions-review",
+      "resourceType": "Medication",
+      "verificationStatus": "confirmed",
+      "status": "active",
+      "directionsMode": "present",
+      "expectedMatched": false
+    },
+    {
+      "id": "med-003-completed-excluded",
+      "ruleId": "mb-active-medication-directions-review",
+      "resourceType": "Medication",
+      "verificationStatus": "confirmed",
+      "status": "completed",
+      "directionsMode": "missing",
+      "expectedMatched": false
+    },
+    {
+      "id": "med-004-candidate-excluded",
+      "ruleId": "mb-active-medication-directions-review",
+      "resourceType": "Medication",
+      "verificationStatus": "candidate",
+      "status": "active",
+      "directionsMode": "missing",
+      "expectedMatched": false
+    },
+    {
+      "id": "task-001-open-unscheduled",
+      "ruleId": "mb-open-task-due-date-review",
+      "resourceType": "ClinicalTask",
+      "verificationStatus": "confirmed",
+      "status": "requested",
+      "dueMode": "missing",
+      "expectedMatched": true
+    },
+    {
+      "id": "task-002-open-scheduled",
+      "ruleId": "mb-open-task-due-date-review",
+      "resourceType": "ClinicalTask",
+      "verificationStatus": "confirmed",
+      "status": "requested",
+      "dueMode": "exact",
+      "expectedMatched": false
+    },
+    {
+      "id": "task-003-completed-excluded",
+      "ruleId": "mb-open-task-due-date-review",
+      "resourceType": "ClinicalTask",
+      "verificationStatus": "confirmed",
+      "status": "completed",
+      "dueMode": "missing",
+      "expectedMatched": false
+    },
+    {
+      "id": "task-004-unknown-date-remains-unscheduled",
+      "ruleId": "mb-open-task-due-date-review",
+      "resourceType": "ClinicalTask",
+      "verificationStatus": "confirmed",
+      "status": "in-progress",
+      "dueMode": "unknown",
+      "expectedMatched": true
+    }
+  ],
+  "limitations": [
+    "Synthetic PHI-free fixtures only.",
+    "Validates software selection, exclusion, metadata, evidence-link, and fail-closed contracts.",
+    "Does not estimate real-world clinical quality or medical safety."
+  ]
+}
