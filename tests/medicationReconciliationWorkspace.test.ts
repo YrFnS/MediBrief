@@ -14,6 +14,10 @@ describe('Phase 5 medication reconciliation workspace', () => {
         'features/medication-reconciliation/reconciliation.ts',
         'utf8',
     );
+    const taskBuilder = readFileSync(
+        'features/medication-reconciliation/task.ts',
+        'utf8',
+    );
 
     it('exposes a dedicated Health Data destination and pending-review badge', () => {
         expect(healthData).toContain("value: 'medication-reconciliation'");
@@ -38,6 +42,8 @@ describe('Phase 5 medication reconciliation workspace', () => {
         expect(engine).toContain("intent: 'proposal'");
         expect(engine).toContain("'not-an-order'");
         expect(engine).toContain('not a prescription');
+        expect(taskBuilder).toContain("priority: 'routine'");
+        expect(taskBuilder).toContain('not a clinical urgency classification');
     });
 
     it('keeps original source review available for every source-linked medication', () => {
