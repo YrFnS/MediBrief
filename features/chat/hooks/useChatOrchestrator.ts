@@ -24,7 +24,12 @@ import {
 import { isHighCredibilitySource } from '../../../utils/sourceVerification';
 import { useEntityExtractor } from '../../../hooks/useEntityExtractor';
 import { useAuditStore } from '../../audit/useAuditStore';
+import { useClinicalRecordStore } from '../../clinical-record/useClinicalRecordStore';
 import { createPendingLegacyLabReview } from '../../diagnostic-reports';
+import {
+    finalizeGroundedAssistantAnswer,
+    prepareAssistantTurn,
+} from '../../grounded-assistance';
 import type { PatientMetadata } from '../../patient-management/types';
 import { usePatientStore } from '../../patient-management/usePatientStore';
 import { AIProvider, useSettingsStore } from '../../settings/useSettingsStore';
@@ -70,6 +75,9 @@ export const useChatOrchestrator = ({
         state => state.actions.appendToLastMessage,
     );
     const auditActions = useAuditStore(state => state.actions);
+    const activeRecord = useClinicalRecordStore(
+        state => state.records[activePatientId],
+    );
     const {
         provider,
         geminiApiKey,
@@ -210,6 +218,67 @@ export const useChatOrchestrator = ({
             return;
         }
 
+        const preparedTurn = uploadedFile
+            ? ({ kind: 'general' } as const)
+            : prepareAssistantTurn(activeRecord, trimmedPrompt);
+
+        if (preparedTurn.kind === 'deterministic-summary') {
+            addMessage(activePatientId, {
+                role: 'user',
+                content: trimmedPrompt,
+            });
+            addMessage(activePatientId, {
+                role: 'model',
+                content: preparedTurn.response,
+            });
+            auditActions.logEvent(
+                'DETERMINISTIC_SUMMARY_GENERATED',
+                activePatientId,
+                'Generated a deterministic summary from confirmed patient-record evidence.',
+                'SYSTEM',
+                {
+                    selectedEvidence:
+                        preparedTurn.summary.evidenceBundle.selection.selected,
+                    pendingCandidates:
+                        preparedTurn.summary.pendingCandidateCount,
+                    diagnosticConflicts:
+                        preparedTurn.summary.diagnosticConflictCount,
+                },
+            );
+            return;
+        }
+
+        if (
+            preparedTurn.kind === 'patient-record'
+            && preparedTurn.immediateResponse
+        ) {
+            addMessage(activePatientId, {
+                role: 'user',
+                content: trimmedPrompt,
+            });
+            addMessage(activePatientId, {
+                role: 'model',
+                content: preparedTurn.immediateResponse,
+            });
+            auditActions.logEvent(
+                'GROUNDED_ASSISTANT_REJECTED',
+                activePatientId,
+                'Patient-record request ended without a model call because confirmed evidence was unavailable.',
+                'SYSTEM',
+                {
+                    selectedEvidence: preparedTurn.bundle.selection.selected,
+                    includeHistory: preparedTurn.includeHistory,
+                    resourceTypes: preparedTurn.resourceTypes,
+                    reason: 'no-confirmed-evidence',
+                },
+            );
+            return;
+        }
+
+        const groundedTurn = preparedTurn.kind === 'patient-record'
+            ? preparedTurn
+            : undefined;
+
         let finalApiPrompt = trimmedPrompt;
         let historyContent = trimmedPrompt;
         let fileForApi: UploadedFile | undefined = uploadedFile || undefined;
@@ -291,7 +360,7 @@ export const useChatOrchestrator = ({
                 uiDispatch({ type: 'SET_ERROR', payload: friendlyError });
                 return;
             }
-        } else if (isBriefingCommand) {
+        } else if (isBriefingCommand && !groundedTurn) {
             finalApiPrompt = SHIFT_BRIEFING_PROMPT();
             historyContent = '/brief';
             modeForRequest = ChatModeEnum.Standard;
@@ -302,7 +371,7 @@ export const useChatOrchestrator = ({
                 'Briefing requested via command',
                 'USER',
             );
-        } else if (isDrugCommand) {
+        } else if (isDrugCommand && !groundedTurn) {
             finalApiPrompt = DRUG_ANALYSIS_PROMPT(trimmedPrompt);
             modeForRequest = ChatModeEnum.Standard;
             responseType = 'json';
@@ -310,6 +379,26 @@ export const useChatOrchestrator = ({
 
         if (trimmedPrompt.toLowerCase().startsWith('/patient')) {
             modeForRequest = ChatModeEnum.Standard;
+        }
+
+        if (groundedTurn?.modelPrompt) {
+            finalApiPrompt = groundedTurn.modelPrompt;
+            responseType = 'text';
+            fileForApi = undefined;
+            auditActions.logEvent(
+                'GROUNDING_BUNDLE_GENERATED',
+                activePatientId,
+                'Selected confirmed patient-record evidence for a grounded Assistant request.',
+                'SYSTEM',
+                {
+                    selectedEvidence: groundedTurn.bundle.selection.selected,
+                    eligibleBeforeSelection:
+                        groundedTurn.bundle.selection.eligibleBeforeSelection,
+                    excludedCounts: groundedTurn.bundle.excludedCounts,
+                    includeHistory: groundedTurn.includeHistory,
+                    resourceTypes: groundedTurn.resourceTypes,
+                },
+            );
         }
 
         const userMessage: ChatMessage = {
@@ -336,7 +425,7 @@ export const useChatOrchestrator = ({
         let fullResponseBuffer = '';
 
         try {
-            const history = [...messages];
+            const history = groundedTurn ? [] : [...messages];
             const apiKey = provider === AIProvider.Gemini
                 ? geminiApiKey || process.env.API_KEY || ''
                 : openRouterApiKey;
@@ -381,21 +470,77 @@ export const useChatOrchestrator = ({
                         })
                         .filter(Boolean) as GroundingSource[];
                 }
-                appendToLastMessage(activePatientId, textChunk, sources);
+                if (!groundedTurn) {
+                    appendToLastMessage(activePatientId, textChunk, sources);
+                }
+            }
+
+            if (groundedTurn) {
+                const finalized = finalizeGroundedAssistantAnswer(
+                    fullResponseBuffer,
+                    groundedTurn.bundle,
+                );
+                updateLastMessageContent(
+                    activePatientId,
+                    finalized.displayText,
+                );
+                auditActions.logEvent(
+                    finalized.accepted
+                        ? 'GROUNDED_ASSISTANT_COMPLETED'
+                        : 'GROUNDED_ASSISTANT_REJECTED',
+                    activePatientId,
+                    finalized.accepted
+                        ? 'Completed a citation-checked grounded Assistant response.'
+                        : 'Withheld a patient-specific model response that failed local citation validation.',
+                    'AI',
+                    {
+                        status: finalized.status,
+                        citedEvidenceCount: finalized.citedEvidenceCount,
+                        referencedEvidenceIds:
+                            finalized.assessment?.referencedEvidenceIds || [],
+                        unknownEvidenceIds:
+                            finalized.assessment?.unknownEvidenceIds || [],
+                    },
+                );
             }
         } catch (error) {
             if (error instanceof Error && error.message === 'Aborted') {
-                appendToLastMessage(activePatientId, ' [Stopped]', undefined);
+                if (groundedTurn) {
+                    updateLastMessageContent(
+                        activePatientId,
+                        '🛑 Grounded record question cancelled.',
+                    );
+                } else {
+                    appendToLastMessage(activePatientId, ' [Stopped]', undefined);
+                }
             } else {
                 updateLastMessageContent(
                     activePatientId,
                     `Sorry, I encountered an error.\n\n**Details:** ${getFriendlyErrorMessage(error)}`,
                 );
+                if (groundedTurn) {
+                    auditActions.logEvent(
+                        'GROUNDED_ASSISTANT_REJECTED',
+                        activePatientId,
+                        'Grounded Assistant generation failed before citation validation.',
+                        'AI',
+                        {
+                            reason: 'provider-or-stream-error',
+                            selectedEvidence:
+                                groundedTurn.bundle.selection.selected,
+                            error: getFriendlyErrorMessage(error),
+                        },
+                    );
+                }
             }
         } finally {
             uiDispatch({ type: 'SET_LOADING', payload: false });
 
-            if (activePatientId && isLabReport(fullResponseBuffer)) {
+            if (
+                !groundedTurn
+                && activePatientId
+                && isLabReport(fullResponseBuffer)
+            ) {
                 const report = parseAndValidate(
                     fullResponseBuffer,
                     LabReportSchema,
@@ -437,6 +582,7 @@ export const useChatOrchestrator = ({
         }
     }, [
         activePatientId,
+        activeRecord,
         addMessage,
         addResponsePlaceholder,
         appendToLastMessage,
