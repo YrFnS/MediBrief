@@ -2,151 +2,169 @@
 
 Branch: `agent/phase-5-grounded-assistance`  
 Base: accepted Phase 4 head `7dcc74d61bc4aec3bcc7effd6bd9496ccff83e88`  
-Status: in progress  
-Next: low-risk validated rule pilots and final acceptance
+Status: complete  
+Acceptance evidence: `docs/PHASE_5_FINAL_ACCEPTANCE.md`
 
 ## Safety boundary
 
-Patient-specific assistance uses confirmed, patient-applicable, source-linked evidence. Candidates, rejected or entered-in-error resources, negated or hypothetical assertions, non-patient evidence, and superseded diagnostic evidence do not silently become current patient facts. Original values remain authoritative, unknown dates remain unknown, and citation membership is not semantic or clinical validation.
+Phase 5 adds useful patient-record assistance only through confirmed, patient-applicable, source-linked evidence and explicit fail-closed contracts.
 
-Medication reconciliation compares source-linked records and records human workflow decisions. It does not establish adherence, prescribing intent, regimen safety, or permission to start, stop, or change treatment.
+It does not enable autonomous diagnosis, treatment recommendations, prescribing, dose changes, medication-safety verdicts, emergency triage, clinical-urgency assignment, protocol-state decisions, automatic clinical-record mutation, or claims that an external action occurred.
 
-Trend descriptions report deterministic arithmetic over already eligible recorded points. They do not establish clinical significance, improvement, worsening, cause, prognosis, treatment effect, diagnosis, or a recommended action.
+Original values remain authoritative, normalized values remain secondary views, unknown dates remain unknown, and local citation membership is not sentence-level entailment or clinical validation.
 
-Reminder views derive only from explicit durable record fields. They do not send notifications, contact clinics, place orders, book appointments, or prove that an action occurred.
+## Completed slices
 
-## Completed
-
-### Slice 1 — Grounding and fail-closed rules
+### Slice 1 — Grounding and fail-closed rule foundation
 
 - [x] Versioned patient grounding bundles.
+- [x] One confirmed, patient-applicable eligibility boundary.
 - [x] Current, planning, and historical evidence scopes.
-- [x] Stable `MB:<ResourceType>:<resourceId>` citation IDs.
+- [x] Stable `MB:<ResourceType>:<resourceId>` evidence identifiers.
 - [x] Source labels, pages, original values, normalized secondary views, and date precision.
 - [x] Citation syntax and selected-bundle membership validation.
-- [x] Fail-closed validated-rule executor.
-- [x] Empty validated-rule registry by default.
+- [x] Fail-closed versioned rule executor.
+- [x] Draft, retired, incomplete, evaluator-error, disallowed-level, and unsafe legacy actions withheld or converted to local proposals.
 
-### Slice 2 — Deterministic summaries and grounded Assistant
+### Slice 2 — Deterministic summaries and citation-gated Assistant
 
 - [x] No-AI confirmed-record summary.
-- [x] Separate profile, current problems, allergies, medications, recent results/reports, visits, plans, tasks, history, and missing information.
-- [x] Candidate and conflict counts without presenting candidates as facts.
+- [x] Separate profile, conditions, allergies, medications, results/reports, visits, plans, tasks, history, and missing information.
+- [x] Candidate and conflict counts without presenting candidates as patient facts.
 - [x] Cautious empty states and explicit unknown dates.
-- [x] No-key summary panel.
-- [x] Deterministic routing for summary commands and patient-record questions.
-- [x] Fresh patient evidence with no prior chat used as patient fact.
-- [x] Relevant resource selection and explicit history opt-in.
-- [x] Required exact local citations and standardized insufficient-evidence response.
-- [x] Buffered patient-record output.
-- [x] Entire model answer withheld for missing or invented citations.
-- [x] General chat and document analysis remain separate.
-- [x] Grounded output excluded from legacy lab ingestion.
-- [x] Audit events and regression coverage.
+- [x] Deterministic routing for summary commands and recognizable patient-record questions.
+- [x] Fresh patient evidence with no prior chat treated as patient fact.
+- [x] Explicit history opt-in.
+- [x] Exact local citations and standardized insufficient-evidence response.
+- [x] Buffered patient-record model output.
+- [x] Complete output withholding for missing or invented citations.
+- [x] Exact referenced evidence IDs recorded in audit history.
 
-Validated Slice 2 head: `999f0f9f9a881b30673364e044ee616b4f4eb32d`
-
-GitHub Actions run **640** (`30675435938`) passed:
-
-- Python OpenMed tests: **24 / 24**
-- TypeScript type-check
-- Test files: **46 / 46**
-- Tests: **203 / 203**
-- Slice 2 tests: **6 / 6**
-- Existing Phase 5 foundation tests: **6 / 6**
-- Production build
-- Modules transformed: **1062**
-- Main chunk: approximately **2.10 MB minified / 569 kB gzip**
-
-Synthetic fixtures validate software contracts and routing, not clinical accuracy or sentence-level entailment.
+Validated Slice 2 head: `999f0f9f9a881b30673364e044ee616b4f4eb32d`  
+GitHub Actions run **640** (`30675435938`) passed with **46 / 46** TypeScript test files and **203 / 203** tests.
 
 ### Slice 3 — Medication reconciliation
 
 - [x] Dedicated Health Data reconciliation workspace.
-- [x] Compare confirmed medication statements, requests, and administrations without selecting one kind as automatically authoritative.
-- [x] Keep candidate, rejected, entered-in-error, negated, hypothetical, family, and other-person medication evidence outside confirmed reconciliation.
-- [x] Detect conservative possible duplicates within the same reviewed identity and record kind.
-- [x] Detect overlapping or date-uncertain same-kind status conflicts.
-- [x] Detect statement/request direction conflicts.
-- [x] Detect missing directions, unknown clinical dates, and uncertain active status.
-- [x] Preserve source labels, original documents/pages, dates, directions, prescriber, reasons, notes, record IDs, and amendment counts.
-- [x] Keep coded and uncoded identities separate until reviewed coding identity is confirmed.
-- [x] Keep statements, requests, and administrations separate and expose cross-kind context as informational evidence.
-- [x] Require a human reason for every durable reconciliation decision.
-- [x] Store review decisions in audit history without automatically amending medication facts.
-- [x] Use snapshot-sensitive issue fingerprints so stale decisions do not follow later record corrections.
-- [x] Offer an explicit local follow-up task with `intent: proposal`, unknown due date, linked medication records, and `not-an-order` wording.
-- [x] Keep source-backed medication corrections in the existing Manage Records workflow.
-- [x] Add regression coverage for selection, discrepancies, cross-kind boundaries, durable decisions, non-mutation, task semantics, source review, and UI integration.
+- [x] Confirmed medication statements, requests, and administrations compared without selecting one kind as automatically authoritative.
+- [x] Candidate, rejected, entered-in-error, negated, hypothetical, family, and other-person evidence excluded from confirmed comparison.
+- [x] Conservative same-kind duplicate and status-conflict review questions.
+- [x] Statement/request direction conflicts, missing directions, unknown dates, and uncertain status surfaced without automatic conclusions.
+- [x] Coded and uncoded identities kept separate until reviewed coding identity is confirmed.
+- [x] Original source text, dates, directions, prescriber, reasons, notes, document/page, and amendments preserved.
+- [x] Human reason required for durable decisions.
+- [x] Snapshot-sensitive fingerprints prevent stale decisions from following later amendments.
+- [x] Optional local routine proposal task with unknown due date and `not-an-order` wording.
+- [x] No automatic medication mutation.
 
-Validated Slice 3 head: `1a68db1abd7d5977bf58fd5d23530965d1b94f78`
-
-GitHub Actions run **670** (`30677222206`) passed:
-
-- Python OpenMed tests: **24 / 24**
-- TypeScript type-check
-- Test files: **48 / 48**
-- Tests: **213 / 213**
-- Medication reconciliation behavior tests: **6 / 6**
-- Medication reconciliation workspace tests: **4 / 4**
-- Production build
-- Modules transformed: **1067**
-- Main chunk: approximately **2.14 MB minified / 578 kB gzip**
+Validated Slice 3 head: `1a68db1abd7d5977bf58fd5d23530965d1b94f78`  
+GitHub Actions run **670** (`30677222206`) passed with **48 / 48** TypeScript test files and **213 / 213** tests.
 
 ### Slice 4 — Conservative trend explanations and explicit reminders
 
 #### Trend explanations
 
-- [x] Consume the existing Phase 4 result-intelligence output rather than creating a weaker eligibility engine.
-- [x] Include only confirmed, patient-applicable, current, exact numeric, non-comparator, exact-day, compatible-unit points from series containing at least two observations.
-- [x] Preserve every plotted point's original value, optional normalized view, exact date, source report, source document, page, and stable `MB:Observation:<id>` evidence ID.
-- [x] Generate deterministic point count, date span, first and last values, recorded higher/lower/unchanged direction, absolute change, minimum, maximum, and elapsed days before any model call.
-- [x] State grouping basis, LOINC when confirmed, specimen context, unit, normalization basis, quality notices, matching exclusions, and unit conflicts.
-- [x] Keep superseded, candidate, comparator, qualitative, narrative, absent, unknown-date, partial-date, single-point, normalization-warning, insufficient-identity, missing-unit, and incompatible-unit evidence outside the explanation.
-- [x] Provide deterministic no-AI wording in a dedicated Health Data workspace.
-- [x] Restrict optional model wording to the exact plotted observations with no web tools and no prior chat.
-- [x] Buffer optional model wording and withhold it for missing, invented, or incomplete plotted-point citations.
-- [x] Require every plotted point to be cited at least once.
-- [x] Avoid diagnosis, causality, prognosis, treatment recommendations, dose changes, and unsupported clinical-significance claims.
+- [x] Consume only Phase 4-eligible current plotted observations.
+- [x] Preserve original values, optional normalized views, exact dates, reports, documents/pages, and `MB:Observation:<id>` evidence IDs.
+- [x] Deterministically calculate point count, date span, first/last values, recorded direction, absolute change, minimum, maximum, and elapsed days before any model call.
+- [x] State grouping basis, LOINC when confirmed, specimen context, unit, normalization basis, exclusions, and unit conflicts.
+- [x] Keep candidate, superseded, comparator, qualitative, narrative, absent, unknown-date, partial-date, single-point, warning, insufficient-identity, missing-unit, and incompatible-unit evidence outside explanations.
+- [x] Optional model wording receives only exact plotted points, no prior chat, and no web tools.
+- [x] Entire optional wording withheld unless every plotted point has valid citation coverage.
+- [x] No diagnosis, causality, prognosis, treatment recommendation, dose change, or clinical-significance claim.
 
 #### Explicit reminders
 
-- [x] Derive reminders only from confirmed, patient-applicable appointments, clinical tasks, care plans, medication dates, and durable reviewed-advisory tasks.
-- [x] Exclude candidate, rejected, entered-in-error, negated, hypothetical, family, and other-person evidence from reminder content.
-- [x] Use only appointment start/requested periods, task due fields, care-plan periods, medication end dates, and exact future medication start dates.
-- [x] Never manufacture a due date from `recordedAt`, upload time, extraction time, review time, storage time, or model output.
-- [x] Keep historical medication starts as context instead of turning them into future reminders.
-- [x] Distinguish recorded-date-passed, due-today, upcoming, later, completed, cancelled, unknown/imprecise-date, and unscheduled states.
-- [x] Preserve original source status, source label, document/page, date precision, evidence ID, and action boundary.
-- [x] Create a routine local proposal task only after explicit user action and a required reason.
-- [x] Copy a due date only when a future or same-day exact source date is safe; otherwise keep the task due date unknown.
-- [x] State explicitly that proposal tasks do not send notifications, book appointments, place orders or prescriptions, deliver treatment instructions, or prove external execution.
-- [x] Add source review, audit events, behavior tests, and workspace contract tests.
+- [x] Derive reminders only from confirmed appointments, tasks, care plans, medication dates, and durable reviewed-advisory tasks.
+- [x] Use only explicit appointment, task, care-plan, medication, or durable task date fields.
+- [x] Never manufacture due dates from `recordedAt`, upload, extraction, review, storage, or model timestamps.
+- [x] Distinguish passed, due-today, upcoming, later, completed, cancelled, unknown/imprecise-date, and unscheduled states.
+- [x] Preserve source status, label, document/page, date precision, evidence ID, and action boundary.
+- [x] Require explicit user action and a reason before creating a local routine proposal task.
+- [x] State that no notification, booking, order, prescription, treatment instruction, or external action was sent.
 
-Validated Slice 4 implementation head: `94822d1dc8c7a37ce9abab9eeb7d49ec09f5187e`
+Validated Slice 4 head: `b05866a3cf8dbfff96781190a43d5e8e75430b3d`  
+GitHub Actions run **714** (`30678908743`) passed with **50 / 50** TypeScript test files and **222 / 222** tests.
 
-GitHub Actions run **710** (`30678772175`) passed:
+### Slice 5 — Low-risk validated pilots, evidence review, and audit
 
-- Python OpenMed bridge tests: **24 / 24**
-- Synthetic context, extraction-metric, and separate-provider comparison contracts: **passed**
-- TypeScript type-check: **passed**
-- Test files: **50 / 50 passed**
-- Tests: **222 / 222 passed**
-- Trend and reminder behavior tests: **4 / 4 passed**
-- Trend and reminder workspace tests: **5 / 5 passed**
+#### Reviewed pilot registry
+
+- [x] Register only three reviewed `Info`-level workflow/data-quality pilots:
+  - confirmed record clinical-date completeness review;
+  - current confirmed medication direction completeness review;
+  - confirmed open task due-date completeness review.
+- [x] Require owner, reviewer, semantic version, intended population, required inputs, exclusions, evidence citations, safety boundaries, validation date, and PHI-free regression package.
+- [x] Fail closed for draft/retired rules, incomplete metadata, evaluator errors, disallowed severity, wrong risk class, missing evidence, and invalid local evidence IDs.
+- [x] Keep diagnosis, treatment, prescribing, medication safety, dose adjustment, triage, urgency, and protocol-state rules disabled.
+- [x] Prevent review-generated `not-an-order` proposal tasks from recursively triggering the open-task pilot.
+- [x] Never substitute report issuance, `recordedAt`, upload, extraction, review, or storage timestamps for a missing clinical event date.
+
+#### Exact evidence and durable review
+
+- [x] Attach exact local evidence IDs and a snapshot-sensitive fingerprint to every matched advisory.
+- [x] Reuse the confirmed patient-grounding boundary for evidence resolution.
+- [x] Add an evidence drawer with source wording, date precision, provenance label, local citation, and original document/page preview.
+- [x] Require a non-empty reason for acknowledgment or local task creation.
+- [x] Keep acknowledgment as audit evidence only.
+- [x] Create only a confirmed, requested, routine `ClinicalTask` proposal with explicit unknown due date and `not-an-order` wording.
+- [x] Keep source-backed corrections in Manage Records.
+
+#### Rules and audit workspace
+
+- [x] Add a patient-scoped global **Rules & audit** workspace.
+- [x] Show current advisories, reviewed registry metadata, and Phase 5 audit history.
+- [x] Link grounded Assistant, reconciliation, trend, reminder, and rule events back to local evidence when identifiers are available.
+- [x] Add actor/type/search filtering.
+- [x] Add explicit patient-scoped JSON export with a clear warning that the export is private and not PHI-free.
+- [x] Add seven dedicated rule/evidence/audit events.
+
+#### PHI-free regression package
+
+- [x] Commit `evaluation/phase5/low_risk_rule_pilots_v1.json` with **12** synthetic cases.
+- [x] Add **9** low-risk rule behavior tests.
+- [x] Add **4** final workspace integration contract tests.
+- [x] Cover exclusions, fail-closed output, exact evidence, snapshot invalidation, required reasons, proposal-task semantics, source review, audit integration, and the recursive-task guard.
+
+Validated Slice 5 implementation head: `cb8192de5ee7481b948eb73537d39fbbcf8f4535`
+
+GitHub Actions run **716** (`30682448473`) passed:
+
+- Python OpenMed bridge tests: **24 / 24 passed**
+- Synthetic assertion-context evaluation: **passed**
+- Phase 3 extraction metric contracts: **passed**
+- Separate OpenMed/Gemini comparison contract: **passed**
+- TypeScript `tsc --noEmit`: **passed**
+- TypeScript test files: **52 / 52 passed**
+- TypeScript tests: **235 / 235 passed**
+- Slice 5 low-risk rule tests: **9 / 9 passed**
+- Slice 5 workspace integration tests: **4 / 4 passed**
 - Production build: **passed**
-- Modules transformed: **1074**
-- Main chunk: approximately **2.19 MB minified / 590 kB gzip**
+- Production modules transformed: **1080**
+- Main application chunk: approximately **2.24 MB minified / 603 kB gzip**
 
-Slice 4 is accepted. The deterministic and optional-model tests validate software evidence boundaries, citation coverage, date routing, and proposal-task semantics; they are not claims of clinical trend interpretation accuracy, real-world reminder delivery, or medical safety.
+The Slice 5 fixtures validate software selection, exclusion, fail-closed, evidence-link, durable-decision, and audit contracts. They are not claims of real-world clinical accuracy, medical safety, urgency detection, or outcome benefit.
 
-## Next — Slice 5 low-risk rules and final acceptance
+## Phase 5 acceptance status
 
-- [ ] Add only reviewed low-risk workflow/data-quality pilot rules with complete metadata and PHI-free regression packages.
-- [ ] Keep diagnosis, treatment, prescribing, medication-safety, dose-adjustment, emergency-triage, and protocol-state rules disabled.
-- [ ] Add an evidence drawer and source preview for grounded answers and validated advisories.
-- [ ] Add audit review for grounding, reconciliation, trends, reminders, rule evaluation, and advisory actions.
-- [ ] Complete PHI-free contract corpora and final Phase 5 acceptance evidence.
-- [ ] Run the complete Python, TypeScript, Vitest, evaluation-contract, and production-build gates on the immutable final head.
+- [x] Slice 1 — grounding and fail-closed rule foundation.
+- [x] Slice 2 — deterministic summaries and citation-gated Assistant.
+- [x] Slice 3 — medication reconciliation.
+- [x] Slice 4 — conservative trend descriptions and explicit reminders.
+- [x] Slice 5 — low-risk pilots, evidence UI, audit review, and acceptance package.
+- [x] Complete implementation gate passed on the immutable Slice 5 implementation head.
+- [ ] Complete repository gate on the final documentation/acceptance head; recorded in PR #5 after the run completes.
 
-Diagnosis, prescribing, treatment, dose adjustment, emergency triage, drug-interaction safety, and protocol-state rules remain disabled unless separately validated.
+## Accepted limitations and follow-on workstreams
+
+- Evidence-ID membership and point coverage are not semantic entailment or clinical correctness.
+- Patient-record question routing remains deterministic but heuristic.
+- Medication identity matching remains intentionally conservative and local to one patient record.
+- Trend arithmetic is not clinical interpretation.
+- Reminders and proposal tasks do not deliver background or external notifications.
+- Patient-scoped audit JSON exports contain private application data and are not anonymous or PHI-free.
+- Synthetic fixtures are contract evidence, not real-world clinical validation.
+- The main application bundle remains above Vite's default warning threshold.
+- Mixed UUID/blob-storage imports, runtime `/index.css`, Recharts 2.x maintenance, GitHub Actions runtime notices, and package install-script notices remain separate dependency/performance workstreams.
+
+Diagnosis, prescribing, treatment, dose adjustment, emergency triage, drug-interaction safety, clinical-urgency, and protocol-state rules remain disabled unless separately reviewed and validated.
