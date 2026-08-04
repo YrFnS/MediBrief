@@ -11,12 +11,8 @@ import {
     ShieldCheckIcon,
     UserIcon,
 } from '../../../components/icons';
-import {
-    selectCandidateResources,
-    selectDiagnosticReportCandidateGraphCount,
-} from '../../clinical-record/selectors';
+import { selectCandidateResources } from '../../clinical-record/selectors';
 import type { PatientClinicalRecord } from '../../clinical-record/types';
-import DiagnosticReportGraphReview from '../../diagnostic-reports/components/DiagnosticReportGraphReview';
 import type { PersonalHealthDataModule } from '../planningModuleTypes';
 import AllergiesModule from './AllergiesModule';
 import AppointmentsModule from './AppointmentsModule';
@@ -142,10 +138,6 @@ const HealthDataWorkspace: React.FC<HealthDataWorkspaceProps> = ({
     onReviewCandidates,
 }) => {
     const [module, setModule] = useState<PersonalHealthDataModule>('conditions');
-    const reportGraphCount = useMemo(
-        () => selectDiagnosticReportCandidateGraphCount(record),
-        [record],
-    );
     const candidateCounts = useMemo(() => {
         const candidates = selectCandidateResources(record);
         return {
@@ -157,8 +149,7 @@ const HealthDataWorkspace: React.FC<HealthDataWorkspaceProps> = ({
                 resource.resourceType === 'Medication').length,
             results: candidates.filter(resource =>
                 resource.resourceType === 'Observation'
-                || resource.resourceType === 'DiagnosticReport').length
-                + reportGraphCount,
+                || resource.resourceType === 'DiagnosticReport').length,
             visits: candidates.filter(resource =>
                 resource.resourceType === 'Encounter').length,
             notes: candidates.filter(resource =>
@@ -175,9 +166,9 @@ const HealthDataWorkspace: React.FC<HealthDataWorkspaceProps> = ({
                 resource.resourceType === 'ClinicalTask').length,
             'care-plans': candidates.filter(resource =>
                 resource.resourceType === 'CarePlan').length,
-            manage: candidates.length + reportGraphCount,
+            manage: candidates.length,
         } satisfies Record<PersonalHealthDataModule, number>;
-    }, [record, reportGraphCount]);
+    }, [record]);
 
     const handleModuleKeyDown = (
         event: React.KeyboardEvent<HTMLButtonElement>,
@@ -281,21 +272,10 @@ const HealthDataWorkspace: React.FC<HealthDataWorkspaceProps> = ({
                     />
                 )}
                 {module === 'results' && (
-                    <div className="flex min-h-0 flex-1 flex-col bg-slate-50/70 dark:bg-slate-950">
-                        {reportGraphCount > 0 && (
-                            <div className="max-h-[55dvh] flex-shrink-0 overflow-y-auto px-4 pt-5 md:px-6 md:pt-7">
-                                <div className="mx-auto w-full max-w-7xl">
-                                    <DiagnosticReportGraphReview
-                                        patientId={record.patientId}
-                                    />
-                                </div>
-                            </div>
-                        )}
-                        <ResultsModule
-                            record={record}
-                            onReviewCandidates={onReviewCandidates}
-                        />
-                    </div>
+                    <ResultsModule
+                        record={record}
+                        onReviewCandidates={onReviewCandidates}
+                    />
                 )}
                 {module === 'visits' && (
                     <VisitsModule

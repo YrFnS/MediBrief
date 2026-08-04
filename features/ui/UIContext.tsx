@@ -5,20 +5,13 @@ import React, {
     useReducer,
 } from 'react';
 import { ChatMode } from '../../types';
-import type { LabReport } from '../chat/schemas';
-import type { PendingLabSource } from '../diagnostic-reports';
-
-export interface PendingLabReportReview {
-    reviewId: string;
-    report: LabReport;
-    source?: PendingLabSource;
-}
+import type { PendingLegacyLabReview } from '../diagnostic-reports';
 
 export interface UIState {
     isLoading: boolean;
     error: string | null;
     chatMode: ChatMode;
-    pendingLabReport: PendingLabReportReview | null;
+    pendingLabReport: PendingLegacyLabReview | null;
 }
 
 export type UIAction =
@@ -27,7 +20,7 @@ export type UIAction =
     | { type: 'SET_CHAT_MODE'; payload: ChatMode }
     | {
         type: 'SET_PENDING_LAB_REPORT';
-        payload: PendingLabReportReview | null;
+        payload: PendingLegacyLabReview | null;
     }
     | { type: 'CLEAR_ERROR' };
 
@@ -40,7 +33,7 @@ const getInitialMode = (): ChatMode => {
             return saved as ChatMode;
         }
     } catch {
-        // Session storage can be unavailable in privacy-restricted contexts.
+        // Session storage can be unavailable in restricted browser contexts.
     }
     return ChatMode.Standard;
 };
@@ -90,7 +83,7 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({
     }, children);
 };
 
-export const useUIStore = (): UIContextType => {
+export const useUIStore = () => {
     const context = useContext(UIContext);
     if (!context) {
         throw new Error('useUIStore must be used within a UIProvider');

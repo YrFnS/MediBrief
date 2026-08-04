@@ -1,81 +1,64 @@
 import { z } from 'zod';
-import {
-    ClinicalCodeableConceptSchema,
-    ClinicalDateSchema,
-    ClinicalPeriodSchema,
-    ClinicalQuantityValueSchema,
-    IsoDateTimeSchema,
-    ObservationReferenceRangeSchema,
-    SourceDocumentReferenceSchema,
-} from '../clinical-record';
-import { DIAGNOSTIC_REPORT_DRAFT_SCHEMA_VERSION } from './types';
-import type {
-    DiagnosticReportDraft,
-    DiagnosticReportGraphIssue,
-} from './types';
+import type { ReviewedDiagnosticReportDraft } from './types';
 
-const nonEmptyOptional = z.string().min(1).optional();
+const optionalTrimmed = z.string().trim().min(1).optional();
+const nullableTrimmed = z.string().trim().min(1).nullable().optional();
 
-export const DiagnosticResultValueDraftSchema = z.discriminatedUnion('type', [
-    z.object({
-        type: z.literal('quantity'),
-        rawText: z.string().trim().min(1),
-        value: z.number().finite(),
-        unit: nonEmptyOptional,
-        comparator: z.enum(['<', '<=', '>=', '>']).optional(),
-        normalized: ClinicalQuantityValueSchema.optional(),
-        normalizationWarning: nonEmptyOptional,
-    }).strict(),
-    z.object({
-        type: z.literal('string'),
-        text: z.string().min(1),
-    }).strict(),
-    z.object({
-        type: z.literal('boolean'),
-        value: z.boolean(),
-        sourceText: nonEmptyOptional,
-    }).strict(),
-    z.object({
-        type: z.literal('integer'),
-        value: z.number().int(),
-        sourceText: nonEmptyOptional,
-    }).strict(),
-    z.object({
-        type: z.literal('codeable-concept'),
-        concept: ClinicalCodeableConceptSchema,
-        sourceText: nonEmptyOptional,
-    }).strict(),
-]);
+// `undefined` means that a result may inherit report-level context. Explicit
+// `null` means the reviewer identified the field as unknown, so it must survive
+// parsing as an explicit unknown marker rather than falling through `??` to a
+// report date or issue timestamp.
+const nullableDateText = z.string()
+    .trim()
+    .min(1)
+    .nullable()
+    .optional()
+    .transform(value => value === null ? 'unknown' : value);
 
-export const DiagnosticReferenceRangeDraftSchema = ObservationReferenceRangeSchema
-    .extend({
-        sourceText: nonEmptyOptional,
-    })
-    .strict()
-    .superRefine((range, ctx) => {
-        if (!range.low && !range.high && !range.text && !range.sourceText) {
-            ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                message: 'A reference range requires a bound or source text.',
-            });
-        }
-        if (
-            range.low
-            && range.high
-            && range.low.comparator === undefined
-            && range.high.comparator === undefined
-            && (range.low.unit || '') === (range.high.unit || '')
-            && range.low.value > range.high.value
-        ) {
-            ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                path: ['high', 'value'],
-                message: 'Reference-range high value must not be below the low value.',
-            });
-        }
-    });
+const IdentifierSchema = z.object({
+    value: z.string().trim().min(1),
+    system: optionalTrimmed,
+    type: optionalTrimmed,
+}).strict();
 
-export const DiagnosticSpecimenDraftSchema = z.object({
+const SourceObjectSchema = z.object({
+    documentId: z.string().trim().min(1),
+    fileName: optionalTrimmed,
+    pageNumber: z.number().int().positive().optional(),
+    section: optionalTrimmed,
+    startOffset: z.number().int().nonnegative().optional(),
+    endOffset: z.number().int().nonnegative().optional(),
+    excerpt: optionalTrimmed,
+}).strict();
+
+const validateSourceOffsets = (
+    source: {
+        startOffset?: number;
+        endOffset?: number;
+    },
+    context: z.RefinementCtx,
+): void => {
+    if (
+        source.startOffset !== undefined
+        && source.endOffset !== undefined
+        && source.endOffset < source.startOffset
+    ) {
+        context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['endOffset'],
+            message: 'endOffset must be greater than or equal to startOffset',
+        });
+    }
+};
+
+const SourceSchema = SourceObjectSchema.superRefine(validateSourceOffsets);
+
+const PartialSourceSchema = SourceObjectSchema
+    .omit({ documentId: true })
+    .partial()
+    .superRefine(validateSourceOffsets);
+
+const SpecimenDraftSchema = z.object({
     localId: z.string().trim().min(1),
     status: z.enum([
         'available',
@@ -83,18 +66,21 @@ export const DiagnosticSpecimenDraftSchema = z.object({
         'unsatisfactory',
         'entered-in-error',
         'unknown',
-    ]),
-    type: ClinicalCodeableConceptSchema.optional(),
-    collectedAt: ClinicalDateSchema.optional(),
-    receivedAt: ClinicalDateSchema.optional(),
-    bodySite: ClinicalCodeableConceptSchema.optional(),
-    collectionMethod: ClinicalCodeableConceptSchema.optional(),
-    note: z.string().optional(),
-    source: SourceDocumentReferenceSchema.optional(),
+    ]).optional(),
+    typeText: optionalTrimmed,
+    collectedDate: nullableDateText,
+    receivedDate: nullableDateText,
+    bodySiteText: optionalTrimmed,
+    collectionMethodText: optionalTrimmed,
+    collector: optionalTrimmed,
+    identifiers: z.array(IdentifierSchema).optional(),
+    note: optionalTrimmed,
 }).strict();
 
-export const DiagnosticResultDraftSchema = z.object({
+const ObservationDraftSchema = z.object({
     localId: z.string().trim().min(1),
+    testName: z.string().trim().min(1),
+    loincCode: optionalTrimmed,
     status: z.enum([
         'registered',
         'preliminary',
@@ -104,34 +90,73 @@ export const DiagnosticResultDraftSchema = z.object({
         'cancelled',
         'entered-in-error',
         'unknown',
-    ]),
-    code: ClinicalCodeableConceptSchema,
-    category: z.array(ClinicalCodeableConceptSchema).optional(),
-    value: DiagnosticResultValueDraftSchema,
-    interpretation: z.array(ClinicalCodeableConceptSchema).optional(),
-    referenceRanges: z.array(DiagnosticReferenceRangeDraftSchema),
-    specimenLocalId: nonEmptyOptional,
-    effective: ClinicalDateSchema.optional(),
-    issuedAt: IsoDateTimeSchema.optional(),
-    performer: z.array(z.string().min(1)).optional(),
-    note: z.string().optional(),
-    source: SourceDocumentReferenceSchema.optional(),
+    ]).optional(),
+    categoryTexts: z.array(z.string().trim().min(1)).optional(),
+    valueText: nullableTrimmed,
+    unitText: nullableTrimmed,
+    referenceRangeText: nullableTrimmed,
+    interpretationText: nullableTrimmed,
+    absentReasonText: nullableTrimmed,
+    clinicalDate: nullableDateText,
+    issuedAt: nullableDateText,
+    performer: z.array(z.string().trim().min(1)).optional(),
+    specimenLocalId: optionalTrimmed,
+    methodText: optionalTrimmed,
+    bodySiteText: optionalTrimmed,
+    note: optionalTrimmed,
+    source: PartialSourceSchema.optional(),
+}).strict().superRefine((result, context) => {
+    const hasValue = Boolean(result.valueText?.trim());
+    const hasAbsentReason = Boolean(result.absentReasonText?.trim());
+    if (!hasValue && !hasAbsentReason) {
+        context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['valueText'],
+            message: 'A result requires valueText or absentReasonText',
+        });
+    }
+});
+
+const ReviewFieldChangeSchema = z.object({
+    field: z.string().trim().min(1),
+    previousValue: z.unknown().optional(),
 }).strict();
 
-const comparableDate = (value: unknown): string | undefined => {
-    if (!value || typeof value !== 'object') return undefined;
-    const date = value as { value?: unknown; precision?: unknown };
-    return typeof date.value === 'string' && date.precision !== 'unknown'
-        ? date.value
-        : undefined;
-};
+const ExcludedResultEvidenceSchema = z.object({
+    localId: z.string().trim().min(1),
+    testName: z.string().trim().min(1),
+    previousValue: ObservationDraftSchema,
+}).strict();
 
-export const DiagnosticReportDraftSchema = z.object({
-    schemaVersion: z.literal(DIAGNOSTIC_REPORT_DRAFT_SCHEMA_VERSION),
-    draftId: z.string().trim().min(1),
+const ReviewEvidenceSchema = z.object({
+    reason: z.string().trim().min(1),
+    reportChanges: z.array(ReviewFieldChangeSchema).optional(),
+    resultChanges: z.record(
+        z.string().trim().min(1),
+        z.array(ReviewFieldChangeSchema),
+    ).optional(),
+    specimenChanges: z.record(
+        z.string().trim().min(1),
+        z.array(ReviewFieldChangeSchema),
+    ).optional(),
+    excludedResults: z.array(ExcludedResultEvidenceSchema).optional(),
+}).strict();
+
+const ConflictResolutionSchema = z.object({
+    relatedReportId: z.string().trim().min(1),
+    decision: z.enum([
+        'amends',
+        'corrects',
+        'replaces',
+        'duplicate',
+        'distinct',
+    ]),
+    reason: z.string().trim().min(1),
+}).strict();
+
+export const ReviewedDiagnosticReportDraftSchema = z.object({
     patientId: z.string().trim().min(1),
-    documentId: z.string().trim().min(1),
-    fileName: nonEmptyOptional,
+    reportTitle: z.string().trim().min(1),
     status: z.enum([
         'registered',
         'partial',
@@ -142,119 +167,103 @@ export const DiagnosticReportDraftSchema = z.object({
         'cancelled',
         'entered-in-error',
         'unknown',
-    ]),
-    code: ClinicalCodeableConceptSchema,
-    category: z.array(ClinicalCodeableConceptSchema).optional(),
-    effectivePeriod: ClinicalPeriodSchema.optional(),
-    issuedAt: IsoDateTimeSchema.optional(),
-    conclusion: z.string().optional(),
-    conclusionCodes: z.array(ClinicalCodeableConceptSchema).optional(),
-    encounterId: nonEmptyOptional,
-    performer: z.array(z.string().min(1)).optional(),
-    reportSource: SourceDocumentReferenceSchema.optional(),
-    specimens: z.array(DiagnosticSpecimenDraftSchema),
-    results: z.array(DiagnosticResultDraftSchema).min(1),
-    extraction: z.object({
-        engine: z.string().min(1),
-        model: nonEmptyOptional,
-        engineVersion: nonEmptyOptional,
-        confidence: z.number().min(0).max(1).optional(),
-        extractedAt: IsoDateTimeSchema,
-    }).strict().optional(),
-}).strict().superRefine((draft, ctx) => {
-    const specimenIds = new Set<string>();
-    draft.specimens.forEach((specimen, index) => {
-        if (specimenIds.has(specimen.localId)) {
-            ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                path: ['specimens', index, 'localId'],
-                message: 'Specimen local IDs must be unique within a report draft.',
-            });
-        }
-        specimenIds.add(specimen.localId);
-        if (
-            specimen.source
-            && specimen.source.documentId !== draft.documentId
-        ) {
-            ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                path: ['specimens', index, 'source', 'documentId'],
-                message: 'Specimen source must reference the report document.',
-            });
-        }
-    });
-
-    const resultIds = new Set<string>();
-    draft.results.forEach((result, index) => {
-        if (resultIds.has(result.localId)) {
-            ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                path: ['results', index, 'localId'],
-                message: 'Result local IDs must be unique within a report draft.',
-            });
-        }
-        resultIds.add(result.localId);
-        if (
-            result.specimenLocalId
-            && !specimenIds.has(result.specimenLocalId)
-        ) {
-            ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                path: ['results', index, 'specimenLocalId'],
-                message: 'Result references an unknown specimen local ID.',
-            });
-        }
-        if (result.source && result.source.documentId !== draft.documentId) {
-            ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                path: ['results', index, 'source', 'documentId'],
-                message: 'Result source must reference the report document.',
-            });
-        }
-    });
-
-    if (
-        draft.reportSource
-        && draft.reportSource.documentId !== draft.documentId
-    ) {
-        ctx.addIssue({
+    ]).optional(),
+    categoryTexts: z.array(z.string().trim().min(1)).optional(),
+    effectiveDate: nullableDateText,
+    issuedAt: nullableDateText,
+    performer: z.array(z.string().trim().min(1)).optional(),
+    conclusion: optionalTrimmed,
+    identifiers: z.array(IdentifierSchema).optional(),
+    accessionIdentifier: IdentifierSchema.optional(),
+    specimens: z.array(SpecimenDraftSchema).optional(),
+    results: z.array(ObservationDraftSchema).min(1),
+    source: SourceSchema,
+    verificationStatus: z.enum(['candidate', 'confirmed']).optional(),
+    reviewedAt: optionalTrimmed,
+    reviewedBy: optionalTrimmed,
+    reviewEvidence: ReviewEvidenceSchema.optional(),
+    conflictResolution: ConflictResolutionSchema.optional(),
+}).strict().superRefine((draft, context) => {
+    const specimenIds = (draft.specimens || []).map(specimen => specimen.localId);
+    if (new Set(specimenIds).size !== specimenIds.length) {
+        context.addIssue({
             code: z.ZodIssueCode.custom,
-            path: ['reportSource', 'documentId'],
-            message: 'Report source must reference documentId.',
+            path: ['specimens'],
+            message: 'Specimen localId values must be unique',
         });
     }
 
-    const start = comparableDate(draft.effectivePeriod?.start);
-    const end = comparableDate(draft.effectivePeriod?.end);
-    if (start && end && start.length === end.length && start > end) {
-        ctx.addIssue({
+    const resultIds = draft.results.map(result => result.localId);
+    if (new Set(resultIds).size !== resultIds.length) {
+        context.addIssue({
             code: z.ZodIssueCode.custom,
-            path: ['effectivePeriod', 'end'],
-            message: 'Report period end must not precede its start.',
+            path: ['results'],
+            message: 'Result localId values must be unique',
+        });
+    }
+
+    const knownSpecimens = new Set(specimenIds);
+    draft.results.forEach((result, index) => {
+        if (
+            result.specimenLocalId
+            && !knownSpecimens.has(result.specimenLocalId)
+        ) {
+            context.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['results', index, 'specimenLocalId'],
+                message: `Unknown specimenLocalId: ${result.specimenLocalId}`,
+            });
+        }
+    });
+
+    const knownResults = new Set(resultIds);
+    Object.keys(draft.reviewEvidence?.resultChanges || {}).forEach(localId => {
+        if (!knownResults.has(localId)) {
+            context.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['reviewEvidence', 'resultChanges', localId],
+                message: `Review evidence references unknown result ${localId}`,
+            });
+        }
+    });
+    Object.keys(draft.reviewEvidence?.specimenChanges || {}).forEach(localId => {
+        if (!knownSpecimens.has(localId)) {
+            context.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['reviewEvidence', 'specimenChanges', localId],
+                message: `Review evidence references unknown specimen ${localId}`,
+            });
+        }
+    });
+
+    const resolution = draft.conflictResolution;
+    if (resolution?.decision === 'amends' && draft.status !== 'amended') {
+        context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['status'],
+            message: 'An amended relationship requires report status amended',
+        });
+    }
+    if (resolution?.decision === 'corrects' && draft.status !== 'corrected') {
+        context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['status'],
+            message: 'A corrected relationship requires report status corrected',
+        });
+    }
+    if (
+        resolution?.decision === 'replaces'
+        && !['final', 'amended', 'corrected'].includes(draft.status || '')
+    ) {
+        context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['status'],
+            message: 'A replacement report must be final, amended, or corrected',
         });
     }
 });
 
-export const parseDiagnosticReportDraft = (
-    value: unknown,
-): DiagnosticReportDraft => DiagnosticReportDraftSchema.parse(value);
-
-export const validateDiagnosticReportDraft = (
-    value: unknown,
-): {
-    ok: boolean;
-    draft?: DiagnosticReportDraft;
-    issues: DiagnosticReportGraphIssue[];
-} => {
-    const result = DiagnosticReportDraftSchema.safeParse(value);
-    if (result.success) {
-        return { ok: true, draft: result.data, issues: [] };
-    }
-    return {
-        ok: false,
-        issues: result.error.issues.map(issue => ({
-            path: issue.path.join('.'),
-            message: issue.message,
-        })),
-    };
-};
+export const parseReviewedDiagnosticReportDraft = (
+    input: unknown,
+): ReviewedDiagnosticReportDraft =>
+    ReviewedDiagnosticReportDraftSchema.parse(input) as ReviewedDiagnosticReportDraft;

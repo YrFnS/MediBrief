@@ -1,6 +1,12 @@
-export * from './actions';
+export { default as DiagnosticReportReviewWorkspace } from './components/DiagnosticReportReviewWorkspace';
+export { default as DiagnosticReportSourcePane } from './components/DiagnosticReportSourcePane';
+export * from './conflicts';
 export * from './graph';
-export * from './labReview';
-export * from './resourceActions';
+export * from './legacyLabReview';
+export * from './normalization';
+export * from './resultIntelligence';
+export * from './reviewAmendments';
+export * from './reviewEvidence';
 export * from './schemas';
 export * from './types';
+export * from './valueParsing';

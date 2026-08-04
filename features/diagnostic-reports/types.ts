@@ -1,159 +1,271 @@
+import type { LabReport } from '../chat/schemas';
 import type {
-    ClinicalCodeableConcept,
     ClinicalDate,
-    ClinicalPeriod,
-    ClinicalQuantityValue,
+    ClinicalRecordResource,
     DiagnosticReportRecord,
     ObservationRecord,
-    ObservationReferenceRange,
-    SourceDocumentReference,
     SpecimenRecord,
+    VerificationStatus,
 } from '../clinical-record';
 
-export const DIAGNOSTIC_REPORT_DRAFT_SCHEMA_VERSION = 1 as const;
+export type DiagnosticReportReviewStatus = Extract<
+    VerificationStatus,
+    'candidate' | 'confirmed'
+>;
 
-export type DiagnosticReportDraftSchemaVersion =
-    typeof DIAGNOSTIC_REPORT_DRAFT_SCHEMA_VERSION;
+export type ReviewedReportStatus = DiagnosticReportRecord['status'];
+export type ReviewedObservationStatus = ObservationRecord['status'];
+export type ReviewedSpecimenStatus = SpecimenRecord['status'];
 
-export type DiagnosticResultComparator = '<' | '<=' | '>=' | '>';
-
-export type DiagnosticResultValueDraft =
-    | {
-        type: 'quantity';
-        rawText: string;
-        value: number;
-        unit?: string;
-        comparator?: DiagnosticResultComparator;
-        normalized?: ClinicalQuantityValue;
-        normalizationWarning?: string;
-    }
-    | {
-        type: 'string';
-        text: string;
-    }
-    | {
-        type: 'boolean';
-        value: boolean;
-        sourceText?: string;
-    }
-    | {
-        type: 'integer';
-        value: number;
-        sourceText?: string;
-    }
-    | {
-        type: 'codeable-concept';
-        concept: ClinicalCodeableConcept;
-        sourceText?: string;
-    };
-
-export interface DiagnosticReferenceRangeDraft
-    extends ObservationReferenceRange {
-    sourceText?: string;
+export interface LegacyLabReviewSource {
+    documentId?: string;
+    fileName?: string;
+    storageId?: string;
+    mimeType?: string;
+    pageNumber?: number;
 }
 
-export interface DiagnosticSpecimenDraft {
-    localId: string;
-    status: SpecimenRecord['status'];
-    type?: ClinicalCodeableConcept;
-    collectedAt?: ClinicalDate;
-    receivedAt?: ClinicalDate;
-    bodySite?: ClinicalCodeableConcept;
-    collectionMethod?: ClinicalCodeableConcept;
-    note?: string;
-    source?: SourceDocumentReference;
+/**
+ * The legacy chat extractor may discover a laboratory JSON payload, but it is
+ * held here with its source context until the report-level review workspace
+ * either confirms the connected graph or discards the pending review.
+ */
+export interface PendingLegacyLabReview {
+    report: LabReport;
+    source: LegacyLabReviewSource;
+    detectedAt: string;
+    extractionEngine: string;
 }
 
-export interface DiagnosticResultDraft {
-    localId: string;
-    status: ObservationRecord['status'];
-    code: ClinicalCodeableConcept;
-    category?: ClinicalCodeableConcept[];
-    value: DiagnosticResultValueDraft;
-    interpretation?: ClinicalCodeableConcept[];
-    referenceRanges: DiagnosticReferenceRangeDraft[];
-    specimenLocalId?: string;
-    effective?: ClinicalDate;
-    issuedAt?: string;
-    performer?: string[];
-    note?: string;
-    source?: SourceDocumentReference;
+export interface ReviewedDiagnosticIdentifier {
+    value: string;
+    system?: string;
+    type?: string;
 }
 
-export interface DiagnosticReportDraft {
-    schemaVersion: DiagnosticReportDraftSchemaVersion;
-    draftId: string;
-    patientId: string;
+export interface ReviewedDiagnosticSource {
     documentId: string;
     fileName?: string;
-    status: DiagnosticReportRecord['status'];
-    code: ClinicalCodeableConcept;
-    category?: ClinicalCodeableConcept[];
-    effectivePeriod?: ClinicalPeriod;
-    issuedAt?: string;
-    conclusion?: string;
-    conclusionCodes?: ClinicalCodeableConcept[];
-    encounterId?: string;
+    pageNumber?: number;
+    section?: string;
+    startOffset?: number;
+    endOffset?: number;
+    excerpt?: string;
+}
+
+export interface ReviewedSpecimenDraft {
+    localId: string;
+    status?: ReviewedSpecimenStatus;
+    typeText?: string;
+    collectedDate?: string | null;
+    receivedDate?: string | null;
+    bodySiteText?: string;
+    collectionMethodText?: string;
+    collector?: string;
+    identifiers?: ReviewedDiagnosticIdentifier[];
+    note?: string;
+}
+
+export interface ReviewedObservationDraft {
+    localId: string;
+    testName: string;
+    loincCode?: string;
+    status?: ReviewedObservationStatus;
+    categoryTexts?: string[];
+    valueText?: string | null;
+    unitText?: string | null;
+    referenceRangeText?: string | null;
+    interpretationText?: string | null;
+    absentReasonText?: string | null;
+    clinicalDate?: string | null;
+    issuedAt?: string | null;
     performer?: string[];
-    reportSource?: SourceDocumentReference;
-    specimens: DiagnosticSpecimenDraft[];
-    results: DiagnosticResultDraft[];
-    extraction?: {
-        engine: string;
-        model?: string;
-        engineVersion?: string;
-        confidence?: number;
-        extractedAt: string;
-    };
+    specimenLocalId?: string;
+    methodText?: string;
+    bodySiteText?: string;
+    note?: string;
+    source?: Partial<Omit<ReviewedDiagnosticSource, 'documentId'>>;
 }
 
-export interface DiagnosticReportCandidateGraph {
-    graphId: string;
-    draftId: string;
-    patientId: string;
-    documentId: string;
-    report: DiagnosticReportRecord;
-    observations: ObservationRecord[];
-    specimens: SpecimenRecord[];
+export interface DiagnosticReviewFieldChange {
+    field: string;
+    previousValue?: unknown;
 }
 
-export type DiagnosticReportGraphWriteStatus =
-    | 'created'
-    | 'updated'
-    | 'confirmed'
-    | 'rejected'
+export interface ExcludedDiagnosticResultEvidence {
+    localId: string;
+    testName: string;
+    previousValue: ReviewedObservationDraft;
+}
+
+/**
+ * Human review evidence is carried into clinical amendment history. It records
+ * the original extracted value for every edited field and preserves excluded
+ * rows on the report rather than silently dropping them.
+ */
+export interface DiagnosticReportReviewEvidence {
+    reason: string;
+    reportChanges?: DiagnosticReviewFieldChange[];
+    resultChanges?: Record<string, DiagnosticReviewFieldChange[]>;
+    specimenChanges?: Record<string, DiagnosticReviewFieldChange[]>;
+    excludedResults?: ExcludedDiagnosticResultEvidence[];
+}
+
+export type DiagnosticReportConflictKind =
+    | 'exact-duplicate'
+    | 'same-event-conflict'
+    | 'possible-duplicate';
+
+export type DiagnosticConflictDecision =
+    | 'amends'
+    | 'corrects'
+    | 'replaces'
     | 'duplicate'
-    | 'unchanged'
-    | 'not-found'
-    | 'patient-not-found'
-    | 'conflict'
-    | 'invalid';
+    | 'distinct';
 
-export interface DiagnosticReportGraphIssue {
-    path: string;
-    message: string;
+export interface ReviewedDiagnosticConflictResolution {
+    relatedReportId: string;
+    decision: DiagnosticConflictDecision;
+    reason: string;
 }
 
-export interface DiagnosticReportGraphResult {
+export interface DiagnosticReportConflictCandidate {
+    reportId: string;
+    reportTitle: string;
+    reportStatus: DiagnosticReportRecord['status'];
+    clinicalDateLabel: string;
+    sourceLabel: string;
+    kind: DiagnosticReportConflictKind;
+    score: number;
+    blocking: boolean;
+    evidence: string[];
+    differingResultKeys: string[];
+    recommendedDecision: DiagnosticConflictDecision;
+}
+
+export interface DiagnosticReportConflictAnalysis {
+    candidates: DiagnosticReportConflictCandidate[];
+    blockingCandidates: DiagnosticReportConflictCandidate[];
+    requiresResolution: boolean;
+}
+
+export interface ReviewedDiagnosticReportDraft {
+    patientId: string;
+    reportTitle: string;
+    status?: ReviewedReportStatus;
+    categoryTexts?: string[];
+    effectiveDate?: string | null;
+    issuedAt?: string | null;
+    performer?: string[];
+    conclusion?: string;
+    identifiers?: ReviewedDiagnosticIdentifier[];
+    accessionIdentifier?: ReviewedDiagnosticIdentifier;
+    specimens?: ReviewedSpecimenDraft[];
+    results: ReviewedObservationDraft[];
+    source: ReviewedDiagnosticSource;
+    verificationStatus?: DiagnosticReportReviewStatus;
+    reviewedAt?: string;
+    reviewedBy?: string;
+    reviewEvidence?: DiagnosticReportReviewEvidence;
+    conflictResolution?: ReviewedDiagnosticConflictResolution;
+}
+
+export type ParsedObservationValueKind =
+    | 'quantity'
+    | 'qualitative'
+    | 'text'
+    | 'absent';
+
+export interface DiagnosticParsingWarning {
+    code:
+        | 'decimal-comma-unparsed'
+        | 'unit-not-normalized'
+        | 'date-unparsed'
+        | 'datetime-unparsed'
+        | 'reference-range-unparsed'
+        | 'report-status-mapped'
+        | 'missing-value'
+        | 'unknown-specimen-reference'
+        | 'identifier-preserved-in-provenance';
+    message: string;
+    field?: string;
+    resultLocalId?: string;
+    specimenLocalId?: string;
+}
+
+export interface ParsedObservationValue {
+    kind: ParsedObservationValueKind;
+    value?: ObservationRecord['value'];
+    absentReason?: string;
+    originalText?: string;
+    warnings: DiagnosticParsingWarning[];
+}
+
+export interface ParsedReferenceRange {
+    ranges: ObservationRecord['referenceRanges'];
+    warnings: DiagnosticParsingWarning[];
+}
+
+export interface DiagnosticReportBundle {
+    report: DiagnosticReportRecord;
+    specimens: SpecimenRecord[];
+    observations: ObservationRecord[];
+    resources: ClinicalRecordResource[];
+    warnings: DiagnosticParsingWarning[];
+}
+
+export type DiagnosticGraphValidationCode =
+    | 'empty-bundle'
+    | 'patient-mismatch'
+    | 'duplicate-resource-id'
+    | 'missing-report'
+    | 'multiple-reports'
+    | 'missing-result'
+    | 'unexpected-result'
+    | 'missing-specimen'
+    | 'observation-report-mismatch'
+    | 'observation-specimen-mismatch'
+    | 'missing-source-document'
+    | 'source-document-patient-mismatch'
+    | 'resource-id-conflict'
+    | 'duplicate-report-source'
+    | 'duplicate-report-content'
+    | 'unresolved-report-conflict'
+    | 'invalid-conflict-resolution'
+    | 'related-report-missing'
+    | 'related-report-patient-mismatch'
+    | 'result-lineage-invalid';
+
+export interface DiagnosticGraphValidationIssue {
+    code: DiagnosticGraphValidationCode;
+    message: string;
+    resourceId?: string;
+}
+
+export interface DiagnosticGraphValidationResult {
+    valid: boolean;
+    issues: DiagnosticGraphValidationIssue[];
+}
+
+export type DiagnosticBundleCommitStatus =
+    | 'created'
+    | 'resolved-duplicate'
+    | 'duplicate'
+    | 'patient-not-found'
+    | 'invalid-graph'
+    | 'conflict';
+
+export interface DiagnosticBundleCommitResult {
     ok: boolean;
-    status: DiagnosticReportGraphWriteStatus;
-    graphId?: string;
+    status: DiagnosticBundleCommitStatus;
     reportId?: string;
-    issues: DiagnosticReportGraphIssue[];
+    createdResourceIds: string[];
+    duplicateOf?: string;
+    issues: DiagnosticGraphValidationIssue[];
     message?: string;
 }
 
-export interface DiagnosticReportGraphReviewInput {
-    reviewedAt?: string;
-    reviewedBy?: string;
-    reason?: string;
-}
-
-export interface DiagnosticReportGraphSummary {
-    graphId: string;
-    draftId: string;
-    report: DiagnosticReportRecord;
-    observations: ObservationRecord[];
-    specimens: SpecimenRecord[];
-    source?: SourceDocumentReference;
+export interface ParsedClinicalDate {
+    date: ClinicalDate;
+    warnings: DiagnosticParsingWarning[];
 }

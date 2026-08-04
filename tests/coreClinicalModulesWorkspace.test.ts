@@ -48,7 +48,9 @@ describe('Phase 2 core clinical modules', () => {
         );
 
         expect(results).toContain('Original source value');
-        expect(results).toContain('Normalized values never replace the original source value');
+        expect(results).toContain(
+            'Normalized values never replace the original source value',
+        );
         expect(results).toContain('Clinical date unknown');
         expect(models).toContain(
             "UNKNOWN_CLINICAL_DATE_LABEL = 'Clinical date unknown'",

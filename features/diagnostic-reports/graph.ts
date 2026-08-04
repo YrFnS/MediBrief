@@ -3,839 +3,838 @@ import {
     createUnknownClinicalDate,
     parseClinicalRecordResource,
     parsePatientClinicalRecord,
+    type ClinicalAmendment,
+    type ClinicalCodeableConcept,
+    type ClinicalRecordResource,
+    type DiagnosticReportRecord,
+    type DocumentReferenceRecord,
+    type ObservationRecord,
+    type PatientClinicalRecord,
+    type RecordSource,
+    type SourceDocumentReference,
+    type SpecimenRecord,
+    useClinicalRecordStore,
 } from '../clinical-record';
+import { parseReviewedDiagnosticReportDraft } from './schemas';
 import type {
-    ClinicalAmendment,
-    ClinicalDate,
-    ClinicalPeriod,
-    ClinicalProvenance,
-    ClinicalRecordResource,
-    DiagnosticReportRecord,
-    ObservationRecord,
-    ObservationValue,
-    PatientClinicalRecord,
-    RecordSource,
-    SourceDocumentReference,
-    SpecimenRecord,
-} from '../clinical-record';
-import { parseDiagnosticReportDraft } from './schemas';
-import type {
-    DiagnosticReportCandidateGraph,
-    DiagnosticReportDraft,
-    DiagnosticReportGraphIssue,
-    DiagnosticReportGraphReviewInput,
-    DiagnosticReportGraphSummary,
-    DiagnosticReferenceRangeDraft,
-    DiagnosticResultDraft,
-    DiagnosticResultValueDraft,
-    DiagnosticSpecimenDraft,
+    DiagnosticBundleCommitResult,
+    DiagnosticGraphValidationIssue,
+    DiagnosticGraphValidationResult,
+    DiagnosticParsingWarning,
+    DiagnosticReportBundle,
+    ReviewedDiagnosticIdentifier,
+    ReviewedDiagnosticReportDraft,
+    ReviewedDiagnosticSource,
 } from './types';
+import {
+    diagnosticInterpretationConcept,
+    observationStatusForReport,
+    parseDiagnosticClinicalDate,
+    parseDiagnosticIssuedAt,
+    parseDiagnosticObservationValue,
+    parseDiagnosticReferenceRange,
+} from './valueParsing';
 
-export const DIAGNOSTIC_REPORT_GRAPH_TAG_PREFIX =
-    'diagnostic-report-graph:';
+const REPORT_SOURCE_SYSTEM = 'medibrief:reviewed-diagnostic-report';
+const LOINC_SYSTEM = 'http://loinc.org';
 
-const INTAKE_EXTERNAL_SYSTEM = 'medibrief:diagnostic-report-intake-v1';
+export interface BuildDiagnosticReportBundleOptions {
+    now?: string;
+    actor?: string;
+    idFactory?: (resourceType: string, localId: string) => string;
+}
 
-const stableHash = (value: string): string => {
-    let hash = 2166136261;
-    for (let index = 0; index < value.length; index += 1) {
-        hash ^= value.charCodeAt(index);
-        hash = Math.imul(hash, 16777619);
-    }
-    return (hash >>> 0).toString(36);
-};
+const defaultIdFactory = (): string => uuidv4();
+const clean = (value?: string | null): string => (value || '').trim();
+const normalize = (value?: string | null): string => clean(value)
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
 
-export const diagnosticReportGraphId = (
-    patientId: string,
-    documentId: string,
-    draftId: string,
-): string => `drg-${stableHash(`${patientId}|${documentId}|${draftId}`)}`;
-
-export const diagnosticReportGraphTag = (graphId: string): string =>
-    `${DIAGNOSTIC_REPORT_GRAPH_TAG_PREFIX}${graphId}`;
-
-const graphIdFromTags = (tags?: string[]): string | undefined =>
-    tags?.find(tag => tag.startsWith(DIAGNOSTIC_REPORT_GRAPH_TAG_PREFIX))
-        ?.slice(DIAGNOSTIC_REPORT_GRAPH_TAG_PREFIX.length);
-
-const resourceId = (
-    kind: 'report' | 'observation' | 'specimen',
-    graphId: string,
-    localId: string,
-): string => `${kind}-${stableHash(`${graphId}|${localId}`)}`;
-
-const defaultSourceReference = (
-    draft: DiagnosticReportDraft,
-): SourceDocumentReference => ({
-    documentId: draft.documentId,
-    ...(draft.fileName ? { fileName: draft.fileName } : {}),
-});
-
-const sourceReference = (
-    draft: DiagnosticReportDraft,
-    source?: SourceDocumentReference,
-): SourceDocumentReference => source
-    || draft.reportSource
-    || defaultSourceReference(draft);
-
-const recordSource = ({
-    draft,
-    graphId,
-    scope,
-    source,
-}: {
-    draft: DiagnosticReportDraft;
-    graphId: string;
-    scope: string;
-    source?: SourceDocumentReference;
-}): RecordSource => ({
-    kind: draft.extraction ? 'document-extraction' : 'manual',
-    document: sourceReference(draft, source),
-    externalSystem: INTAKE_EXTERNAL_SYSTEM,
-    externalId: `${graphId}:${scope}`,
-    description: draft.extraction
-        ? 'Candidate created from a report-level document extraction draft.'
-        : 'Candidate transcribed by the user from a local diagnostic report.',
-});
-
-const provenanceFor = ({
-    draft,
-    graphId,
-    scope,
-    source,
-    now,
-}: {
-    draft: DiagnosticReportDraft;
-    graphId: string;
-    scope: string;
-    source?: SourceDocumentReference;
-    now: string;
-}): ClinicalProvenance => ({
-    source: recordSource({ draft, graphId, scope, source }),
-    createdAt: now,
-    updatedAt: now,
-    ...(draft.extraction
-        ? {
-            extraction: {
-                engine: draft.extraction.engine,
-                ...(draft.extraction.model
-                    ? { model: draft.extraction.model }
-                    : {}),
-                ...(draft.extraction.engineVersion
-                    ? { engineVersion: draft.extraction.engineVersion }
-                    : {}),
-                ...(draft.extraction.confidence !== undefined
-                    ? { confidence: draft.extraction.confidence }
-                    : {}),
-                extractedAt: draft.extraction.extractedAt,
-            },
-        }
-        : { createdBy: 'USER' }),
-});
-
-const commonTags = (graphId: string): string[] => [
-    diagnosticReportGraphTag(graphId),
-    'diagnostic-report-intake',
-    'needs-review',
+const uniqueStrings = (values: Array<string | undefined>): string[] => [
+    ...new Set(values.map(value => clean(value)).filter(Boolean)),
 ];
 
-const mappedValue = (value: DiagnosticResultValueDraft): ObservationValue => {
-    switch (value.type) {
-        case 'quantity':
-            return {
-                type: 'quantity',
-                quantity: {
-                    original: {
-                        value: value.value,
-                        ...(value.unit ? { unit: value.unit } : {}),
-                        ...(value.comparator
-                            ? { comparator: value.comparator }
-                            : {}),
-                    },
-                    ...(value.normalized
-                        ? { normalized: value.normalized }
-                        : {}),
-                    ...(value.normalizationWarning
-                        ? { normalizationWarning: value.normalizationWarning }
-                        : {}),
-                },
-            };
-        case 'string':
-            return { type: 'string', text: value.text };
-        case 'boolean':
-            return { type: 'boolean', value: value.value };
-        case 'integer':
-            return { type: 'integer', value: value.value };
-        case 'codeable-concept':
-            return { type: 'codeable-concept', concept: value.concept };
-    }
+const concepts = (
+    values: string[] | undefined,
+    fallback?: string,
+): ClinicalCodeableConcept[] => {
+    const texts = uniqueStrings([...(values || []), fallback]);
+    return texts.map(text => ({ text }));
 };
 
-const resultSourceText = (value: DiagnosticResultValueDraft): string => {
-    switch (value.type) {
-        case 'quantity': return value.rawText;
-        case 'string': return value.text;
-        case 'boolean': return value.sourceText || String(value.value);
-        case 'integer': return value.sourceText || String(value.value);
-        case 'codeable-concept': return value.sourceText || value.concept.text;
-    }
-};
+const identifierText = (
+    identifier: ReviewedDiagnosticIdentifier,
+): string => [
+    identifier.type,
+    identifier.system,
+    identifier.value,
+].filter(Boolean).join(': ');
 
-const rangeSourceText = (
-    ranges: DiagnosticReferenceRangeDraft[],
-): string[] => ranges
-    .map(range => range.sourceText || range.text)
-    .filter((value): value is string => Boolean(value));
+const sourceDocument = (
+    reportSource: ReviewedDiagnosticSource,
+    override?: Partial<Omit<ReviewedDiagnosticSource, 'documentId'>>,
+): SourceDocumentReference => ({
+    documentId: reportSource.documentId,
+    ...(override?.fileName || reportSource.fileName
+        ? { fileName: override?.fileName || reportSource.fileName }
+        : {}),
+    ...(override?.pageNumber || reportSource.pageNumber
+        ? { pageNumber: override?.pageNumber || reportSource.pageNumber }
+        : {}),
+    ...(override?.section || reportSource.section
+        ? { section: override?.section || reportSource.section }
+        : {}),
+    ...(override?.startOffset !== undefined
+        || reportSource.startOffset !== undefined
+        ? {
+            startOffset: override?.startOffset
+                ?? reportSource.startOffset,
+        }
+        : {}),
+    ...(override?.endOffset !== undefined
+        || reportSource.endOffset !== undefined
+        ? {
+            endOffset: override?.endOffset
+                ?? reportSource.endOffset,
+        }
+        : {}),
+    ...(override?.excerpt || reportSource.excerpt
+        ? { excerpt: override?.excerpt || reportSource.excerpt }
+        : {}),
+});
 
-const combinedNote = (
-    result: DiagnosticResultDraft,
-): string | undefined => {
-    const lines = [
-        result.note?.trim(),
-        `Original source result: ${resultSourceText(result.value)}`,
-        ...rangeSourceText(result.referenceRanges)
-            .map(value => `Reference range source: ${value}`),
-    ].filter((value): value is string => Boolean(value));
+const reviewedSource = ({
+    draft,
+    document,
+    description,
+}: {
+    draft: ReviewedDiagnosticReportDraft;
+    document: SourceDocumentReference;
+    description: string;
+}): RecordSource => ({
+    kind: 'document-extraction',
+    document,
+    externalSystem: REPORT_SOURCE_SYSTEM,
+    externalId: draft.accessionIdentifier?.value
+        || draft.identifiers?.[0]?.value
+        || `${document.documentId}:${normalize(draft.reportTitle)}`,
+    description,
+});
+
+const provenance = ({
+    source,
+    verificationStatus,
+    now,
+    actor,
+    reviewedAt,
+}: {
+    source: RecordSource;
+    verificationStatus: 'candidate' | 'confirmed';
+    now: string;
+    actor?: string;
+    reviewedAt?: string;
+}) => ({
+    source,
+    createdAt: now,
+    updatedAt: reviewedAt || now,
+    ...(actor ? { createdBy: actor, updatedBy: actor } : {}),
+    ...(verificationStatus === 'confirmed'
+        ? {
+            confirmation: {
+                reviewedAt: reviewedAt || now,
+                ...(actor ? { reviewedBy: actor } : {}),
+                reason:
+                    'The report metadata and included result rows were explicitly reviewed before saving.',
+            },
+        }
+        : {}),
+});
+
+const warningForResult = (
+    warnings: DiagnosticParsingWarning[],
+    resultLocalId: string,
+): DiagnosticParsingWarning[] => warnings.map(warning => ({
+    ...warning,
+    resultLocalId,
+}));
+
+const warningForSpecimen = (
+    warnings: DiagnosticParsingWarning[],
+    specimenLocalId: string,
+): DiagnosticParsingWarning[] => warnings.map(warning => ({
+    ...warning,
+    specimenLocalId,
+}));
+
+const noteLines = (values: Array<string | undefined>): string | undefined => {
+    const lines = uniqueStrings(values);
     return lines.length > 0 ? lines.join('\n') : undefined;
 };
 
-const mappedRanges = (
-    ranges: DiagnosticReferenceRangeDraft[],
-): ObservationRecord['referenceRanges'] => ranges.map(range => ({
-    ...(range.low ? { low: range.low } : {}),
-    ...(range.high ? { high: range.high } : {}),
-    ...(range.text ? { text: range.text } : {}),
-    ...(range.appliesTo ? { appliesTo: range.appliesTo } : {}),
-}));
+const reportIdentityDescription = (
+    draft: ReviewedDiagnosticReportDraft,
+): string => {
+    const identifiers = [
+        ...(draft.accessionIdentifier
+            ? [`Accession: ${identifierText(draft.accessionIdentifier)}`]
+            : []),
+        ...((draft.identifiers || []).map(identifier =>
+            `Identifier: ${identifierText(identifier)}`)),
+    ];
+    return [
+        `Reviewed diagnostic report: ${draft.reportTitle}`,
+        ...identifiers,
+    ].join(' · ');
+};
 
-const effectiveOrUnknown = (
-    effective: ClinicalDate | ClinicalPeriod | undefined,
-    reason: string,
-): ClinicalDate | ClinicalPeriod => effective
-    || createUnknownClinicalDate(reason);
+export const buildDiagnosticReportBundle = (
+    input: ReviewedDiagnosticReportDraft,
+    options: BuildDiagnosticReportBundleOptions = {},
+): DiagnosticReportBundle => {
+    const draft = parseReviewedDiagnosticReportDraft(input);
+    const now = options.now || new Date().toISOString();
+    const actor = options.actor || draft.reviewedBy;
+    const reviewedAt = draft.reviewedAt || now;
+    const verificationStatus = draft.verificationStatus || 'candidate';
+    const makeId = options.idFactory || defaultIdFactory;
+    const reportId = makeId('DiagnosticReport', 'report');
+    const warnings: DiagnosticParsingWarning[] = [];
 
-const specimenRecord = ({
-    draft,
-    specimen,
-    graphId,
-    now,
-}: {
-    draft: DiagnosticReportDraft;
-    specimen: DiagnosticSpecimenDraft;
-    graphId: string;
-    now: string;
-}): SpecimenRecord => parseClinicalRecordResource({
-    id: resourceId('specimen', graphId, specimen.localId),
-    patientId: draft.patientId,
-    resourceType: 'Specimen',
-    verificationStatus: 'candidate',
-    recordedAt: now,
-    effective: effectiveOrUnknown(
-        specimen.collectedAt,
-        'The specimen collection date is unknown.',
-    ),
-    provenance: provenanceFor({
-        draft,
-        graphId,
-        scope: `specimen:${specimen.localId}`,
-        source: specimen.source,
-        now,
-    }),
-    amendments: [],
-    tags: commonTags(graphId),
-    status: specimen.status,
-    ...(specimen.type ? { type: specimen.type } : {}),
-    ...(specimen.collectedAt ? { collectedAt: specimen.collectedAt } : {}),
-    ...(specimen.receivedAt ? { receivedAt: specimen.receivedAt } : {}),
-    ...(specimen.bodySite ? { bodySite: specimen.bodySite } : {}),
-    ...(specimen.collectionMethod
-        ? { collectionMethod: specimen.collectionMethod }
-        : {}),
-    ...(specimen.note ? { note: specimen.note } : {}),
-}) as SpecimenRecord;
-
-const observationRecord = ({
-    draft,
-    result,
-    graphId,
-    reportId,
-    specimenIds,
-    now,
-}: {
-    draft: DiagnosticReportDraft;
-    result: DiagnosticResultDraft;
-    graphId: string;
-    reportId: string;
-    specimenIds: Map<string, string>;
-    now: string;
-}): ObservationRecord => parseClinicalRecordResource({
-    id: resourceId('observation', graphId, result.localId),
-    patientId: draft.patientId,
-    resourceType: 'Observation',
-    verificationStatus: 'candidate',
-    recordedAt: now,
-    effective: effectiveOrUnknown(
-        result.effective,
-        'The result clinical date is unknown.',
-    ),
-    assertion: {
-        polarity: 'unknown',
-        certainty: 'unknown',
-        temporality: 'unknown',
-        experiencer: 'unknown',
-    },
-    provenance: provenanceFor({
-        draft,
-        graphId,
-        scope: `result:${result.localId}`,
-        source: result.source,
-        now,
-    }),
-    amendments: [],
-    tags: commonTags(graphId),
-    status: result.status,
-    ...(result.category ? { category: result.category } : {}),
-    code: result.code,
-    value: mappedValue(result.value),
-    ...(result.interpretation
-        ? { interpretation: result.interpretation }
-        : {}),
-    referenceRanges: mappedRanges(result.referenceRanges),
-    ...(result.specimenLocalId
-        ? { specimenId: specimenIds.get(result.specimenLocalId) }
-        : {}),
-    ...(draft.encounterId ? { encounterId: draft.encounterId } : {}),
-    diagnosticReportId: reportId,
-    ...(result.issuedAt ? { issuedAt: result.issuedAt } : {}),
-    ...(result.performer ? { performer: result.performer } : {}),
-    ...(combinedNote(result) ? { note: combinedNote(result) } : {}),
-}) as ObservationRecord;
-
-export const buildDiagnosticReportCandidateGraph = (
-    input: DiagnosticReportDraft,
-    now: string = new Date().toISOString(),
-): DiagnosticReportCandidateGraph => {
-    const draft = parseDiagnosticReportDraft(input);
-    const graphId = diagnosticReportGraphId(
-        draft.patientId,
-        draft.documentId,
-        draft.draftId,
+    const reportDate = parseDiagnosticClinicalDate(
+        draft.effectiveDate,
+        'effectiveDate',
     );
-    const reportId = resourceId('report', graphId, draft.draftId);
-    const specimens = draft.specimens.map(specimen => specimenRecord({
-        draft,
-        specimen,
-        graphId,
-        now,
-    }));
-    const specimenIds = new Map(
-        draft.specimens.map((specimen, index) => [
+    warnings.push(...reportDate.warnings);
+    const reportIssued = parseDiagnosticIssuedAt(draft.issuedAt, 'issuedAt');
+    warnings.push(...reportIssued.warnings);
+
+    if (
+        draft.accessionIdentifier
+        || (draft.identifiers && draft.identifiers.length > 0)
+    ) {
+        warnings.push({
+            code: 'identifier-preserved-in-provenance',
+            field: 'identifiers',
+            message:
+                'Report identifiers were preserved in source provenance because the current core DiagnosticReport contract has no dedicated identifier fields yet.',
+        });
+    }
+
+    const specimenIds = new Map<string, string>();
+    (draft.specimens || []).forEach(specimen => {
+        specimenIds.set(
             specimen.localId,
-            specimens[index].id,
-        ]),
-    );
-    const observations = draft.results.map(result => observationRecord({
-        draft,
-        result,
-        graphId,
-        reportId,
-        specimenIds,
-        now,
-    }));
+            makeId('Specimen', specimen.localId),
+        );
+    });
 
-    const report = parseClinicalRecordResource({
+    const reportDocument = sourceDocument(draft.source);
+    const reportSource = reviewedSource({
+        draft,
+        document: reportDocument,
+        description: reportIdentityDescription(draft),
+    });
+
+    const specimens: SpecimenRecord[] = (draft.specimens || []).map(specimen => {
+        const collected = parseDiagnosticClinicalDate(
+            specimen.collectedDate,
+            'collectedDate',
+        );
+        const received = parseDiagnosticClinicalDate(
+            specimen.receivedDate,
+            'receivedDate',
+        );
+        warnings.push(...warningForSpecimen(
+            [...collected.warnings, ...received.warnings],
+            specimen.localId,
+        ));
+        if (specimen.identifiers?.length) {
+            warnings.push({
+                code: 'identifier-preserved-in-provenance',
+                field: 'specimen.identifiers',
+                specimenLocalId: specimen.localId,
+                message:
+                    'Specimen identifiers were preserved in the specimen note because the current core Specimen contract has no dedicated identifier fields yet.',
+            });
+        }
+        const specimenNote = noteLines([
+            specimen.note,
+            specimen.collector
+                ? `Collector: ${specimen.collector}`
+                : undefined,
+            ...(specimen.identifiers || []).map(identifier =>
+                `Identifier: ${identifierText(identifier)}`),
+        ]);
+        const resource = {
+            id: specimenIds.get(specimen.localId)!,
+            patientId: draft.patientId,
+            resourceType: 'Specimen' as const,
+            verificationStatus,
+            recordedAt: now,
+            effective: collected.date,
+            provenance: provenance({
+                source: reportSource,
+                verificationStatus,
+                now,
+                actor,
+                reviewedAt,
+            }),
+            amendments: [],
+            tags: ['diagnostic-report-specimen', 'reviewed-report-draft'],
+            status: specimen.status || 'unknown',
+            ...(specimen.typeText
+                ? { type: { text: specimen.typeText } }
+                : {}),
+            collectedAt: collected.date,
+            receivedAt: received.date,
+            ...(specimen.bodySiteText
+                ? { bodySite: { text: specimen.bodySiteText } }
+                : {}),
+            ...(specimen.collectionMethodText
+                ? {
+                    collectionMethod: {
+                        text: specimen.collectionMethodText,
+                    },
+                }
+                : {}),
+            ...(specimenNote ? { note: specimenNote } : {}),
+        };
+        return parseClinicalRecordResource(resource) as SpecimenRecord;
+    });
+
+    const observations: ObservationRecord[] = draft.results.map(result => {
+        const value = parseDiagnosticObservationValue({
+            valueText: result.valueText,
+            unitText: result.unitText,
+            absentReasonText: result.absentReasonText,
+        });
+        const range = parseDiagnosticReferenceRange(
+            result.referenceRangeText,
+            result.unitText,
+        );
+        const resultDate = parseDiagnosticClinicalDate(
+            result.clinicalDate ?? draft.effectiveDate,
+            'clinicalDate',
+        );
+        const issued = parseDiagnosticIssuedAt(
+            result.issuedAt ?? draft.issuedAt,
+            'issuedAt',
+        );
+        const mappedStatus = observationStatusForReport(
+            result.status || draft.status || 'unknown',
+        );
+        const resultWarnings = [
+            ...value.warnings,
+            ...range.warnings,
+            ...resultDate.warnings,
+            ...issued.warnings,
+            ...(mappedStatus.warning ? [mappedStatus.warning] : []),
+        ];
+        warnings.push(...warningForResult(resultWarnings, result.localId));
+
+        const specimenId = result.specimenLocalId
+            ? specimenIds.get(result.specimenLocalId)
+            : undefined;
+        if (result.specimenLocalId && !specimenId) {
+            warnings.push({
+                code: 'unknown-specimen-reference',
+                resultLocalId: result.localId,
+                specimenLocalId: result.specimenLocalId,
+                message:
+                    `Result ${result.localId} referenced an unknown specimen and was left unlinked.`,
+            });
+        }
+
+        const interpretation = diagnosticInterpretationConcept(
+            result.interpretationText,
+        );
+        const resultDocument = sourceDocument(draft.source, result.source);
+        const unmodeledDetails = noteLines([
+            result.note,
+            value.absentReason
+                ? `Data absent reason: ${value.absentReason}`
+                : undefined,
+            result.methodText
+                ? `Method: ${result.methodText}`
+                : undefined,
+            result.bodySiteText
+                ? `Body site: ${result.bodySiteText}`
+                : undefined,
+            issued.warnings.length > 0 && result.issuedAt
+                ? `Source issued date-time: ${result.issuedAt}`
+                : undefined,
+        ]);
+        const code: ClinicalCodeableConcept = {
+            text: result.testName,
+            ...(result.loincCode
+                ? {
+                    coding: [{
+                        system: LOINC_SYSTEM,
+                        code: result.loincCode,
+                        display: result.testName,
+                    }],
+                }
+                : {}),
+        };
+        const resource = {
+            id: makeId('Observation', result.localId),
+            patientId: draft.patientId,
+            resourceType: 'Observation' as const,
+            verificationStatus,
+            recordedAt: now,
+            effective: resultDate.date,
+            provenance: provenance({
+                source: reviewedSource({
+                    draft,
+                    document: resultDocument,
+                    description:
+                        `Reviewed result "${result.testName}" from ${draft.reportTitle}.`,
+                }),
+                verificationStatus,
+                now,
+                actor,
+                reviewedAt,
+            }),
+            amendments: [],
+            tags: [
+                'laboratory',
+                'diagnostic-report-result',
+                'reviewed-report-draft',
+                ...(value.kind === 'absent' ? ['data-absent'] : []),
+            ],
+            status: mappedStatus.status,
+            category: concepts(result.categoryTexts, 'Laboratory'),
+            code,
+            ...(value.value ? { value: value.value } : {}),
+            ...(interpretation ? { interpretation: [interpretation] } : {}),
+            referenceRanges: range.ranges,
+            ...(specimenId ? { specimenId } : {}),
+            diagnosticReportId: reportId,
+            ...(issued.value ? { issuedAt: issued.value } : {}),
+            performer: uniqueStrings([
+                ...(result.performer || []),
+                ...(draft.performer || []),
+            ]),
+            ...(unmodeledDetails ? { note: unmodeledDetails } : {}),
+        };
+        return parseClinicalRecordResource(resource) as ObservationRecord;
+    });
+
+    const report: DiagnosticReportRecord = parseClinicalRecordResource({
         id: reportId,
         patientId: draft.patientId,
         resourceType: 'DiagnosticReport',
-        verificationStatus: 'candidate',
+        verificationStatus,
         recordedAt: now,
-        effective: effectiveOrUnknown(
-            draft.effectivePeriod,
-            'The diagnostic report clinical period is unknown.',
-        ),
-        provenance: provenanceFor({
-            draft,
-            graphId,
-            scope: 'report',
-            source: draft.reportSource,
+        effective: reportDate.date,
+        provenance: provenance({
+            source: reportSource,
+            verificationStatus,
             now,
+            actor,
+            reviewedAt,
         }),
         amendments: [],
-        tags: commonTags(graphId),
-        status: draft.status,
-        code: draft.code,
-        ...(draft.category ? { category: draft.category } : {}),
-        ...(draft.effectivePeriod
-            ? { effectivePeriod: draft.effectivePeriod }
-            : {}),
-        ...(draft.issuedAt ? { issuedAt: draft.issuedAt } : {}),
+        tags: [
+            'diagnostic-report',
+            'reviewed-report-draft',
+            ...(draft.accessionIdentifier
+                ? [`accession:${draft.accessionIdentifier.value}`]
+                : []),
+        ],
+        status: draft.status || 'unknown',
+        code: { text: draft.reportTitle },
+        category: concepts(draft.categoryTexts, 'Laboratory'),
+        effectivePeriod: {
+            start: reportDate.date,
+            end: reportDate.date,
+        },
+        ...(reportIssued.value ? { issuedAt: reportIssued.value } : {}),
         resultIds: observations.map(observation => observation.id),
         specimenIds: specimens.map(specimen => specimen.id),
-        documentIds: [draft.documentId],
+        documentIds: [draft.source.documentId],
         ...(draft.conclusion ? { conclusion: draft.conclusion } : {}),
-        ...(draft.conclusionCodes
-            ? { conclusionCodes: draft.conclusionCodes }
-            : {}),
-        ...(draft.encounterId ? { encounterId: draft.encounterId } : {}),
-        ...(draft.performer ? { performer: draft.performer } : {}),
+        performer: uniqueStrings(draft.performer || []),
     }) as DiagnosticReportRecord;
 
     return {
-        graphId,
-        draftId: draft.draftId,
-        patientId: draft.patientId,
-        documentId: draft.documentId,
         report,
-        observations,
         specimens,
+        observations,
+        resources: [...specimens, ...observations, report],
+        warnings,
     };
 };
 
-const allResources = (
-    graph: DiagnosticReportCandidateGraph,
+const sameSet = (left: string[], right: string[]): boolean => {
+    if (left.length !== right.length) return false;
+    const expected = new Set(left);
+    return right.every(value => expected.has(value));
+};
+
+const existingResources = (
+    record: PatientClinicalRecord,
 ): ClinicalRecordResource[] => [
-    graph.report,
-    ...graph.observations,
-    ...graph.specimens,
+    record.profile,
+    ...record.resources.encounters,
+    ...record.resources.conditions,
+    ...record.resources.allergies,
+    ...record.resources.medications,
+    ...record.resources.observations,
+    ...record.resources.diagnosticReports,
+    ...record.resources.specimens,
+    ...record.resources.procedures,
+    ...record.resources.immunizations,
+    ...record.resources.appointments,
+    ...record.resources.tasks,
+    ...record.resources.carePlans,
+    ...record.resources.documents,
+    ...record.resources.notes,
 ];
 
-const resourceMap = (record: PatientClinicalRecord): Map<string, ClinicalRecordResource> =>
-    new Map<ClinicalRecordResource['id'], ClinicalRecordResource>([
-        [record.profile.id, record.profile],
-        ...record.resources.encounters.map(resource => [resource.id, resource] as const),
-        ...record.resources.conditions.map(resource => [resource.id, resource] as const),
-        ...record.resources.allergies.map(resource => [resource.id, resource] as const),
-        ...record.resources.medications.map(resource => [resource.id, resource] as const),
-        ...record.resources.observations.map(resource => [resource.id, resource] as const),
-        ...record.resources.diagnosticReports.map(resource => [resource.id, resource] as const),
-        ...record.resources.specimens.map(resource => [resource.id, resource] as const),
-        ...record.resources.procedures.map(resource => [resource.id, resource] as const),
-        ...record.resources.immunizations.map(resource => [resource.id, resource] as const),
-        ...record.resources.appointments.map(resource => [resource.id, resource] as const),
-        ...record.resources.tasks.map(resource => [resource.id, resource] as const),
-        ...record.resources.carePlans.map(resource => [resource.id, resource] as const),
-        ...record.resources.documents.map(resource => [resource.id, resource] as const),
-        ...record.resources.notes.map(resource => [resource.id, resource] as const),
-    ]);
-
-export const validateDiagnosticReportCandidateGraph = (
+const equivalentReport = (
     record: PatientClinicalRecord,
-    graph: DiagnosticReportCandidateGraph,
-    options: { allowExistingGraph?: boolean } = {},
-): DiagnosticReportGraphIssue[] => {
-    const issues: DiagnosticReportGraphIssue[] = [];
-    if (record.patientId !== graph.patientId) {
+    report: DiagnosticReportRecord,
+): DiagnosticReportRecord | undefined => record.resources.diagnosticReports.find(
+    existing => {
+        const source = existing.provenance.source;
+        const targetSource = report.provenance.source;
+        if (
+            source.externalSystem === targetSource.externalSystem
+            && source.externalId
+            && source.externalId === targetSource.externalId
+        ) {
+            return true;
+        }
+        return source.document?.documentId
+            === targetSource.document?.documentId
+            && normalize(existing.code.text) === normalize(report.code.text)
+            && JSON.stringify(existing.effective)
+                === JSON.stringify(report.effective);
+    },
+);
+
+export const validateDiagnosticReportBundleGraph = (
+    bundle: DiagnosticReportBundle,
+    record?: PatientClinicalRecord,
+): DiagnosticGraphValidationResult => {
+    const issues: DiagnosticGraphValidationIssue[] = [];
+    if (bundle.resources.length === 0) {
         issues.push({
-            path: 'patientId',
-            message: 'Report graph patient does not match the target record.',
+            code: 'empty-bundle',
+            message: 'The diagnostic bundle contains no resources.',
+        });
+        return { valid: false, issues };
+    }
+
+    const reports = bundle.resources.filter(resource =>
+        resource.resourceType === 'DiagnosticReport');
+    if (reports.length === 0) {
+        issues.push({
+            code: 'missing-report',
+            message: 'The diagnostic bundle requires one DiagnosticReport.',
+        });
+    } else if (reports.length > 1) {
+        issues.push({
+            code: 'multiple-reports',
+            message: 'The diagnostic bundle may contain only one DiagnosticReport.',
         });
     }
 
-    const graphTag = diagnosticReportGraphTag(graph.graphId);
-    const graphResources = allResources(graph);
-    const ids = graphResources.map(resource => resource.id);
+    const patientIds = new Set(bundle.resources.map(resource => resource.patientId));
+    if (patientIds.size !== 1 || !patientIds.has(bundle.report.patientId)) {
+        issues.push({
+            code: 'patient-mismatch',
+            message: 'Every diagnostic resource must belong to the same patient.',
+        });
+    }
+
+    const ids = bundle.resources.map(resource => resource.id);
     if (new Set(ids).size !== ids.length) {
         issues.push({
-            path: 'resources',
-            message: 'Report graph resource IDs must be unique.',
+            code: 'duplicate-resource-id',
+            message: 'Resource IDs inside the diagnostic bundle must be unique.',
         });
     }
 
-    graphResources.forEach((resource, index) => {
-        if (resource.patientId !== graph.patientId) {
+    const observationIds = bundle.observations.map(observation => observation.id);
+    const specimenIds = bundle.specimens.map(specimen => specimen.id);
+    if (!sameSet(bundle.report.resultIds, observationIds)) {
+        bundle.report.resultIds.forEach(id => {
+            if (!observationIds.includes(id)) {
+                issues.push({
+                    code: 'missing-result',
+                    resourceId: id,
+                    message: `The report references missing result ${id}.`,
+                });
+            }
+        });
+        observationIds.forEach(id => {
+            if (!bundle.report.resultIds.includes(id)) {
+                issues.push({
+                    code: 'unexpected-result',
+                    resourceId: id,
+                    message: `Observation ${id} is not included in report.resultIds.`,
+                });
+            }
+        });
+    }
+    if (!sameSet(bundle.report.specimenIds, specimenIds)) {
+        bundle.report.specimenIds.forEach(id => {
+            if (!specimenIds.includes(id)) {
+                issues.push({
+                    code: 'missing-specimen',
+                    resourceId: id,
+                    message: `The report references missing specimen ${id}.`,
+                });
+            }
+        });
+    }
+
+    bundle.observations.forEach(observation => {
+        if (observation.diagnosticReportId !== bundle.report.id) {
             issues.push({
-                path: `resources.${index}.patientId`,
-                message: 'Every graph resource must belong to the same patient.',
-            });
-        }
-        if (resource.verificationStatus !== 'candidate') {
-            issues.push({
-                path: `resources.${index}.verificationStatus`,
-                message: 'A new or edited report graph must contain candidates only.',
-            });
-        }
-        if (!resource.tags?.includes(graphTag)) {
-            issues.push({
-                path: `resources.${index}.tags`,
-                message: 'Every graph resource must carry the report graph tag.',
+                code: 'observation-report-mismatch',
+                resourceId: observation.id,
+                message:
+                    `Observation ${observation.id} does not point back to report ${bundle.report.id}.`,
             });
         }
         if (
-            resource.provenance.source.document?.documentId
-            !== graph.documentId
+            observation.specimenId
+            && !specimenIds.includes(observation.specimenId)
         ) {
             issues.push({
-                path: `resources.${index}.provenance.source.document`,
-                message: 'Every graph resource must retain the report source document.',
+                code: 'observation-specimen-mismatch',
+                resourceId: observation.id,
+                message:
+                    `Observation ${observation.id} references specimen ${observation.specimenId}, which is not in the bundle.`,
             });
         }
     });
 
-    const observationIds = graph.observations.map(resource => resource.id);
-    const specimenIds = graph.specimens.map(resource => resource.id);
-    if (JSON.stringify(graph.report.resultIds) !== JSON.stringify(observationIds)) {
-        issues.push({
-            path: 'report.resultIds',
-            message: 'Report result IDs must match the graph observations in order.',
-        });
-    }
-    if (JSON.stringify(graph.report.specimenIds) !== JSON.stringify(specimenIds)) {
-        issues.push({
-            path: 'report.specimenIds',
-            message: 'Report specimen IDs must match the graph specimens in order.',
-        });
-    }
-    if (!graph.report.documentIds.includes(graph.documentId)) {
-        issues.push({
-            path: 'report.documentIds',
-            message: 'The report must link to its source document.',
-        });
-    }
-
-    const specimenSet = new Set(specimenIds);
-    graph.observations.forEach((observation, index) => {
-        if (observation.diagnosticReportId !== graph.report.id) {
+    if (record) {
+        if (record.patientId !== bundle.report.patientId) {
             issues.push({
-                path: `observations.${index}.diagnosticReportId`,
-                message: 'Observation must link to the graph report.',
+                code: 'patient-mismatch',
+                message: 'The diagnostic bundle patient does not match the target record.',
             });
         }
-        if (observation.specimenId && !specimenSet.has(observation.specimenId)) {
+        const existingIds = new Set(existingResources(record).map(resource =>
+            resource.id));
+        bundle.resources.forEach(resource => {
+            if (existingIds.has(resource.id)) {
+                issues.push({
+                    code: 'resource-id-conflict',
+                    resourceId: resource.id,
+                    message:
+                        `Resource ID ${resource.id} already exists in the patient record.`,
+                });
+            }
+        });
+        const sourceDocumentId = bundle.report.documentIds[0];
+        const sourceDocument = record.resources.documents.find(document =>
+            document.id === sourceDocumentId);
+        if (!sourceDocument) {
             issues.push({
-                path: `observations.${index}.specimenId`,
-                message: 'Observation links to a specimen outside the graph.',
+                code: 'missing-source-document',
+                resourceId: sourceDocumentId,
+                message:
+                    `The source document ${sourceDocumentId} is not present in the patient record.`,
+            });
+        } else if (sourceDocument.patientId !== bundle.report.patientId) {
+            issues.push({
+                code: 'source-document-patient-mismatch',
+                resourceId: sourceDocument.id,
+                message: 'The source document belongs to another patient.',
             });
         }
-    });
-
-    const document = record.resources.documents.find(resource =>
-        resource.id === graph.documentId,
-    );
-    if (!document || document.verificationStatus !== 'confirmed') {
-        issues.push({
-            path: 'documentId',
-            message: 'The report source document must exist as a confirmed local document.',
-        });
-    }
-
-    if (graph.report.encounterId) {
-        const encounter = record.resources.encounters.find(resource =>
-            resource.id === graph.report.encounterId
-            && resource.verificationStatus === 'confirmed',
-        );
-        if (!encounter) {
+        const duplicate = equivalentReport(record, bundle.report);
+        if (duplicate) {
             issues.push({
-                path: 'report.encounterId',
-                message: 'Linked encounter must exist as a confirmed patient record.',
+                code: 'duplicate-report-source',
+                resourceId: duplicate.id,
+                message:
+                    `An equivalent report from the same source already exists as ${duplicate.id}.`,
             });
         }
     }
 
-    const existing = resourceMap(record);
-    graphResources.forEach((resource, index) => {
-        const current = existing.get(resource.id);
-        if (!current) return;
-        const belongsToGraph = current.tags?.includes(graphTag);
-        if (!options.allowExistingGraph || !belongsToGraph) {
-            issues.push({
-                path: `resources.${index}.id`,
-                message: 'A graph resource ID conflicts with an existing clinical resource.',
-            });
-        }
-    });
-
-    return issues;
+    return { valid: issues.length === 0, issues };
 };
 
-const appendGraph = (
-    record: PatientClinicalRecord,
-    graph: DiagnosticReportCandidateGraph,
-    now: string,
-): PatientClinicalRecord => parsePatientClinicalRecord({
-    ...record,
-    resources: {
-        ...record.resources,
-        observations: [...record.resources.observations, ...graph.observations],
-        diagnosticReports: [
-            ...record.resources.diagnosticReports,
-            graph.report,
-        ],
-        specimens: [...record.resources.specimens, ...graph.specimens],
-    },
-    updatedAt: now,
-});
-
-const replaceGraph = (
-    record: PatientClinicalRecord,
-    graph: DiagnosticReportCandidateGraph,
-    now: string,
-): PatientClinicalRecord => {
-    const tag = diagnosticReportGraphTag(graph.graphId);
-    const removeGraph = <T extends ClinicalRecordResource>(resources: T[]): T[] =>
-        resources.filter(resource => !resource.tags?.includes(tag));
-    return parsePatientClinicalRecord({
-        ...record,
-        resources: {
-            ...record.resources,
-            observations: [
-                ...removeGraph(record.resources.observations),
-                ...graph.observations,
-            ],
-            diagnosticReports: [
-                ...removeGraph(record.resources.diagnosticReports),
-                graph.report,
-            ],
-            specimens: [
-                ...removeGraph(record.resources.specimens),
-                ...graph.specimens,
-            ],
+const linkDocumentToReport = ({
+    document,
+    report,
+    now,
+    actor,
+}: {
+    document: DocumentReferenceRecord;
+    report: DiagnosticReportRecord;
+    now: string;
+    actor?: string;
+}): DocumentReferenceRecord => {
+    if (document.relatedResources.some(reference =>
+        reference.resourceType === 'DiagnosticReport'
+        && reference.id === report.id)) {
+        return document;
+    }
+    const previous = document.relatedResources;
+    const next = [
+        ...previous,
+        {
+            resourceType: 'DiagnosticReport' as const,
+            id: report.id,
+            display: report.code.text,
         },
-        updatedAt: now,
-    });
-};
-
-export const insertDiagnosticReportCandidateGraph = (
-    record: PatientClinicalRecord,
-    graph: DiagnosticReportCandidateGraph,
-    now: string = new Date().toISOString(),
-): {
-    record?: PatientClinicalRecord;
-    duplicate: boolean;
-    issues: DiagnosticReportGraphIssue[];
-} => {
-    const existing = findDiagnosticReportGraph(record, graph.graphId);
-    if (existing) return { duplicate: true, issues: [] };
-    const issues = validateDiagnosticReportCandidateGraph(record, graph);
-    if (issues.length > 0) return { duplicate: false, issues };
-    return {
-        record: appendGraph(record, graph, now),
-        duplicate: false,
-        issues: [],
-    };
-};
-
-export const updateDiagnosticReportCandidateGraph = (
-    record: PatientClinicalRecord,
-    graph: DiagnosticReportCandidateGraph,
-    now: string = new Date().toISOString(),
-): {
-    record?: PatientClinicalRecord;
-    issues: DiagnosticReportGraphIssue[];
-} => {
-    const existing = findDiagnosticReportGraph(record, graph.graphId);
-    if (!existing) {
-        return {
-            issues: [{
-                path: 'graphId',
-                message: 'The report graph does not exist.',
-            }],
-        };
-    }
-    const existingResources = [
-        existing.report,
-        ...existing.observations,
-        ...existing.specimens,
     ];
-    if (existingResources.some(resource =>
-        resource.verificationStatus !== 'candidate')) {
-        return {
-            issues: [{
-                path: 'verificationStatus',
-                message: 'Only an entirely candidate report graph can be edited.',
-            }],
-        };
-    }
-    const issues = validateDiagnosticReportCandidateGraph(record, graph, {
-        allowExistingGraph: true,
-    });
-    if (issues.length > 0) return { issues };
-    return { record: replaceGraph(record, graph, now), issues: [] };
-};
-
-const transitionResource = <T extends ClinicalRecordResource>(
-    resource: T,
-    target: 'confirmed' | 'rejected',
-    review: DiagnosticReportGraphReviewInput,
-    reviewedAt: string,
-): T => {
-    const reason = review.reason?.trim();
     const amendment: ClinicalAmendment = {
         id: uuidv4(),
-        amendedAt: reviewedAt,
-        ...(review.reviewedBy ? { amendedBy: review.reviewedBy } : {}),
-        ...(reason ? { reason } : {}),
-        changedFields: ['verificationStatus'],
-        previousValues: {
-            verificationStatus: resource.verificationStatus,
-        },
+        amendedAt: now,
+        ...(actor ? { amendedBy: actor } : {}),
+        reason: 'Linked a reviewed diagnostic report to its source document.',
+        changedFields: ['relatedResources'],
+        previousValues: { relatedResources: previous },
     };
-    const baseProvenance = {
-        ...resource.provenance,
-        updatedAt: reviewedAt,
-        ...(review.reviewedBy
-            ? { updatedBy: review.reviewedBy }
-            : {}),
-    };
-    const reviewMetadata = {
-        reviewedAt,
-        ...(review.reviewedBy ? { reviewedBy: review.reviewedBy } : {}),
-        ...(reason ? { reason } : {}),
-    };
-    const provenance = target === 'confirmed'
-        ? (() => {
-            const { rejection: _rejection, ...withoutRejection } = baseProvenance;
-            return { ...withoutRejection, confirmation: reviewMetadata };
-        })()
-        : (() => {
-            const { confirmation: _confirmation, ...withoutConfirmation } = baseProvenance;
-            return { ...withoutConfirmation, rejection: reviewMetadata };
-        })();
-
     return parseClinicalRecordResource({
-        ...resource,
-        verificationStatus: target,
-        provenance,
-        amendments: [...resource.amendments, amendment],
-        tags: resource.tags?.filter(tag => tag !== 'needs-review'),
-    }) as T;
-};
-
-const transitionGraph = (
-    record: PatientClinicalRecord,
-    graphId: string,
-    target: 'confirmed' | 'rejected',
-    review: DiagnosticReportGraphReviewInput,
-): {
-    record?: PatientClinicalRecord;
-    unchanged: boolean;
-    issues: DiagnosticReportGraphIssue[];
-} => {
-    const graph = findDiagnosticReportGraph(record, graphId);
-    if (!graph) {
-        return {
-            unchanged: false,
-            issues: [{ path: 'graphId', message: 'Report graph was not found.' }],
-        };
-    }
-    if (target === 'rejected' && !review.reason?.trim()) {
-        return {
-            unchanged: false,
-            issues: [{
-                path: 'reason',
-                message: 'A report-level rejection reason is required.',
-            }],
-        };
-    }
-
-    const resources = [graph.report, ...graph.observations, ...graph.specimens];
-    if (resources.every(resource => resource.verificationStatus === target)) {
-        return { record, unchanged: true, issues: [] };
-    }
-    if (resources.some(resource => resource.verificationStatus !== 'candidate')) {
-        return {
-            unchanged: false,
-            issues: [{
-                path: 'verificationStatus',
-                message: 'The report graph has a mixed review state and cannot transition atomically.',
-            }],
-        };
-    }
-
-    const reviewedAt = review.reviewedAt || new Date().toISOString();
-    const transitionedReport = transitionResource(
-        graph.report,
-        target,
-        review,
-        reviewedAt,
-    ) as DiagnosticReportRecord;
-    const transitionedObservations = graph.observations.map(resource =>
-        transitionResource(resource, target, review, reviewedAt)) as ObservationRecord[];
-    const transitionedSpecimens = graph.specimens.map(resource =>
-        transitionResource(resource, target, review, reviewedAt)) as SpecimenRecord[];
-    const reportIds = new Set([transitionedReport.id]);
-    const observationIds = new Set(
-        transitionedObservations.map(resource => resource.id),
-    );
-    const specimenIds = new Set(
-        transitionedSpecimens.map(resource => resource.id),
-    );
-
-    const next = parsePatientClinicalRecord({
-        ...record,
-        resources: {
-            ...record.resources,
-            diagnosticReports: record.resources.diagnosticReports.map(resource =>
-                reportIds.has(resource.id) ? transitionedReport : resource,
-            ),
-            observations: record.resources.observations.map(resource => {
-                const index = transitionedObservations.findIndex(item =>
-                    item.id === resource.id);
-                return observationIds.has(resource.id)
-                    ? transitionedObservations[index]
-                    : resource;
-            }),
-            specimens: record.resources.specimens.map(resource => {
-                const index = transitionedSpecimens.findIndex(item =>
-                    item.id === resource.id);
-                return specimenIds.has(resource.id)
-                    ? transitionedSpecimens[index]
-                    : resource;
-            }),
+        ...document,
+        relatedResources: next,
+        provenance: {
+            ...document.provenance,
+            updatedAt: now,
+            ...(actor ? { updatedBy: actor } : {}),
         },
-        updatedAt: reviewedAt,
-    });
-
-    return { record: next, unchanged: false, issues: [] };
+        amendments: [...document.amendments, amendment],
+    }) as DocumentReferenceRecord;
 };
 
-export const confirmDiagnosticReportGraph = (
-    record: PatientClinicalRecord,
-    graphId: string,
-    review: DiagnosticReportGraphReviewInput = {},
-) => transitionGraph(record, graphId, 'confirmed', review);
+export const commitDiagnosticReportBundle = (
+    bundle: DiagnosticReportBundle,
+    options: {
+        actor?: string;
+        committedAt?: string;
+    } = {},
+): DiagnosticBundleCommitResult => {
+    const actions = useClinicalRecordStore.getState().actions;
+    const record = actions.getPatientRecord(bundle.report.patientId);
+    if (!record) {
+        return {
+            ok: false,
+            status: 'patient-not-found',
+            createdResourceIds: [],
+            issues: [],
+            message: 'The target patient record does not exist.',
+        };
+    }
 
-export const rejectDiagnosticReportGraph = (
-    record: PatientClinicalRecord,
-    graphId: string,
-    review: DiagnosticReportGraphReviewInput,
-) => transitionGraph(record, graphId, 'rejected', review);
+    const duplicate = equivalentReport(record, bundle.report);
+    if (duplicate) {
+        return {
+            ok: false,
+            status: 'duplicate',
+            reportId: bundle.report.id,
+            createdResourceIds: [],
+            duplicateOf: duplicate.id,
+            issues: [],
+            message:
+                'An equivalent report from the same source already exists.',
+        };
+    }
 
-export const findDiagnosticReportGraph = (
-    record: PatientClinicalRecord,
-    graphId: string,
-): DiagnosticReportGraphSummary | undefined => {
-    const tag = diagnosticReportGraphTag(graphId);
-    const report = record.resources.diagnosticReports.find(resource =>
-        resource.tags?.includes(tag));
-    if (!report) return undefined;
-    const observationById = new Map(
-        record.resources.observations.map(resource => [resource.id, resource]),
-    );
-    const specimenById = new Map(
-        record.resources.specimens.map(resource => [resource.id, resource]),
-    );
+    const validation = validateDiagnosticReportBundleGraph(bundle, record);
+    if (!validation.valid) {
+        const conflict = validation.issues.some(issue =>
+            issue.code === 'resource-id-conflict');
+        return {
+            ok: false,
+            status: conflict ? 'conflict' : 'invalid-graph',
+            reportId: bundle.report.id,
+            createdResourceIds: [],
+            issues: validation.issues,
+            message: 'The diagnostic graph failed validation and was not saved.',
+        };
+    }
+
+    const committedAt = options.committedAt || new Date().toISOString();
+    const documentId = bundle.report.documentIds[0];
+    const nextDocuments = record.resources.documents.map(document =>
+        document.id === documentId
+            ? linkDocumentToReport({
+                document,
+                report: bundle.report,
+                now: committedAt,
+                actor: options.actor,
+            })
+            : document);
+
+    try {
+        const nextRecord = parsePatientClinicalRecord({
+            ...record,
+            resources: {
+                ...record.resources,
+                specimens: [
+                    ...record.resources.specimens,
+                    ...bundle.specimens,
+                ],
+                observations: [
+                    ...record.resources.observations,
+                    ...bundle.observations,
+                ],
+                diagnosticReports: [
+                    ...record.resources.diagnosticReports,
+                    bundle.report,
+                ],
+                documents: nextDocuments,
+            },
+            updatedAt: committedAt,
+        });
+        actions.replacePatientRecord(nextRecord);
+        return {
+            ok: true,
+            status: 'created',
+            reportId: bundle.report.id,
+            createdResourceIds: bundle.resources.map(resource => resource.id),
+            issues: [],
+            message:
+                `Saved one report, ${bundle.observations.length} result(s), and ${bundle.specimens.length} specimen(s) atomically.`,
+        };
+    } catch (error) {
+        return {
+            ok: false,
+            status: 'invalid-graph',
+            reportId: bundle.report.id,
+            createdResourceIds: [],
+            issues: [{
+                code: 'missing-report',
+                message: error instanceof Error
+                    ? error.message
+                    : 'The clinical record rejected the diagnostic graph.',
+            }],
+            message:
+                'The diagnostic graph was rejected before any resource was saved.',
+        };
+    }
+};
+
+export const buildAndCommitDiagnosticReport = (
+    draft: ReviewedDiagnosticReportDraft,
+    options: BuildDiagnosticReportBundleOptions & {
+        committedAt?: string;
+    } = {},
+): {
+    bundle: DiagnosticReportBundle;
+    commit: DiagnosticBundleCommitResult;
+} => {
+    const bundle = buildDiagnosticReportBundle(draft, options);
     return {
-        graphId,
-        draftId: report.provenance.source.externalId?.split(':').at(-1)
-            || graphId,
-        report,
-        observations: report.resultIds
-            .map(id => observationById.get(id))
-            .filter((resource): resource is ObservationRecord => Boolean(resource)),
-        specimens: report.specimenIds
-            .map(id => specimenById.get(id))
-            .filter((resource): resource is SpecimenRecord => Boolean(resource)),
-        source: report.provenance.source.document,
+        bundle,
+        commit: commitDiagnosticReportBundle(bundle, {
+            actor: options.actor || draft.reviewedBy,
+            committedAt: options.committedAt || options.now,
+        }),
     };
 };
 
-export const listDiagnosticReportGraphs = (
-    record: PatientClinicalRecord,
-    verificationStatus?: ClinicalRecordResource['verificationStatus'],
-): DiagnosticReportGraphSummary[] => record.resources.diagnosticReports
-    .filter(report => verificationStatus === undefined
-        || report.verificationStatus === verificationStatus)
-    .map(report => graphIdFromTags(report.tags))
-    .filter((graphId): graphId is string => Boolean(graphId))
-    .map(graphId => findDiagnosticReportGraph(record, graphId))
-    .filter((graph): graph is DiagnosticReportGraphSummary => Boolean(graph));
+export const unknownDiagnosticDate = (
+    sourceText?: string,
+) => createUnknownClinicalDate(sourceText);
