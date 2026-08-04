@@ -46,8 +46,15 @@ export interface ConfirmedPatientSummary {
     candidateCount: number;
 }
 
+const DIAGNOSTIC_REPORT_GRAPH_TAG_PREFIX = 'diagnostic-report-graph:';
+
 const normalizedText = (value?: string): string =>
     (value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+export const isDiagnosticReportGraphResource = (
+    resource: ClinicalRecordResource,
+): boolean => resource.tags?.some(tag =>
+    tag.startsWith(DIAGNOSTIC_REPORT_GRAPH_TAG_PREFIX)) || false;
 
 /**
  * A record may be confirmed by a person while still carrying assertion context.
@@ -65,7 +72,7 @@ export const isConfirmedPatientFact = (
         && resource.assertion.temporality !== 'hypothetical';
 };
 
-export const selectCandidateResources = (
+const allCandidateResources = (
     record?: PatientClinicalRecord,
 ): PatientClinicalResource[] => {
     if (!record) return [];
@@ -73,15 +80,33 @@ export const selectCandidateResources = (
         .filter((resource): resource is PatientClinicalResource =>
             resource.resourceType !== 'PatientProfile'
             && resource.verificationStatus === 'candidate',
-        )
-        .sort((left, right) => {
-            const timeComparison = right.recordedAt.localeCompare(left.recordedAt);
-            if (timeComparison !== 0) return timeComparison;
-            const typeComparison = left.resourceType.localeCompare(right.resourceType);
-            if (typeComparison !== 0) return typeComparison;
-            return left.id.localeCompare(right.id);
-        });
+        );
 };
+
+/**
+ * Candidates belonging to a diagnostic-report graph are intentionally omitted.
+ * They must be reviewed through the report-level atomic workflow so a report,
+ * its results, and its specimens cannot enter mixed confirmation states.
+ */
+export const selectCandidateResources = (
+    record?: PatientClinicalRecord,
+): PatientClinicalResource[] => allCandidateResources(record)
+    .filter(resource => !isDiagnosticReportGraphResource(resource))
+    .sort((left, right) => {
+        const timeComparison = right.recordedAt.localeCompare(left.recordedAt);
+        if (timeComparison !== 0) return timeComparison;
+        const typeComparison = left.resourceType.localeCompare(right.resourceType);
+        if (typeComparison !== 0) return typeComparison;
+        return left.id.localeCompare(right.id);
+    });
+
+export const selectDiagnosticReportCandidateGraphCount = (
+    record?: PatientClinicalRecord,
+): number => new Set(
+    allCandidateResources(record)
+        .flatMap(resource => resource.tags || [])
+        .filter(tag => tag.startsWith(DIAGNOSTIC_REPORT_GRAPH_TAG_PREFIX)),
+).size;
 
 export const selectConfirmedResources = (
     record?: PatientClinicalRecord,
@@ -296,5 +321,6 @@ export const selectConfirmedPatientSummary = (
     observations: selectConfirmedObservations(record),
     codeStatus: selectConfirmedCodeStatus(record),
     vitals: selectConfirmedVitals(record),
-    candidateCount: selectCandidateResources(record).length,
+    candidateCount: selectCandidateResources(record).length
+        + selectDiagnosticReportCandidateGraphCount(record),
 });

@@ -1,4 +1,3 @@
-
 import React, { useRef, useCallback, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { ChatMode as ChatModeEnum, UploadedFile, ChatMessage, GroundingSource } from '../../../types';
@@ -318,14 +317,30 @@ export const useChatOrchestrator = ({
         } finally {
             uiDispatch({ type: 'SET_LOADING', payload: false });
             
-            // --- UPDATED INGESTION PROTOCOL: QUARANTINE FOR HUMAN VERIFICATION ---
+            // Lab rows remain in quarantine until the report-level review creates
+            // one source-linked candidate graph. Nothing is confirmed here.
             if (activePatientId && isLabReport(fullResponseBuffer)) {
                 const report = parseAndValidate(fullResponseBuffer, LabReportSchema);
                 
                 if (report && report.labs && report.labs.length > 0) {
-                    // DO NOT INGEST IMMEDIATELY
-                    // Dispatch to UI Quarantine for modal display
-                    uiDispatch({ type: 'SET_PENDING_LAB_REPORT', payload: report });
+                    const source = uploadedFile?.storageId
+                        ? {
+                            documentId: `document-${uploadedFile.storageId}`,
+                            storageId: uploadedFile.storageId,
+                            fileName: uploadedFile.file.name,
+                            mimeType: uploadedFile.type
+                                || uploadedFile.file.type
+                                || 'application/octet-stream',
+                        }
+                        : undefined;
+                    uiDispatch({
+                        type: 'SET_PENDING_LAB_REPORT',
+                        payload: {
+                            reviewId: uuidv4(),
+                            report,
+                            ...(source ? { source } : {}),
+                        },
+                    });
                 } else {
                     console.warn("Lab report detected but failed validation or was empty.");
                 }

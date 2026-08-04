@@ -1,163 +1,521 @@
-
-import React, { useState } from 'react';
-import { LabReport, LabResultSchema } from '../../chat/schemas';
-import { CheckIcon, XCircleIcon, AlertTriangleIcon, BeakerIcon } from '../../../components/icons';
+import React, { useMemo, useState } from 'react';
+import { useToast } from '../../../components/Toast';
+import {
+    AlertTriangleIcon,
+    BeakerIcon,
+    CheckIcon,
+    DocumentTextIcon,
+    XCircleIcon,
+} from '../../../components/icons';
+import { useAuditStore } from '../../audit/useAuditStore';
+import type { LabReport } from '../../chat/schemas';
+import { useChatStore } from '../../chat/stores/useChatStore';
+import { useClinicalRecordStore } from '../../clinical-record';
+import {
+    buildDiagnosticReportDraftFromReviewedLabs,
+    createDiagnosticReportDraftCandidates,
+} from '../../diagnostic-reports';
+import type {
+    PendingLabSource,
+    ReviewedLabReport,
+    ReviewedLabRow,
+} from '../../diagnostic-reports';
+import { usePatientStore } from '../../patient-management/usePatientStore';
+import type { PendingLabReportReview } from '../../ui/UIContext';
 
 interface LabVerificationModalProps {
-    report: LabReport;
-    onConfirm: (verifiedReport: LabReport) => void;
+    report: LabReport | PendingLabReportReview;
+    source?: PendingLabSource;
+    /**
+     * Retained temporarily for compatibility with the assistant shell. Phase 4
+     * intentionally does not invoke this legacy immediate-ingestion callback.
+     */
+    onConfirm?: (verifiedReport: LabReport) => void;
     onCancel: () => void;
 }
 
-const LabVerificationModal: React.FC<LabVerificationModalProps> = ({ report, onConfirm, onCancel }) => {
-    const [editedLabs, setEditedLabs] = useState(report.labs);
-    
-    const handleUpdate = (index: number, field: keyof typeof report.labs[0], value: string) => {
-        const updated = [...editedLabs];
-        // Only update if value actually changed to prevent cursor jumping if we were stricter
-        updated[index] = { ...updated[index], [field]: value };
-        setEditedLabs(updated);
+const isPendingReview = (
+    value: LabReport | PendingLabReportReview,
+): value is PendingLabReportReview => 'reviewId' in value && 'report' in value;
+
+const initialRows = (report: LabReport): ReviewedLabRow[] =>
+    report.labs.map(lab => ({
+        ...lab,
+        pageNumber: undefined,
+        effectiveDate: '',
+    }));
+
+const isoDateTime = (value: string): string | undefined => {
+    const trimmed = value.trim();
+    if (!trimmed) return undefined;
+    const parsed = new Date(trimmed);
+    return Number.isNaN(parsed.getTime())
+        ? trimmed
+        : parsed.toISOString();
+};
+
+const LabVerificationModal: React.FC<LabVerificationModalProps> = props => {
+    const pending = isPendingReview(props.report)
+        ? props.report
+        : {
+            reviewId: 'legacy-review',
+            report: props.report,
+        };
+    const extractedReport = pending.report;
+    const source = props.source || pending.source;
+    const activePatientId = usePatientStore(state => state.activePatientId);
+    const sourcePatientId = useClinicalRecordStore(state => {
+        if (!source) return undefined;
+        return Object.values(state.records).find(record =>
+            record.resources.documents.some(document =>
+                document.id === source.documentId
+                && document.verificationStatus === 'confirmed'))?.patientId;
+    });
+    const addMessage = useChatStore(state => state.actions.addMessage);
+    const logEvent = useAuditStore(state => state.actions.logEvent);
+    const { showToast } = useToast();
+
+    const [reportTitle, setReportTitle] = useState('Laboratory report');
+    const [reportDate, setReportDate] = useState(extractedReport.date || '');
+    const [issuedAt, setIssuedAt] = useState('');
+    const [performer, setPerformer] = useState('');
+    const [specimenType, setSpecimenType] = useState('');
+    const [collectionDate, setCollectionDate] = useState('');
+    const [interpretation, setInterpretation] = useState(
+        extractedReport.interpretation || '',
+    );
+    const [rows, setRows] = useState<ReviewedLabRow[]>(() =>
+        initialRows(extractedReport));
+    const [saving, setSaving] = useState(false);
+    const [saveError, setSaveError] = useState<string | null>(null);
+
+    const invalidRowCount = useMemo(() => rows.filter(row =>
+        !row.testName.trim() || !String(row.value).trim()).length, [rows]);
+    const patientMismatch = Boolean(
+        sourcePatientId
+        && activePatientId
+        && sourcePatientId !== activePatientId,
+    );
+    const canSave = Boolean(
+        source
+        && sourcePatientId
+        && !patientMismatch
+        && rows.length > 0
+        && invalidRowCount === 0
+        && !saving,
+    );
+
+    const updateRow = (
+        index: number,
+        updates: Partial<ReviewedLabRow>,
+    ): void => {
+        setRows(current => current.map((row, rowIndex) =>
+            rowIndex === index ? { ...row, ...updates } : row));
     };
 
-    const handleRemove = (index: number) => {
-        setEditedLabs(prev => prev.filter((_, i) => i !== index));
+    const removeRow = (index: number): void => {
+        setRows(current => current.filter((_, rowIndex) =>
+            rowIndex !== index));
     };
 
-    const handleConfirm = () => {
-        // Return cleaned report
-        onConfirm({
-            ...report,
-            labs: editedLabs
-        });
+    const reviewedReport = (): ReviewedLabReport => ({
+        reportTitle: reportTitle.trim() || 'Laboratory report',
+        reportDate: reportDate.trim(),
+        ...(isoDateTime(issuedAt) ? { issuedAt: isoDateTime(issuedAt) } : {}),
+        ...(performer.trim() ? { performer: performer.trim() } : {}),
+        ...(specimenType.trim()
+            ? { specimenType: specimenType.trim() }
+            : {}),
+        ...(collectionDate.trim()
+            ? { collectionDate: collectionDate.trim() }
+            : {}),
+        rows: rows.map(row => ({
+            ...row,
+            testName: row.testName.trim(),
+            value: String(row.value).trim(),
+            loinc: row.loinc?.trim() || undefined,
+            units: row.units?.trim() || '',
+            refRange: row.refRange?.trim() || '',
+            effectiveDate: row.effectiveDate?.trim() || undefined,
+            sourceExcerpt: row.sourceExcerpt?.trim() || undefined,
+        })),
+        ...(interpretation.trim()
+            ? { interpretation: interpretation.trim() }
+            : {}),
+    });
+
+    const handleSaveCandidates = (): void => {
+        if (!canSave || !source || !sourcePatientId) return;
+        setSaving(true);
+        setSaveError(null);
+        try {
+            const review = reviewedReport();
+            const draft = buildDiagnosticReportDraftFromReviewedLabs({
+                patientId: sourcePatientId,
+                source,
+                review,
+                extractedReport,
+            });
+            const result = createDiagnosticReportDraftCandidates(draft);
+            if (!result.ok) {
+                const details = result.issues
+                    .map(issue => `${issue.path || 'report'}: ${issue.message}`)
+                    .join(' · ');
+                const message = details
+                    || result.message
+                    || 'The report candidate graph could not be created.';
+                setSaveError(message);
+                showToast('Report candidates were not saved.', 'error');
+                return;
+            }
+
+            logEvent(
+                'DIAGNOSTIC_REPORT_GRAPH_CREATED',
+                sourcePatientId,
+                result.status === 'duplicate'
+                    ? 'Skipped a same-source duplicate diagnostic report graph.'
+                    : `Created a candidate diagnostic report graph with ${review.rows.length} reviewed result row${review.rows.length === 1 ? '' : 's'}.`,
+                'USER',
+                {
+                    graphId: result.graphId,
+                    reportId: result.reportId,
+                    documentId: source.documentId,
+                    fileName: source.fileName,
+                    rowCount: review.rows.length,
+                    duplicate: result.status === 'duplicate',
+                },
+            );
+
+            addMessage(sourcePatientId, {
+                role: 'model',
+                content: result.status === 'duplicate'
+                    ? `ℹ️ **Report already pending review**\nThe same source-linked report candidate graph already exists. No duplicate report, result, or specimen candidates were added.\n\nOpen **Health Data → Labs & Reports** to review it.`
+                    : `🧪 **Diagnostic report candidates saved**\nCreated one report candidate with ${review.rows.length} linked result candidate${review.rows.length === 1 ? '' : 's'}${review.specimenType || review.collectionDate ? ' and one specimen candidate' : ''}.\n\nNothing was confirmed automatically. Open **Health Data → Labs & Reports** and compare the complete graph with the original source before confirming or rejecting it.`,
+            });
+            showToast(
+                result.status === 'duplicate'
+                    ? 'The same report is already pending review.'
+                    : 'Report candidates saved for review.',
+                result.status === 'duplicate' ? 'info' : 'success',
+            );
+            props.onCancel();
+        } finally {
+            setSaving(false);
+        }
     };
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-fade-in">
-            <div className="bg-white dark:bg-slate-900 w-full max-w-4xl border-2 border-blue-500 rounded-sm shadow-2xl flex flex-col max-h-[90vh] technical-border animate-slide-up">
-                
-                {/* Header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-full text-blue-600 dark:text-blue-400 animate-pulse">
-                            <BeakerIcon className="w-6 h-6" />
-                        </div>
-                        <div>
-                            <h2 className="text-lg font-display font-bold uppercase tracking-tight text-slate-900 dark:text-white">
-                                Data Ingestion Verification
+        <div
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/85 p-3 backdrop-blur-sm md:p-6"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="lab-report-review-title"
+        >
+            <div className="technical-border flex max-h-[94dvh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-blue-400 bg-white shadow-2xl dark:border-blue-800 dark:bg-slate-950">
+                <header className="flex items-start justify-between gap-4 border-b border-slate-200 bg-slate-50 px-4 py-4 dark:border-slate-800 dark:bg-slate-900/80 md:px-6">
+                    <div className="flex min-w-0 items-start gap-3">
+                        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">
+                            <BeakerIcon className="h-5 w-5" />
+                        </span>
+                        <div className="min-w-0">
+                            <h2
+                                id="lab-report-review-title"
+                                className="text-lg font-display font-bold text-slate-950 dark:text-white"
+                            >
+                                Review diagnostic report candidates
                             </h2>
-                            <p className="text-xs font-mono text-slate-500 dark:text-slate-400 uppercase tracking-widest">
-                                Human-in-the-Loop Protocol Required
+                            <p className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                                Check the complete report against the original file. Saving creates one candidate report with linked result and specimen candidates; it does not confirm medical facts.
                             </p>
                         </div>
                     </div>
-                    <button onClick={onCancel} className="text-slate-400 hover:text-red-500 transition-colors">
-                        <XCircleIcon className="w-6 h-6" />
+                    <button
+                        type="button"
+                        onClick={props.onCancel}
+                        aria-label="Close diagnostic report review"
+                        className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30"
+                    >
+                        <XCircleIcon className="h-5 w-5" />
                     </button>
-                </div>
+                </header>
 
-                {/* Warning Banner */}
-                <div className="bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 px-6 py-3 flex items-center gap-3">
-                    <AlertTriangleIcon className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-                    <p className="text-xs font-bold text-amber-800 dark:text-amber-200 uppercase tracking-wide">
-                        Check values against original document. LLMs can misread decimal points and units.
+                <div className="flex items-start gap-3 border-b border-amber-200 bg-amber-50 px-4 py-3 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/25 dark:text-amber-200 md:px-6">
+                    <AlertTriangleIcon className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                    <p className="text-xs leading-relaxed">
+                        OCR and AI can misread decimal points, comparators, units, dates, flags, and reference ranges. Qualitative values such as “positive” or “not detected” must remain text rather than being forced into numbers.
                     </p>
                 </div>
 
-                {/* Table Editor */}
-                <div className="flex-1 overflow-y-auto p-0">
-                    <table className="w-full text-left text-sm border-collapse">
-                        <thead className="bg-slate-100 dark:bg-black/30 sticky top-0 z-10 text-[10px] uppercase font-mono font-bold text-slate-500 tracking-wider">
-                            <tr>
-                                <th className="px-6 py-3 border-b border-slate-200 dark:border-slate-800">Test Name</th>
-                                <th className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 w-24">LOINC</th>
-                                <th className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 w-32">Value</th>
-                                <th className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 w-24">Unit</th>
-                                <th className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 w-32">Ref Range</th>
-                                <th className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 w-16 text-center">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                            {editedLabs.map((lab, i) => (
-                                <tr key={i} className="group hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                                    <td className="px-6 py-2">
-                                        <input 
-                                            value={lab.testName} 
-                                            onChange={(e) => handleUpdate(i, 'testName', e.target.value)}
-                                            className="w-full bg-transparent border-none focus:ring-0 font-medium text-slate-900 dark:text-slate-100 placeholder-slate-400"
-                                            placeholder="Test Name"
-                                        />
-                                    </td>
-                                    <td className="px-4 py-2">
-                                        <input 
-                                            value={lab.loinc || ''} 
-                                            onChange={(e) => handleUpdate(i, 'loinc', e.target.value)}
-                                            className="w-full bg-transparent border-none focus:ring-0 text-xs text-slate-500 dark:text-slate-400 font-mono"
-                                            placeholder="LOINC"
-                                        />
-                                    </td>
-                                    <td className="px-4 py-2">
-                                        <input 
-                                            value={lab.value} 
-                                            onChange={(e) => handleUpdate(i, 'value', e.target.value)}
-                                            className="w-full bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-blue-500 rounded-sm px-2 py-1 font-mono font-bold text-slate-900 dark:text-slate-100 text-right focus:outline-none"
-                                            placeholder="0.0"
-                                        />
-                                    </td>
-                                    <td className="px-4 py-2">
-                                        <input 
-                                            value={lab.units} 
-                                            onChange={(e) => handleUpdate(i, 'units', e.target.value)}
-                                            className="w-full bg-transparent border-none focus:ring-0 text-xs text-slate-500 dark:text-slate-400"
-                                            placeholder="Unit"
-                                        />
-                                    </td>
-                                    <td className="px-4 py-2">
-                                        <input 
-                                            value={lab.refRange} 
-                                            onChange={(e) => handleUpdate(i, 'refRange', e.target.value)}
-                                            className="w-full bg-transparent border-none focus:ring-0 text-xs text-slate-400 font-mono"
-                                            placeholder="Range"
-                                        />
-                                    </td>
-                                    <td className="px-4 py-2 text-center">
-                                        <button 
-                                            onClick={() => handleRemove(i)}
-                                            className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors opacity-0 group-hover:opacity-100"
-                                            title="Delete Row"
-                                        >
-                                            <XCircleIcon className="w-4 h-4" />
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))}
-                            {editedLabs.length === 0 && (
+                <div className="flex-1 overflow-y-auto">
+                    <section className="grid gap-3 border-b border-slate-200 p-4 dark:border-slate-800 md:grid-cols-2 md:p-6 lg:grid-cols-4">
+                        <label className="block lg:col-span-2">
+                            <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">
+                                Report title
+                            </span>
+                            <input
+                                value={reportTitle}
+                                onChange={event => setReportTitle(event.target.value)}
+                                className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold outline-none focus:border-blue-400 dark:border-slate-700 dark:bg-slate-950"
+                            />
+                        </label>
+                        <label className="block">
+                            <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">
+                                Report clinical date
+                            </span>
+                            <input
+                                value={reportDate}
+                                onChange={event => setReportDate(event.target.value)}
+                                placeholder="YYYY-MM-DD, YYYY-MM, YYYY, or blank"
+                                className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-400 dark:border-slate-700 dark:bg-slate-950"
+                            />
+                        </label>
+                        <label className="block">
+                            <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">
+                                Issued at
+                            </span>
+                            <input
+                                type="datetime-local"
+                                value={issuedAt}
+                                onChange={event => setIssuedAt(event.target.value)}
+                                className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-400 dark:border-slate-700 dark:bg-slate-950"
+                            />
+                        </label>
+                        <label className="block">
+                            <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">
+                                Laboratory / performer
+                            </span>
+                            <input
+                                value={performer}
+                                onChange={event => setPerformer(event.target.value)}
+                                placeholder="Not recorded"
+                                className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-400 dark:border-slate-700 dark:bg-slate-950"
+                            />
+                        </label>
+                        <label className="block">
+                            <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">
+                                Specimen type
+                            </span>
+                            <input
+                                value={specimenType}
+                                onChange={event => setSpecimenType(event.target.value)}
+                                placeholder="Blood, serum, urine…"
+                                className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-400 dark:border-slate-700 dark:bg-slate-950"
+                            />
+                        </label>
+                        <label className="block">
+                            <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">
+                                Collection date
+                            </span>
+                            <input
+                                value={collectionDate}
+                                onChange={event => setCollectionDate(event.target.value)}
+                                placeholder="Leave blank when unknown"
+                                className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-400 dark:border-slate-700 dark:bg-slate-950"
+                            />
+                        </label>
+                        <label className="block lg:col-span-1">
+                            <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">
+                                Source document
+                            </span>
+                            <div className={`mt-1.5 flex min-h-[42px] items-center gap-2 rounded-xl border px-3 py-2 text-xs ${source && sourcePatientId && !patientMismatch
+                                ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/25 dark:text-emerald-200'
+                                : 'border-red-200 bg-red-50 text-red-800 dark:border-red-900/60 dark:bg-red-950/25 dark:text-red-200'
+                            }`}>
+                                <DocumentTextIcon className="h-4 w-4 flex-shrink-0" />
+                                <span className="min-w-0 break-all">
+                                    {source?.fileName
+                                        || 'No original uploaded document is linked'}
+                                </span>
+                            </div>
+                        </label>
+                        <label className="block md:col-span-2 lg:col-span-4">
+                            <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">
+                                Report interpretation / conclusion
+                            </span>
+                            <textarea
+                                value={interpretation}
+                                onChange={event => setInterpretation(event.target.value)}
+                                rows={2}
+                                className="mt-1.5 w-full resize-y rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-400 dark:border-slate-700 dark:bg-slate-950"
+                            />
+                        </label>
+                    </section>
+
+                    <section className="overflow-x-auto">
+                        <table className="w-full min-w-[1050px] border-collapse text-left text-sm">
+                            <thead className="sticky top-0 z-10 bg-slate-100 text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 dark:bg-slate-900 dark:text-slate-400">
                                 <tr>
-                                    <td colSpan={6} className="text-center py-8 text-slate-400 italic">
-                                        No data rows. Import cancelled.
-                                    </td>
+                                    <th className="border-b border-slate-200 px-4 py-3 dark:border-slate-800">Test / observation</th>
+                                    <th className="border-b border-slate-200 px-3 py-3 dark:border-slate-800">LOINC</th>
+                                    <th className="border-b border-slate-200 px-3 py-3 dark:border-slate-800">Original value</th>
+                                    <th className="border-b border-slate-200 px-3 py-3 dark:border-slate-800">Original unit</th>
+                                    <th className="border-b border-slate-200 px-3 py-3 dark:border-slate-800">Reference text</th>
+                                    <th className="border-b border-slate-200 px-3 py-3 dark:border-slate-800">Flag</th>
+                                    <th className="border-b border-slate-200 px-3 py-3 dark:border-slate-800">Result date</th>
+                                    <th className="border-b border-slate-200 px-3 py-3 dark:border-slate-800">Page</th>
+                                    <th className="border-b border-slate-200 px-3 py-3 text-center dark:border-slate-800">Remove</th>
                                 </tr>
-                            )}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                {rows.map((row, index) => (
+                                    <tr
+                                        key={`${row.testName}-${index}`}
+                                        className="align-top transition-colors hover:bg-slate-50 dark:hover:bg-slate-900/60"
+                                    >
+                                        <td className="px-4 py-2">
+                                            <input
+                                                value={row.testName}
+                                                onChange={event => updateRow(index, {
+                                                    testName: event.target.value,
+                                                })}
+                                                aria-label={`Result ${index + 1} test name`}
+                                                className="w-full min-w-[180px] rounded-lg border border-transparent bg-transparent px-2 py-2 font-semibold outline-none focus:border-blue-400 focus:bg-white dark:focus:bg-slate-950"
+                                            />
+                                        </td>
+                                        <td className="px-3 py-2">
+                                            <input
+                                                value={row.loinc || ''}
+                                                onChange={event => updateRow(index, {
+                                                    loinc: event.target.value,
+                                                })}
+                                                aria-label={`Result ${index + 1} LOINC code`}
+                                                className="w-24 rounded-lg border border-transparent bg-transparent px-2 py-2 font-mono text-xs outline-none focus:border-blue-400 focus:bg-white dark:focus:bg-slate-950"
+                                            />
+                                        </td>
+                                        <td className="px-3 py-2">
+                                            <input
+                                                value={String(row.value)}
+                                                onChange={event => updateRow(index, {
+                                                    value: event.target.value,
+                                                })}
+                                                aria-label={`Result ${index + 1} original value`}
+                                                placeholder="<5, Positive, 7.2…"
+                                                className="w-32 rounded-lg border border-blue-100 bg-blue-50 px-2 py-2 font-mono font-bold text-slate-950 outline-none focus:border-blue-400 dark:border-blue-900/50 dark:bg-blue-950/20 dark:text-white"
+                                            />
+                                        </td>
+                                        <td className="px-3 py-2">
+                                            <input
+                                                value={row.units || ''}
+                                                onChange={event => updateRow(index, {
+                                                    units: event.target.value,
+                                                })}
+                                                aria-label={`Result ${index + 1} original unit`}
+                                                className="w-28 rounded-lg border border-transparent bg-transparent px-2 py-2 text-xs outline-none focus:border-blue-400 focus:bg-white dark:focus:bg-slate-950"
+                                            />
+                                        </td>
+                                        <td className="px-3 py-2">
+                                            <input
+                                                value={row.refRange || ''}
+                                                onChange={event => updateRow(index, {
+                                                    refRange: event.target.value,
+                                                })}
+                                                aria-label={`Result ${index + 1} reference range`}
+                                                placeholder="4.0–10.0 or <5 or text"
+                                                className="w-40 rounded-lg border border-transparent bg-transparent px-2 py-2 text-xs outline-none focus:border-blue-400 focus:bg-white dark:focus:bg-slate-950"
+                                            />
+                                        </td>
+                                        <td className="px-3 py-2">
+                                            <select
+                                                value={row.flag || 'Normal'}
+                                                onChange={event => updateRow(index, {
+                                                    flag: event.target.value as ReviewedLabRow['flag'],
+                                                })}
+                                                aria-label={`Result ${index + 1} interpretation flag`}
+                                                className="w-28 rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs outline-none focus:border-blue-400 dark:border-slate-700 dark:bg-slate-950"
+                                            >
+                                                {[
+                                                    'Normal',
+                                                    'High',
+                                                    'Low',
+                                                    'Critical',
+                                                    'Abnormal',
+                                                    'Unknown',
+                                                ].map(flag => (
+                                                    <option key={flag} value={flag}>{flag}</option>
+                                                ))}
+                                            </select>
+                                        </td>
+                                        <td className="px-3 py-2">
+                                            <input
+                                                value={row.effectiveDate || ''}
+                                                onChange={event => updateRow(index, {
+                                                    effectiveDate: event.target.value,
+                                                })}
+                                                aria-label={`Result ${index + 1} clinical date`}
+                                                placeholder="Blank = report date"
+                                                className="w-32 rounded-lg border border-transparent bg-transparent px-2 py-2 text-xs outline-none focus:border-blue-400 focus:bg-white dark:focus:bg-slate-950"
+                                            />
+                                        </td>
+                                        <td className="px-3 py-2">
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                value={row.pageNumber || ''}
+                                                onChange={event => updateRow(index, {
+                                                    pageNumber: event.target.value
+                                                        ? Number(event.target.value)
+                                                        : undefined,
+                                                })}
+                                                aria-label={`Result ${index + 1} source page`}
+                                                className="w-20 rounded-lg border border-transparent bg-transparent px-2 py-2 text-xs outline-none focus:border-blue-400 focus:bg-white dark:focus:bg-slate-950"
+                                            />
+                                        </td>
+                                        <td className="px-3 py-2 text-center">
+                                            <button
+                                                type="button"
+                                                onClick={() => removeRow(index)}
+                                                aria-label={`Remove result ${index + 1}`}
+                                                className="rounded-lg p-2 text-slate-300 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30"
+                                            >
+                                                <XCircleIcon className="h-4 w-4" />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </section>
+
+                    {rows.length === 0 && (
+                        <div className="p-8 text-center text-sm text-slate-500">
+                            No report rows remain. Close the review or return to the source document.
+                        </div>
+                    )}
                 </div>
 
-                {/* Footer Actions */}
-                <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex justify-end gap-3">
-                    <button
-                        onClick={onCancel}
-                        className="px-5 py-2.5 text-xs font-bold uppercase tracking-wide text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-sm transition-colors"
-                    >
-                        Discard Data
-                    </button>
-                    <button
-                        onClick={handleConfirm}
-                        disabled={editedLabs.length === 0}
-                        className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold uppercase tracking-widest rounded-sm shadow-lg shadow-blue-500/20 flex items-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        <CheckIcon className="w-4 h-4" />
-                        Verify & Ingest to Record
-                    </button>
-                </div>
+                <footer className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50 px-4 py-4 dark:border-slate-800 dark:bg-slate-900/80 md:flex-row md:items-center md:justify-between md:px-6">
+                    <div className="text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                        {saveError
+                            ? <span className="font-semibold text-red-600 dark:text-red-300">{saveError}</span>
+                            : !source
+                                ? 'Candidate creation is blocked because no original uploaded document is linked. Upload the source report and run the review again.'
+                                : patientMismatch
+                                    ? 'The source document belongs to another patient record. Return to that patient before saving this report.'
+                                    : !sourcePatientId
+                                        ? 'The confirmed source-document record is not ready. Keep this review open while local document registration completes.'
+                                        : invalidRowCount > 0
+                                            ? `${invalidRowCount} row${invalidRowCount === 1 ? '' : 's'} require a test name and original value.`
+                                            : 'The saved graph stays pending until report-level confirmation in Labs & Reports.'}
+                    </div>
+                    <div className="flex flex-shrink-0 justify-end gap-2">
+                        <button
+                            type="button"
+                            onClick={props.onCancel}
+                            className="rounded-xl px-4 py-2.5 text-xs font-bold text-slate-600 transition-colors hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800"
+                        >
+                            Discard review
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleSaveCandidates}
+                            disabled={!canSave}
+                            className="flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-blue-500/20 transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            <CheckIcon className="h-4 w-4" />
+                            {saving ? 'Saving…' : 'Save report candidates'}
+                        </button>
+                    </div>
+                </footer>
             </div>
         </div>
     );
