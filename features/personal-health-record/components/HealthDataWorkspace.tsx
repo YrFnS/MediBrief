@@ -11,8 +11,17 @@ import {
     ShieldCheckIcon,
     UserIcon,
 } from '../../../components/icons';
+import { useAuditStore } from '../../audit/useAuditStore';
 import { selectCandidateResources } from '../../clinical-record/selectors';
 import type { PatientClinicalRecord } from '../../clinical-record/types';
+import {
+    buildMedicationReconciliationViewModel,
+} from '../../medication-reconciliation';
+import MedicationReconciliationWorkspace from '../../medication-reconciliation/components/MedicationReconciliationWorkspace';
+import {
+    buildExplicitReminderViewModel,
+} from '../../trend-reminders';
+import TrendAndReminderWorkspace from '../../trend-reminders/components/TrendAndReminderWorkspace';
 import type { PersonalHealthDataModule } from '../planningModuleTypes';
 import AllergiesModule from './AllergiesModule';
 import AppointmentsModule from './AppointmentsModule';
@@ -62,11 +71,25 @@ const MODULES: Array<{
         icon: DrugsIcon,
     },
     {
+        value: 'medication-reconciliation',
+        label: 'Medication Reconciliation',
+        shortLabel: 'Reconcile',
+        description: 'Compare sources and review discrepancies',
+        icon: ListChecksIcon,
+    },
+    {
         value: 'results',
         label: 'Labs & Reports',
         shortLabel: 'Results',
         description: 'Observations and diagnostic reports',
         icon: DocumentTextIcon,
+    },
+    {
+        value: 'trend-reminders',
+        label: 'Trends & Reminders',
+        shortLabel: 'Trends',
+        description: 'Recorded arithmetic and explicit date reminders',
+        icon: ActivityIcon,
     },
     {
         value: 'visits',
@@ -138,7 +161,16 @@ const HealthDataWorkspace: React.FC<HealthDataWorkspaceProps> = ({
     onReviewCandidates,
 }) => {
     const [module, setModule] = useState<PersonalHealthDataModule>('conditions');
-    const candidateCounts = useMemo(() => {
+    const auditLogs = useAuditStore(state => state.logs);
+    const reconciliation = useMemo(
+        () => buildMedicationReconciliationViewModel(record, auditLogs),
+        [auditLogs, record],
+    );
+    const reminderSummary = useMemo(
+        () => buildExplicitReminderViewModel(record),
+        [record],
+    );
+    const moduleBadges = useMemo(() => {
         const candidates = selectCandidateResources(record);
         return {
             conditions: candidates.filter(resource =>
@@ -147,9 +179,14 @@ const HealthDataWorkspace: React.FC<HealthDataWorkspaceProps> = ({
                 resource.resourceType === 'AllergyIntolerance').length,
             medications: candidates.filter(resource =>
                 resource.resourceType === 'Medication').length,
+            'medication-reconciliation':
+                reconciliation.unreviewedCount
+                + reconciliation.actionPendingCount
+                + reconciliation.candidateMedicationCount,
             results: candidates.filter(resource =>
                 resource.resourceType === 'Observation'
                 || resource.resourceType === 'DiagnosticReport').length,
+            'trend-reminders': reminderSummary.actionableCount,
             visits: candidates.filter(resource =>
                 resource.resourceType === 'Encounter').length,
             notes: candidates.filter(resource =>
@@ -168,7 +205,7 @@ const HealthDataWorkspace: React.FC<HealthDataWorkspaceProps> = ({
                 resource.resourceType === 'CarePlan').length,
             manage: candidates.length,
         } satisfies Record<PersonalHealthDataModule, number>;
-    }, [record]);
+    }, [reconciliation, record, reminderSummary]);
 
     const handleModuleKeyDown = (
         event: React.KeyboardEvent<HTMLButtonElement>,
@@ -204,7 +241,7 @@ const HealthDataWorkspace: React.FC<HealthDataWorkspaceProps> = ({
                     {MODULES.map((item, index) => {
                         const Icon = item.icon;
                         const active = module === item.value;
-                        const pending = candidateCounts[item.value];
+                        const pending = moduleBadges[item.value];
                         return (
                             <button
                                 key={item.value}
@@ -271,8 +308,20 @@ const HealthDataWorkspace: React.FC<HealthDataWorkspaceProps> = ({
                         onReviewCandidates={onReviewCandidates}
                     />
                 )}
+                {module === 'medication-reconciliation' && (
+                    <MedicationReconciliationWorkspace
+                        record={record}
+                        onReviewCandidates={onReviewCandidates}
+                    />
+                )}
                 {module === 'results' && (
                     <ResultsModule
+                        record={record}
+                        onReviewCandidates={onReviewCandidates}
+                    />
+                )}
+                {module === 'trend-reminders' && (
+                    <TrendAndReminderWorkspace
                         record={record}
                         onReviewCandidates={onReviewCandidates}
                     />

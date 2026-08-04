@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
+import { ShieldCheckIcon } from '../../components/icons';
 import { useAuditStore } from '../audit/useAuditStore';
 import { useChatStore } from '../chat/stores/useChatStore';
 import { useClinicalStore } from '../clinical-analysis/stores/useClinicalStore';
@@ -7,8 +8,10 @@ import type { ClinicalTaskPriority } from '../clinical-record/types';
 import { useClinicalRecordStore } from '../clinical-record/useClinicalRecordStore';
 import { usePatientStore } from '../patient-management/usePatientStore';
 import CDSSAggregator from './CDSSAggregator';
+import ValidatedRulesAuditWorkspace from './components/ValidatedRulesAuditWorkspace';
 import InterventionCard from './InterventionCard';
 import type { AlertLevel, CDSSAlert } from './types';
+import { buildValidatedRuleReviewViewModel } from './validatedRuleReview';
 
 const priorityForAlert = (level: AlertLevel): ClinicalTaskPriority => {
     if (level === 'Critical') return 'stat';
@@ -17,6 +20,7 @@ const priorityForAlert = (level: AlertLevel): ClinicalTaskPriority => {
 };
 
 const CDSSContainer: React.FC = () => {
+    const [isValidatedReviewOpen, setIsValidatedReviewOpen] = useState(false);
     const activePatientId = usePatientStore(state => state.activePatientId);
     const activePatient = usePatientStore(
         state => state.patients[activePatientId],
@@ -27,6 +31,16 @@ const CDSSContainer: React.FC = () => {
     const activeAlerts = (activeAlertsRaw || []).filter(
         alert => alert.validationStatus === 'validated',
     );
+    const activeRecord = useClinicalRecordStore(
+        state => state.records[activePatientId],
+    );
+    const auditLogs = useAuditStore(state => state.logs);
+    const validatedReview = useMemo(
+        () => activeRecord
+            ? buildValidatedRuleReviewViewModel(activeRecord, auditLogs)
+            : null,
+        [activeRecord, auditLogs],
+    );
     const legacyClinicalActions = useClinicalStore(state => state.actions);
     const clinicalRecordActions = useClinicalRecordStore(
         state => state.actions,
@@ -34,7 +48,7 @@ const CDSSContainer: React.FC = () => {
     const chatActions = useChatStore(state => state.actions);
     const auditActions = useAuditStore(state => state.actions);
 
-    if (activeAlerts.length === 0) return null;
+    if (activeAlerts.length === 0 && !activeRecord) return null;
 
     const handleAction = (alert: CDSSAlert, actionIndex: number) => {
         const action = alert.actions[actionIndex];
@@ -171,6 +185,32 @@ const CDSSContainer: React.FC = () => {
                             />
                         )}
                     </div>
+                </div>
+            )}
+
+            {activeRecord && validatedReview && (
+                <button
+                    type="button"
+                    onClick={() => setIsValidatedReviewOpen(true)}
+                    aria-label="Open validated rules, evidence, and Phase 5 audit review"
+                    className="fixed bottom-4 left-4 z-40 inline-flex min-h-11 items-center gap-2 rounded-full border border-blue-200 bg-white/95 px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-blue-700 shadow-xl backdrop-blur-md transition-colors hover:bg-blue-50 dark:border-blue-900 dark:bg-slate-950/95 dark:text-blue-300 dark:hover:bg-blue-950/40"
+                >
+                    <ShieldCheckIcon className="h-4 w-4" />
+                    Rules & audit
+                    {validatedReview.unreviewedCount > 0 && (
+                        <span className="rounded-full bg-amber-500 px-2 py-0.5 text-[9px] text-white">
+                            {validatedReview.unreviewedCount}
+                        </span>
+                    )}
+                </button>
+            )}
+
+            {activeRecord && isValidatedReviewOpen && (
+                <div className="fixed inset-0 z-[70] flex bg-slate-50 dark:bg-slate-950">
+                    <ValidatedRulesAuditWorkspace
+                        record={activeRecord}
+                        onClose={() => setIsValidatedReviewOpen(false)}
+                    />
                 </div>
             )}
         </>
