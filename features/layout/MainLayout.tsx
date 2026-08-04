@@ -1,37 +1,48 @@
-
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { ChatMode as ChatModeEnum } from '../../types';
+import {
+    DocumentTextIcon,
+    EyeIcon,
+    ShieldCheckIcon,
+    WifiOffIcon,
+} from '../../components/icons';
 import Header from '../../components/Header';
-import MessageList from '../chat/components/MessageList';
-import InputBar from '../chat/components/InputBar';
 import ImageViewer from '../../components/ImageViewer';
-import SidebarRoster from '../patient-roster/SidebarRoster';
-import HeadsUpDisplay from '../hud/HeadsUpDisplay';
-import ScribeInterface from '../scribe/ScribeInterface';
+import { useFileDragAndDrop } from '../../hooks/useFileDragAndDrop';
+import { useLiveSession } from '../../hooks/useLiveSession';
+import { useSecurityLock } from '../../hooks/useSecurityLock';
+import { ChatMode as ChatModeEnum } from '../../types';
+import { scrubPII } from '../../utils/piiScrubber';
+import { useAuditStore } from '../audit/useAuditStore';
 import CDSSContainer from '../cdss/CDSSContainer';
+import { CLINICAL_RULES_DISABLED_REASON } from '../cdss/rulesEngine';
+import InputBar from '../chat/components/InputBar';
+import MessageList from '../chat/components/MessageList';
+import { useChatOrchestrator } from '../chat/hooks/useChatOrchestrator';
+import type { LabReport } from '../chat/schemas';
+import { useChatStore } from '../chat/stores/useChatStore';
+import LabVerificationModal from '../clinical-analysis/components/LabVerificationModal';
+import { useClinicalStore } from '../clinical-analysis/stores/useClinicalStore';
+import ClinicalCandidateReview from '../clinical-record/components/ClinicalCandidateReview';
+import { createProposedAppointmentRecord } from '../clinical-record/durableActions';
+import { createUnknownClinicalDate } from '../clinical-record/factories';
+import type {
+    ClinicalDate,
+    ObservationRecord,
+} from '../clinical-record/types';
+import { useClinicalRecordStore } from '../clinical-record/useClinicalRecordStore';
+import type { FHIRObservation } from '../fhir/types';
+import { normalizeValue } from '../fhir/unitService';
+import HeadsUpDisplay from '../hud/HeadsUpDisplay';
+import { usePatientStore } from '../patient-management/usePatientStore';
+import SidebarRoster from '../patient-roster/SidebarRoster';
+import ScribeInterface from '../scribe/ScribeInterface';
+import SettingsModal from '../settings/SettingsModal';
+import { useSettingsStore } from '../settings/useSettingsStore';
+import { useUIStore } from '../ui/UIContext';
 import BioMetricBackground from './BioMetricBackground';
 import DisclaimerModal from '../../components/DisclaimerModal';
-import LabVerificationModal from '../clinical-analysis/components/LabVerificationModal';
-import SettingsModal from '../settings/SettingsModal';
-import { useLiveSession } from '../../hooks/useLiveSession';
-import { useFileDragAndDrop } from '../../hooks/useFileDragAndDrop';
-import { useChatOrchestrator } from '../chat/hooks/useChatOrchestrator';
-import { DocumentTextIcon, ShieldCheckIcon, EyeIcon, WifiOffIcon } from '../../components/icons';
-import { usePatientStore } from '../patient-management/usePatientStore';
-import { useChatStore } from '../chat/stores/useChatStore';
-import { useUIStore } from '../ui/UIContext';
-import { scrubPII } from '../../utils/piiScrubber';
-import { useSecurityLock } from '../../hooks/useSecurityLock';
-import { useClinicalStore } from '../clinical-analysis/stores/useClinicalStore';
-import { useAuditStore } from '../audit/useAuditStore';
-import { useSettingsStore } from '../settings/useSettingsStore';
-import { LabReport } from '../chat/schemas';
-import { FHIRObservation } from '../fhir/types';
-import { normalizeValue } from '../fhir/unitService';
-import { evaluateClinicalSafety } from '../cdss/rulesEngine';
 
-// Simple hook for online status
 const useOnlineStatus = () => {
     const [isOnline, setIsOnline] = useState(navigator.onLine);
     useEffect(() => {
@@ -47,91 +58,191 @@ const useOnlineStatus = () => {
     return isOnline;
 };
 
+const parseReviewedClinicalDate = (value?: string): ClinicalDate => {
+    const sourceText = value?.trim();
+    if (
+        !sourceText
+        || ['not visible', 'unknown', 'not listed', 'n/a'].includes(
+            sourceText.toLowerCase(),
+        )
+    ) {
+        return createUnknownClinicalDate(sourceText);
+    }
+
+    const parsed = new Date(sourceText);
+    if (Number.isNaN(parsed.getTime())) {
+        return createUnknownClinicalDate(sourceText);
+    }
+
+    return {
+        value: parsed.toISOString().slice(0, 10),
+        precision: 'day',
+        sourceText,
+    };
+};
+
+const clinicalDateToDateTime = (date: ClinicalDate): string | undefined =>
+    date.value && date.precision === 'day'
+        ? `${date.value}T00:00:00.000Z`
+        : undefined;
+
+const displayRequestValue = (value: unknown): string =>
+    typeof value === 'string' && value.trim()
+        ? value.trim()
+        : 'Unknown';
+
 const MainLayout: React.FC = () => {
-    // --- STORES ---
     const activePatientId = usePatientStore(state => state.activePatientId);
-    const activePatient = usePatientStore(state => state.patients[activePatientId]);
-    
-    // Selectors for chat actions
+    const activePatient = usePatientStore(
+        state => state.patients[activePatientId],
+    );
+
     const addMessage = useChatStore(state => state.actions.addMessage);
-    const initializeChat = useChatStore(state => state.actions.initializeChat);
-    
-    // Selectors for clinical actions
-    const ingestObservations = useClinicalStore(state => state.actions.ingestObservations);
-    const updateAlerts = useClinicalStore(state => state.actions.updateAlerts);
-    
-    // Selectors for audit actions
+    const initializeChat = useChatStore(
+        state => state.actions.initializeChat,
+    );
+    const ingestObservations = useClinicalStore(
+        state => state.actions.ingestObservations,
+    );
+    const clinicalRecordActions = useClinicalRecordStore(
+        state => state.actions,
+    );
     const logEvent = useAuditStore(state => state.actions.logEvent);
-    
-    // Select messages from the specialized Chat Store
-    const activeMessagesRaw = useChatStore(state => state.chats[activePatientId]);
+
+    const activeMessagesRaw = useChatStore(
+        state => state.chats[activePatientId],
+    );
     const activeMessages = activeMessagesRaw || [];
 
     const { uiState, uiDispatch } = useUIStore();
-    
-    // --- UI State ---
-    const { uploadedFile, setUploadedFile, isDragging, clearFile, dragHandlers } = useFileDragAndDrop();
+    const {
+        uploadedFile,
+        setUploadedFile,
+        isDragging,
+        clearFile,
+        dragHandlers,
+    } = useFileDragAndDrop();
     const { chatMode, isLoading, pendingLabReport } = uiState;
-    
-    // --- Local UI State ---
-    const [viewingImage, setViewingImage] = useState<{src: string, alt: string} | null>(null);
+
+    const [viewingImage, setViewingImage] = useState<{
+        src: string;
+        alt: string;
+    } | null>(null);
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const isOnline = useOnlineStatus();
-    
-    // Security State
+
     const { isLocked, isBlurred, unlock } = useSecurityLock();
-
     const { geminiApiKey, openRouterApiKey } = useSettingsStore();
-    const hasAnyApiKey = !!(process.env.API_KEY || geminiApiKey || openRouterApiKey);
+    const hasAnyApiKey = !!(
+        process.env.API_KEY
+        || geminiApiKey
+        || openRouterApiKey
+    );
 
-    // Responsive Sidebar Check
     useEffect(() => {
         const handleResize = () => {
             if (window.innerWidth < 768) setIsSidebarOpen(false);
             else setIsSidebarOpen(true);
         };
-        handleResize(); // Init
+        handleResize();
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
-    // --- Geolocation ---
-    useEffect(() => {
-        // Geolocation removed
-    }, []);
-
-    // --- Live Session Integration ---
-    const handleLiveTurnComplete = useCallback((userInput: string, modelOutput: string) => {
+    const handleLiveTurnComplete = useCallback((
+        userInput: string,
+        modelOutput: string,
+    ) => {
         if (userInput) {
-            const scrubbedInput = scrubPII(userInput);
-            addMessage(activePatientId, { role: 'user', content: scrubbedInput });
+            addMessage(activePatientId, {
+                role: 'user',
+                content: scrubPII(userInput),
+            });
         }
         if (modelOutput) {
-            addMessage(activePatientId, { role: 'model', content: modelOutput });
-        }
-    }, [addMessage, activePatientId]);
-
-    const handleLiveToolCall = useCallback((toolName: string, args: any) => {
-        if (toolName === 'scheduleAppointment') {
-            const { date, time, notes } = args;
-            const content = `✅ **ACTION EXECUTED: Appointment Scheduled**\n\n**Date:** ${date}\n**Time:** ${time}\n${notes ? `**Notes:** ${notes}` : ''}`;
-            addMessage(activePatientId, { 
-                role: 'model', 
-                content: content,
-                displayContent: content
+            addMessage(activePatientId, {
+                role: 'model',
+                content: modelOutput,
             });
         }
     }, [addMessage, activePatientId]);
 
-    const { isLive, transcript, startSession, stopSession, error: liveError } = useLiveSession({
+    const handleLiveToolCall = useCallback((
+        toolName: string,
+        args: Record<string, unknown>,
+    ) => {
+        if (toolName !== 'scheduleAppointment') return;
+
+        clinicalRecordActions.initializePatientRecord({
+            patientId: activePatientId,
+            displayName: activePatient?.name
+                || `Patient ${activePatientId.slice(0, 4)}`,
+        });
+        const { record, warnings } = createProposedAppointmentRecord({
+            patientId: activePatientId,
+            date: args.date,
+            time: args.time,
+            notes: args.notes,
+            createdBy: 'Local user',
+        });
+        const result = clinicalRecordActions.addResource(record);
+
+        if (!result.ok) {
+            addMessage(activePatientId, {
+                role: 'model',
+                content: `⚠️ **Appointment request not saved**\n${result.message || 'The local appointment proposal could not be created.'}`,
+            });
+            return;
+        }
+
+        logEvent(
+            'APPOINTMENT_PROPOSAL_CREATED',
+            activePatientId,
+            'Saved a proposed appointment request to the structured patient record.',
+            'USER',
+            {
+                appointmentId: record.id,
+                requestedDate: displayRequestValue(args.date),
+                requestedTime: displayRequestValue(args.time),
+                warnings,
+            },
+        );
+
+        const warningText = warnings.length > 0
+            ? `\n\n**Needs review:**\n${warnings.map(warning => `- ${warning}`).join('\n')}`
+            : '';
+        const content = `📅 **Appointment request saved**\n\n**Requested date:** ${displayRequestValue(args.date)}\n**Requested time:** ${displayRequestValue(args.time)}\n${args.notes ? `**Notes:** ${displayRequestValue(args.notes)}\n` : ''}**Status:** Proposed — not booked\n\nThis local record does not confirm that a clinic accepted or scheduled the appointment.${warningText}\n\n**Record ID:** ${record.id}`;
+        addMessage(activePatientId, {
+            role: 'model',
+            content,
+            displayContent: content,
+        });
+    }, [
+        activePatient,
+        activePatientId,
+        addMessage,
+        clinicalRecordActions,
+        logEvent,
+    ]);
+
+    const {
+        isLive,
+        transcript,
+        startSession,
+        stopSession,
+        error: liveError,
+    } = useLiveSession({
         onTurnComplete: handleLiveTurnComplete,
-        onToolCall: handleLiveToolCall
+        onToolCall: handleLiveToolCall,
     });
 
     useEffect(() => {
         if (liveError) {
-            addMessage(activePatientId, { role: 'model', content: `Error: ${liveError}` });
+            addMessage(activePatientId, {
+                role: 'model',
+                content: `Error: ${liveError}`,
+            });
             uiDispatch({ type: 'SET_ERROR', payload: liveError });
         }
     }, [liveError, addMessage, activePatientId, uiDispatch]);
@@ -141,157 +252,300 @@ const MainLayout: React.FC = () => {
     }, [chatMode, isLive, stopSession]);
 
     useEffect(() => {
-        if (isLive && chatMode !== ChatModeEnum.Live) uiDispatch({ type: 'SET_CHAT_MODE', payload: ChatModeEnum.Live });
+        if (isLive && chatMode !== ChatModeEnum.Live) {
+            uiDispatch({
+                type: 'SET_CHAT_MODE',
+                payload: ChatModeEnum.Live,
+            });
+        }
     }, [isLive, chatMode, uiDispatch]);
 
-    // Force stop live session if offline
     useEffect(() => {
         if (!isOnline && isLive) {
             stopSession();
-            uiDispatch({ type: 'SET_ERROR', payload: "Network Connection Lost. Live session terminated." });
+            uiDispatch({
+                type: 'SET_ERROR',
+                payload: 'Network Connection Lost. Live session terminated.',
+            });
         }
     }, [isOnline, isLive, stopSession, uiDispatch]);
 
-    // Ensure chat is initialized for the active patient
     useEffect(() => {
-        if (activePatientId) {
-            initializeChat(activePatientId);
-        }
+        if (activePatientId) initializeChat(activePatientId);
     }, [activePatientId, initializeChat]);
 
-    // --- Chat Orchestrator ---
-    const { handleSend, handleStop, handleClearChat, handleExportChat } = useChatOrchestrator({
-        messages: activeMessages, 
-        activePatientId: activePatientId,
-        activePatient: activePatient, 
-        chatMode: chatMode,
-        uiDispatch: uiDispatch, 
+    const {
+        handleSend,
+        handleStop,
+        handleClearChat,
+        handleExportChat,
+    } = useChatOrchestrator({
+        messages: activeMessages,
+        activePatientId,
+        activePatient,
+        chatMode,
+        uiDispatch,
         uploadedFile,
         setUploadedFile,
         isLive,
         stopSession,
-        clearFile
+        clearFile,
     });
 
     const handleViewImage = useCallback((src: string, alt: string) => {
         setViewingImage({ src, alt });
     }, []);
 
-    const toggleLiveSession = useCallback(() => isLive ? stopSession() : startSession(activeMessages), [isLive, stopSession, startSession, activeMessages]);
+    const toggleLiveSession = useCallback(
+        () => isLive
+            ? stopSession()
+            : startSession(activeMessages),
+        [isLive, stopSession, startSession, activeMessages],
+    );
 
-    // --- Lab Verification Logic ---
     const handleLabVerification = useCallback((verifiedReport: LabReport) => {
-        // This is the CRITICAL safety step. Data only enters here after human verification.
-        
         if (!verifiedReport.labs) return;
 
-        const newObs: FHIRObservation[] = verifiedReport.labs.map((lab: any) => {
-             const rawVal = parseFloat(lab.value.replace(/[^0-9.-]/g, ''));
-             const rangeMatch = lab.refRange ? lab.refRange.match(/([\d.]+)\s*-\s*([\d.]+)/) : null;
-             
-             if (isNaN(rawVal)) return null;
+        const reviewedAt = new Date().toISOString();
+        const clinicalDate = parseReviewedClinicalDate(verifiedReport.date);
+        const legacyEffectiveDateTime = clinicalDateToDateTime(clinicalDate);
 
-             // Normalize units using the VERIFIED data (not AI hallucinations)
-             const normalized = normalizeValue(rawVal, lab.units || '', lab.testName, lab.loinc);
+        const reviewedLabs = verifiedReport.labs.map(lab => {
+            const rawValue = Number.parseFloat(
+                String(lab.value).replace(/[^0-9.-]/g, ''),
+            );
+            if (Number.isNaN(rawValue)) return null;
 
-             const obs: FHIRObservation = {
-                 resourceType: 'Observation',
-                 id: uuidv4(),
-                 status: 'final',
-                 code: { 
-                     text: lab.testName,
-                     coding: lab.loinc ? [{ system: 'http://loinc.org', code: lab.loinc }] : undefined
-                 },
-                 subject: { reference: `Patient/${activePatientId}` },
-                 valueQuantity: { 
-                     value: normalized.value, 
-                     unit: normalized.unit,
-                     system: 'http://unitsofmeasure.org'
-                 },
-                 effectiveDateTime: verifiedReport.date && verifiedReport.date !== 'Not Visible' ? new Date(verifiedReport.date).toISOString() : new Date().toISOString(),
-                 issued: new Date().toISOString()
-             };
-
-             // Attach warnings if still present after human edit (rare but possible for legit critical values)
-             if (normalized.warning) {
-                 obs.note = [{ text: `⚠️ DATA QUALITY: ${normalized.warning}` }];
-                 obs.interpretation = [{ text: 'Data Quality Issue' }];
-             } else if (lab.flag && lab.flag !== 'Normal') {
-                 obs.interpretation = [{ text: lab.flag }];
-             }
-
-             if (rangeMatch) {
-                 obs.referenceRange = [{
-                     low: { value: parseFloat(rangeMatch[1]), unit: lab.units, system: 'http://unitsofmeasure.org' },
-                     high: { value: parseFloat(rangeMatch[2]), unit: lab.units, system: 'http://unitsofmeasure.org' },
-                     text: lab.refRange
-                 }];
-             }
-
-             return obs;
-        }).filter(Boolean) as FHIRObservation[];
-
-        if (newObs.length > 0) {
-            // 1. Commit to Clinical Store
-            ingestObservations(activePatientId, newObs);
-            
-            // 2. Audit the Verification
-            logEvent(
-                'SYSTEM_INIT', // Reusing type, ideally add 'DATA_VERIFICATION' type
-                activePatientId, 
-                `User verified and ingested ${newObs.length} lab observations.`,
-                'USER'
+            const rangeMatch = lab.refRange
+                ? String(lab.refRange).match(/([\d.]+)\s*-\s*([\d.]+)/)
+                : null;
+            const normalized = normalizeValue(
+                rawValue,
+                lab.units || '',
+                lab.testName,
+                lab.loinc,
             );
 
-            // 3. Run CDSS Safety Checks
-            const existingObs = useClinicalStore.getState().data[activePatientId]?.observations || [];
-            const combinedObs = [...existingObs, ...newObs];
-            
-            evaluateClinicalSafety(combinedObs).then(alerts => {
-                if (alerts.length > 0) {
-                    updateAlerts(activePatientId, alerts);
-                    logEvent(
-                        'ALERT_TRIGGERED', 
-                        activePatientId, 
-                        `Generated ${alerts.length} safety alerts from VERIFIED lab data`, 
-                        'SYSTEM'
-                    );
-                }
+            return {
+                id: uuidv4(),
+                lab,
+                rawValue,
+                rangeMatch,
+                normalized,
+            };
+        }).filter(Boolean) as Array<{
+            id: string;
+            lab: LabReport['labs'][number];
+            rawValue: number;
+            rangeMatch: RegExpMatchArray | null;
+            normalized: ReturnType<typeof normalizeValue>;
+        }>;
+
+        const newLegacyObservations: FHIRObservation[] = reviewedLabs.map(item => {
+            const { id, lab, normalized, rangeMatch } = item;
+            const observation: FHIRObservation = {
+                resourceType: 'Observation',
+                id,
+                status: 'final',
+                code: {
+                    text: lab.testName,
+                    coding: lab.loinc
+                        ? [{ system: 'http://loinc.org', code: lab.loinc }]
+                        : undefined,
+                },
+                subject: { reference: `Patient/${activePatientId}` },
+                valueQuantity: {
+                    value: normalized.value,
+                    unit: normalized.unit,
+                    system: 'http://unitsofmeasure.org',
+                },
+                ...(legacyEffectiveDateTime
+                    ? { effectiveDateTime: legacyEffectiveDateTime }
+                    : {}),
+                issued: reviewedAt,
+            };
+
+            if (normalized.warning) {
+                observation.note = [{
+                    text: `⚠️ DATA QUALITY: ${normalized.warning}`,
+                }];
+                observation.interpretation = [{ text: 'Data Quality Issue' }];
+            } else if (lab.flag && lab.flag !== 'Normal') {
+                observation.interpretation = [{ text: lab.flag }];
+            }
+
+            if (rangeMatch) {
+                observation.referenceRange = [{
+                    low: {
+                        value: Number.parseFloat(rangeMatch[1]),
+                        unit: lab.units,
+                        system: 'http://unitsofmeasure.org',
+                    },
+                    high: {
+                        value: Number.parseFloat(rangeMatch[2]),
+                        unit: lab.units,
+                        system: 'http://unitsofmeasure.org',
+                    },
+                    text: lab.refRange,
+                }];
+            }
+            return observation;
+        });
+
+        const newClinicalObservations: ObservationRecord[] = reviewedLabs.map(item => {
+            const { id, lab, rawValue, rangeMatch, normalized } = item;
+            const originalUnit = String(lab.units || '').trim();
+            const canUseNormalized = !!originalUnit && !!normalized.unit;
+
+            return {
+                id,
+                patientId: activePatientId,
+                resourceType: 'Observation',
+                verificationStatus: 'confirmed',
+                recordedAt: reviewedAt,
+                effective: clinicalDate,
+                assertion: {
+                    polarity: 'affirmed',
+                    certainty: 'certain',
+                    temporality: clinicalDate.value ? 'current' : 'unknown',
+                    experiencer: 'patient',
+                },
+                provenance: {
+                    source: {
+                        kind: 'ai-suggestion',
+                        description: 'Lab value extracted by AI and explicitly reviewed in the lab verification dialog.',
+                    },
+                    createdAt: reviewedAt,
+                    updatedAt: reviewedAt,
+                    confirmation: {
+                        reviewedAt,
+                        reason: 'User reviewed and accepted the extracted lab row.',
+                    },
+                },
+                amendments: [],
+                tags: ['lab-extraction', 'human-reviewed'],
+                status: 'final',
+                category: [{ text: 'Laboratory' }],
+                code: {
+                    text: lab.testName,
+                    coding: lab.loinc
+                        ? [{
+                            system: 'http://loinc.org',
+                            code: lab.loinc,
+                        }]
+                        : undefined,
+                },
+                value: {
+                    type: 'quantity',
+                    quantity: {
+                        original: {
+                            value: rawValue,
+                            ...(originalUnit ? { unit: originalUnit } : {}),
+                            ...(originalUnit
+                                ? { system: 'http://unitsofmeasure.org' }
+                                : {}),
+                        },
+                        ...(canUseNormalized
+                            ? {
+                                normalized: {
+                                    value: normalized.value,
+                                    unit: normalized.unit,
+                                    system: 'http://unitsofmeasure.org',
+                                },
+                            }
+                            : {}),
+                        ...(normalized.warning
+                            ? { normalizationWarning: normalized.warning }
+                            : {}),
+                    },
+                },
+                ...(lab.flag && lab.flag !== 'Normal'
+                    ? { interpretation: [{ text: lab.flag }] }
+                    : {}),
+                referenceRanges: rangeMatch
+                    ? [{
+                        low: {
+                            value: Number.parseFloat(rangeMatch[1]),
+                            ...(originalUnit ? { unit: originalUnit } : {}),
+                        },
+                        high: {
+                            value: Number.parseFloat(rangeMatch[2]),
+                            ...(originalUnit ? { unit: originalUnit } : {}),
+                        },
+                        text: lab.refRange,
+                    }]
+                    : [],
+                issuedAt: reviewedAt,
+                ...(normalized.warning
+                    ? { note: `Data-quality warning: ${normalized.warning}` }
+                    : {}),
+            };
+        });
+
+        if (newLegacyObservations.length > 0) {
+            ingestObservations(activePatientId, newLegacyObservations);
+            clinicalRecordActions.initializePatientRecord({
+                patientId: activePatientId,
+                displayName: activePatient?.name
+                    || `Patient ${activePatientId.slice(0, 4)}`,
             });
-            
-            // 4. Notify User via Chat
+            newClinicalObservations.forEach(observation => {
+                clinicalRecordActions.addResource(observation);
+            });
+
+            logEvent(
+                'CLINICAL_OBSERVATIONS_CONFIRMED',
+                activePatientId,
+                `Confirmed and saved ${newClinicalObservations.length} reviewed numeric lab observations.`,
+                'USER',
+                {
+                    reportDate: clinicalDate.value,
+                    reportDatePrecision: clinicalDate.precision,
+                    observationIds: newClinicalObservations.map(item => item.id),
+                    automatedRulesEnabled: false,
+                },
+            );
+
             addMessage(activePatientId, {
                 role: 'model',
-                content: `✅ **Data Verified & Ingested**\nSuccessfully added ${newObs.length} lab results to the clinical record. Safety protocols active.`
+                content: `✅ **Reviewed lab data saved**\nAdded ${newClinicalObservations.length} numeric result${newClinicalObservations.length === 1 ? '' : 's'} to the structured patient record.${clinicalDate.value ? '' : ' The report date remains explicitly unknown.'}\n\n${CLINICAL_RULES_DISABLED_REASON}`,
             });
         }
 
-        // Close Modal
         uiDispatch({ type: 'SET_PENDING_LAB_REPORT', payload: null });
-
-    }, [activePatientId, ingestObservations, addMessage, logEvent, updateAlerts, uiDispatch]);
+    }, [
+        activePatient,
+        activePatientId,
+        addMessage,
+        clinicalRecordActions,
+        ingestObservations,
+        logEvent,
+        uiDispatch,
+    ]);
 
     const handleCancelVerification = useCallback(() => {
         uiDispatch({ type: 'SET_PENDING_LAB_REPORT', payload: null });
         addMessage(activePatientId, {
             role: 'model',
-            content: `🚫 **Ingestion Cancelled**\nLab data was discarded by user.`
+            content: '🚫 **Ingestion Cancelled**\nLab data was discarded by user.',
         });
     }, [activePatientId, addMessage, uiDispatch]);
 
-
-    // --- LOCK SCREEN UI ---
     if (isLocked) {
         return (
-            <div className="flex flex-col items-center justify-center h-screen bg-slate-950 text-white relative overflow-hidden">
-                <div className="absolute inset-0 bg-grid-pattern opacity-10"></div>
-                <div className="z-10 bg-slate-900 border border-slate-700 p-8 rounded-md shadow-2xl max-w-sm w-full text-center technical-border">
-                    <ShieldCheckIcon className="w-12 h-12 text-blue-500 mx-auto mb-4 animate-pulse" />
-                    <h2 className="text-xl font-display font-bold uppercase tracking-widest mb-2">Session Locked</h2>
-                    <p className="text-sm text-slate-400 font-mono mb-6">Security Timeout (15m)</p>
-                    <button 
+            <div className="relative flex h-screen flex-col items-center justify-center overflow-hidden bg-slate-950 text-white">
+                <div className="bg-grid-pattern absolute inset-0 opacity-10" />
+                <div className="technical-border z-10 w-full max-w-sm rounded-md border border-slate-700 bg-slate-900 p-8 text-center shadow-2xl">
+                    <ShieldCheckIcon className="mx-auto mb-4 h-12 w-12 animate-pulse text-blue-500" />
+                    <h2 className="mb-2 text-xl font-display font-bold uppercase tracking-widest">
+                        Session Locked
+                    </h2>
+                    <p className="mb-6 text-sm font-mono text-slate-400">
+                        Security Timeout (15m)
+                    </p>
+                    <button
                         onClick={unlock}
-                        className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold uppercase tracking-widest rounded-sm transition-colors"
+                        className="w-full rounded-sm bg-blue-600 py-3 font-bold uppercase tracking-widest text-white transition-colors hover:bg-blue-500"
                     >
                         Resume Session
                     </button>
@@ -301,98 +555,103 @@ const MainLayout: React.FC = () => {
     }
 
     if (!hasAnyApiKey && !isSettingsOpen) {
-         return (
-            <div className="flex flex-col items-center justify-center h-[100dvh] bg-slate-100 text-slate-800 p-4 font-sans">
-                <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md text-center border border-slate-200">
-                    <div className="text-amber-500 text-5xl mb-4 animate-bounce">🔑</div>
-                    <h1 className="text-2xl font-display font-bold mb-3 text-slate-900 uppercase tracking-tight">AI Key Required</h1>
-                    <p className="text-slate-600 mb-6 text-sm leading-relaxed">
-                        To activate the Clinical Intelligence Layer, you must provide your own Gemini or OpenRouter API key.
+        return (
+            <div className="flex h-[100dvh] flex-col items-center justify-center bg-slate-100 p-4 font-sans text-slate-800">
+                <div className="max-w-md rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-xl">
+                    <div className="mb-4 animate-bounce text-5xl text-amber-500">🔑</div>
+                    <h1 className="mb-3 text-2xl font-display font-bold uppercase tracking-tight text-slate-900">
+                        AI Key Required
+                    </h1>
+                    <p className="mb-6 text-sm leading-relaxed text-slate-600">
+                        To activate the Clinical Intelligence Layer, provide a Gemini or OpenRouter API key.
                     </p>
-                    <button 
+                    <button
                         onClick={() => setIsSettingsOpen(true)}
-                        className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-blue-500/20"
+                        className="w-full rounded-xl bg-blue-600 py-4 font-bold uppercase tracking-widest text-white shadow-lg shadow-blue-500/20 transition-all hover:bg-blue-500"
                     >
                         Configure Protocol
                     </button>
-                    <p className="mt-6 text-[10px] text-slate-400 font-mono italic">
+                    <p className="mt-6 text-[10px] font-mono italic text-slate-400">
                         Keys are stored locally in your browser's encrypted vault.
                     </p>
                 </div>
-                <SettingsModal 
-                    isOpen={isSettingsOpen} 
-                    onClose={() => setIsSettingsOpen(false)} 
+                <SettingsModal
+                    isOpen={isSettingsOpen}
+                    onClose={() => setIsSettingsOpen(false)}
                 />
             </div>
-         );
+        );
     }
 
     return (
-        <div 
-            className="flex h-[100dvh] font-sans overflow-hidden relative text-slate-900 bg-slate-50 transition-colors duration-500"
+        <div
+            className="relative flex h-[100dvh] overflow-hidden bg-slate-50 font-sans text-slate-900 transition-colors duration-500"
             {...dragHandlers}
         >
             <BioMetricBackground />
-            
             <DisclaimerModal />
-            
-            <SettingsModal 
-                isOpen={isSettingsOpen} 
-                onClose={() => setIsSettingsOpen(false)} 
+            <SettingsModal
+                isOpen={isSettingsOpen}
+                onClose={() => setIsSettingsOpen(false)}
             />
 
-            {/* QUARANTINE MODAL (Verification) */}
             {pendingLabReport && (
-                <LabVerificationModal 
-                    report={pendingLabReport} 
-                    onConfirm={handleLabVerification} 
-                    onCancel={handleCancelVerification} 
+                <LabVerificationModal
+                    report={pendingLabReport}
+                    onConfirm={handleLabVerification}
+                    onCancel={handleCancelVerification}
                 />
             )}
 
-            {/* CONTENT WRAPPER */}
-            <div className={`flex flex-1 w-full h-full relative transition-all duration-700 ${isBlurred ? 'blur-md opacity-60 grayscale scale-[0.99] pointer-events-none' : ''}`}>
-                <SidebarRoster 
-                    isOpen={isSidebarOpen} 
-                    toggle={() => setIsSidebarOpen(!isSidebarOpen)} 
+            <div className={`relative flex h-full w-full flex-1 transition-all duration-700 ${isBlurred
+                ? 'pointer-events-none scale-[0.99] opacity-60 blur-md grayscale'
+                : ''
+            }`}>
+                <SidebarRoster
+                    isOpen={isSidebarOpen}
+                    toggle={() => setIsSidebarOpen(!isSidebarOpen)}
                 />
 
-                <div className="flex-1 flex flex-col min-w-0 relative z-10">
+                <div className="relative z-10 flex min-w-0 flex-1 flex-col">
                     <Header
                         currentMode={chatMode}
-                        onModeChange={(mode) => uiDispatch({ type: 'SET_CHAT_MODE', payload: mode })}
+                        onModeChange={mode => uiDispatch({
+                            type: 'SET_CHAT_MODE',
+                            payload: mode,
+                        })}
                         onClearChat={handleClearChat}
                         onExportChat={handleExportChat}
                         onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
                         onOpenSettings={() => setIsSettingsOpen(true)}
                     />
-                    
-                    {/* OFFLINE BANNER */}
+
                     {!isOnline && (
-                        <div className="bg-amber-500 text-white px-4 py-1 text-center text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 animate-slide-up shadow-sm z-50">
-                            <WifiOffIcon className="w-3.5 h-3.5" />
+                        <div className="z-50 flex items-center justify-center gap-2 bg-amber-500 px-4 py-1 text-center text-xs font-bold uppercase tracking-widest text-white shadow-sm animate-slide-up">
+                            <WifiOffIcon className="h-3.5 w-3.5" />
                             <span>System Offline - View Only Mode</span>
                         </div>
                     )}
-                    
+
                     {activePatient && (
-                        <HeadsUpDisplay patient={activePatient} />
+                        <>
+                            <HeadsUpDisplay patient={activePatient} />
+                            <ClinicalCandidateReview patientId={activePatient.id} />
+                        </>
                     )}
-                    
+
                     <CDSSContainer />
-                    
+
                     {chatMode === ChatModeEnum.Scribe ? (
                         <ScribeInterface />
                     ) : (
                         <>
-                            <MessageList 
-                                messages={activeMessages} 
-                                isLoading={isLoading} 
-                                isLive={isLive} 
-                                liveTranscript={transcript} 
+                            <MessageList
+                                messages={activeMessages}
+                                isLoading={isLoading}
+                                isLive={isLive}
+                                liveTranscript={transcript}
                                 onViewImage={handleViewImage}
                             />
-                            
                             <InputBar
                                 onSend={handleSend}
                                 onClearFile={clearFile}
@@ -403,37 +662,40 @@ const MainLayout: React.FC = () => {
                                 toggleLiveSession={toggleLiveSession}
                                 isLiveSessionActive={isLive}
                                 onStop={handleStop}
-                                onViewImage={handleViewImage} 
+                                onViewImage={handleViewImage}
                             />
                         </>
                     )}
                 </div>
             </div>
 
-            {/* PRIVACY SHIELD OVERLAY */}
-            <div className={`absolute inset-0 z-[60] flex items-center justify-center pointer-events-none transition-opacity duration-500 ${isBlurred ? 'opacity-100' : 'opacity-0'}`}>
-                 <div className="bg-slate-900/90 text-white px-8 py-4 rounded-full font-mono text-sm uppercase tracking-widest shadow-2xl border border-white/10 flex items-center gap-3 animate-slide-up">
-                    <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-                    <EyeIcon className="w-4 h-4 text-emerald-500" />
+            <div className={`pointer-events-none absolute inset-0 z-[60] flex items-center justify-center transition-opacity duration-500 ${isBlurred ? 'opacity-100' : 'opacity-0'}`}>
+                <div className="flex items-center gap-3 rounded-full border border-white/10 bg-slate-900/90 px-8 py-4 text-sm font-mono uppercase tracking-widest text-white shadow-2xl animate-slide-up">
+                    <div className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
+                    <EyeIcon className="h-4 w-4 text-emerald-500" />
                     <span>Privacy Shield Active</span>
-                 </div>
+                </div>
             </div>
 
             {isDragging && (
-                <div className="absolute inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center m-4 rounded-xl animate-fade-in pointer-events-none border-2 border-blue-500/50 shadow-[0_0_50px_rgba(59,130,246,0.3)]">
-                    <div className="flex flex-col items-center text-blue-400 animate-pulse">
-                        <DocumentTextIcon className="w-20 h-20 mb-6" />
-                        <h2 className="text-3xl font-display font-bold tracking-tight">DATA INGESTION PROTOCOL</h2>
-                        <p className="font-mono text-sm mt-2 opacity-70 uppercase tracking-widest">Release to initialize scan</p>
+                <div className="pointer-events-none absolute inset-0 z-50 m-4 flex items-center justify-center rounded-xl border-2 border-blue-500/50 bg-slate-900/90 shadow-[0_0_50px_rgba(59,130,246,0.3)] backdrop-blur-sm animate-fade-in">
+                    <div className="flex animate-pulse flex-col items-center text-blue-400">
+                        <DocumentTextIcon className="mb-6 h-20 w-20" />
+                        <h2 className="text-3xl font-display font-bold tracking-tight">
+                            DATA INGESTION PROTOCOL
+                        </h2>
+                        <p className="mt-2 text-sm font-mono uppercase tracking-widest opacity-70">
+                            Release to initialize scan
+                        </p>
                     </div>
                 </div>
             )}
-            
+
             {viewingImage && (
-                <ImageViewer 
-                    src={viewingImage.src} 
-                    alt={viewingImage.alt} 
-                    onClose={() => setViewingImage(null)} 
+                <ImageViewer
+                    src={viewingImage.src}
+                    alt={viewingImage.alt}
+                    onClose={() => setViewingImage(null)}
                 />
             )}
         </div>

@@ -1,9 +1,18 @@
-
 export type AlertLevel = 'Critical' | 'Warning' | 'Info';
+
+export type AdvisoryValidationStatus =
+    | 'validated'
+    | 'unvalidated-legacy';
+
+export type CDSSActionType =
+    | 'create-task'
+    | 'dismiss'
+    | 'acknowledge'
+    | 'order'; // Legacy persisted alerts are interpreted as create-task.
 
 export interface CDSSAction {
     label: string;
-    type: 'order' | 'dismiss' | 'acknowledge';
+    type: CDSSActionType;
     payload?: string;
 }
 
@@ -14,8 +23,10 @@ export interface CDSSAlert {
     description: string;
     level: AlertLevel;
     timestamp: number;
-    triggers: string[]; // e.g. ["HR: 110", "Temp: 38.5"]
+    triggers: string[];
     actions: CDSSAction[];
+    validationStatus?: AdvisoryValidationStatus;
+    sourceCitation?: string;
 }
 
 export interface ClinicalRule {

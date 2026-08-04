@@ -1,19 +1,48 @@
-
-import { GoogleGenAI } from "@google/genai";
-import { UploadedFile } from '../../types';
+import { GoogleGenAI } from '@google/genai';
+import type { UploadedFile } from '../../types';
 import { ENTITY_EXTRACTION_PROMPT } from '../../constants';
-import { cleanJsonOutput, parseAndValidate } from '../../utils';
-import { PatientEntityData } from '../patient-management/types';
-import { EntityExtractionSchema, EntityExtraction } from '../chat/schemas';
+import { parseAndValidate } from '../../utils';
+import {
+    EntityExtractionSchema,
+    type EntityExtraction,
+} from '../chat/schemas';
 
-const MODEL = 'gemini-3-flash-preview'; 
+export const ENTITY_EXTRACTION_MODEL = 'gemini-3-flash-preview';
+export const ENTITY_EXTRACTION_PROMPT_VERSION = 'entity-extraction-v1';
 
-export const extractEntitiesFromUpload = async (file: UploadedFile, signal?: AbortSignal): Promise<Partial<PatientEntityData>> => {
+export interface EntityExtractionOptions {
+    signal?: AbortSignal;
+    apiKey?: string;
+    model?: string;
+}
+
+const EMPTY_EXTRACTION: EntityExtraction = {
+    allergies: [],
+    codeStatus: null,
+    diagnosis: [],
+};
+
+/**
+ * Extracts candidate entities only. The caller is responsible for attaching
+ * provenance and putting the result through human review before it is used as
+ * confirmed patient data.
+ */
+export const extractEntitiesFromUpload = async (
+    file: UploadedFile,
+    options: EntityExtractionOptions = {},
+): Promise<EntityExtraction> => {
+    const { signal } = options;
+
     try {
-        if (signal?.aborted) return {};
+        if (signal?.aborted) return EMPTY_EXTRACTION;
 
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-        
+        const apiKey = options.apiKey || process.env.API_KEY || '';
+        if (!apiKey) {
+            console.warn('Entity extraction skipped because no Gemini API key is configured.');
+            return EMPTY_EXTRACTION;
+        }
+
+        const ai = new GoogleGenAI({ apiKey });
         const contents = [
             {
                 role: 'user',
@@ -21,51 +50,32 @@ export const extractEntitiesFromUpload = async (file: UploadedFile, signal?: Abo
                     {
                         inlineData: {
                             mimeType: file.type,
-                            data: file.base64
-                        }
+                            data: file.base64,
+                        },
                     },
-                    { text: ENTITY_EXTRACTION_PROMPT }
-                ]
-            }
+                    { text: ENTITY_EXTRACTION_PROMPT },
+                ],
+            },
         ];
 
         const response = await ai.models.generateContent({
-            model: MODEL,
-            contents: contents,
+            model: options.model || ENTITY_EXTRACTION_MODEL,
+            contents,
             config: {
-                responseMimeType: 'application/json'
-            }
+                responseMimeType: 'application/json',
+                temperature: 0,
+            },
         });
 
-        if (signal?.aborted) return {};
-
+        if (signal?.aborted) return EMPTY_EXTRACTION;
         const text = response.text;
-        if (!text) return {};
+        if (!text) return EMPTY_EXTRACTION;
 
-        // Validated parsing with explicit type
-        const parsed = parseAndValidate(text, EntityExtractionSchema);
-        if (!parsed) return {};
-
-        const result: Partial<PatientEntityData> = {};
-
-        if (parsed.allergies && parsed.allergies.length > 0) {
-            result.allergies = parsed.allergies;
-        }
-        
-        if (parsed.codeStatus && parsed.codeStatus.trim()) {
-            result.codeStatus = parsed.codeStatus.trim();
-        }
-
-        if (parsed.diagnosis && parsed.diagnosis.length > 0) {
-            result.diagnosis = parsed.diagnosis;
-        }
-
-        return result;
-
-    } catch (e) {
-        // If it was just an abort, we can ignore warning
-        if (signal?.aborted) return {};
-        console.warn("Entity Extraction Failed:", e);
-        return {};
+        return parseAndValidate(text, EntityExtractionSchema)
+            || EMPTY_EXTRACTION;
+    } catch (error) {
+        if (signal?.aborted) return EMPTY_EXTRACTION;
+        console.warn('Entity extraction failed:', error);
+        return EMPTY_EXTRACTION;
     }
 };
