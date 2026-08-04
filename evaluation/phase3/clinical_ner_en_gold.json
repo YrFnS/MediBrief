@@ -1,0 +1,106 @@
+{
+  "schema_version": "1",
+  "corpus_id": "medibrief-phase3-clinical-ner-en-v1",
+  "language": "en",
+  "phi_free": true,
+  "purpose": "Synthetic English condition and medication span evaluation for the MediBrief OpenMed integration.",
+  "cases": [
+    {
+      "id": "en-001",
+      "text": "Asthma treated with albuterol.",
+      "entities": [
+        {"kind": "condition", "text": "Asthma", "start": 0, "end": 6},
+        {"kind": "medication", "text": "albuterol", "start": 20, "end": 29}
+      ]
+    },
+    {
+      "id": "en-002",
+      "text": "No evidence of pneumonia; continue azithromycin.",
+      "entities": [
+        {"kind": "condition", "text": "pneumonia", "start": 15, "end": 24},
+        {"kind": "medication", "text": "azithromycin", "start": 35, "end": 47}
+      ]
+    },
+    {
+      "id": "en-003",
+      "text": "History of type 2 diabetes managed with metformin.",
+      "entities": [
+        {"kind": "condition", "text": "type 2 diabetes", "start": 11, "end": 26},
+        {"kind": "medication", "text": "metformin", "start": 40, "end": 49}
+      ]
+    },
+    {
+      "id": "en-004",
+      "text": "Possible migraine; sumatriptan as needed.",
+      "entities": [
+        {"kind": "condition", "text": "migraine", "start": 9, "end": 17},
+        {"kind": "medication", "text": "sumatriptan", "start": 19, "end": 30}
+      ]
+    },
+    {
+      "id": "en-005",
+      "text": "Hypertension and chronic kidney disease are documented.",
+      "entities": [
+        {"kind": "condition", "text": "Hypertension", "start": 0, "end": 12},
+        {"kind": "condition", "text": "chronic kidney disease", "start": 17, "end": 39}
+      ]
+    },
+    {
+      "id": "en-006",
+      "text": "Start amoxicillin 500 mg orally three times daily.",
+      "entities": [
+        {"kind": "medication", "text": "amoxicillin", "start": 6, "end": 17}
+      ]
+    },
+    {
+      "id": "en-007",
+      "text": "The patient denies chest pain and takes aspirin.",
+      "entities": [
+        {"kind": "condition", "text": "chest pain", "start": 19, "end": 29},
+        {"kind": "medication", "text": "aspirin", "start": 40, "end": 47}
+      ]
+    },
+    {
+      "id": "en-008",
+      "text": "Family history: mother has breast cancer.",
+      "entities": [
+        {"kind": "condition", "text": "breast cancer", "start": 27, "end": 40}
+      ]
+    },
+    {
+      "id": "en-009",
+      "text": "If wheezing occurs, use budesonide/formoterol.",
+      "entities": [
+        {"kind": "condition", "text": "wheezing", "start": 3, "end": 11},
+        {"kind": "medication", "text": "budesonide/formoterol", "start": 24, "end": 45}
+      ]
+    },
+    {
+      "id": "en-010",
+      "text": "CBC normal. Ferritin 12 ng/mL.",
+      "entities": []
+    },
+    {
+      "id": "en-011",
+      "text": "Penicillin exposure was followed by a rash.",
+      "entities": [
+        {"kind": "medication", "text": "Penicillin", "start": 0, "end": 10},
+        {"kind": "condition", "text": "rash", "start": 38, "end": 42}
+      ]
+    },
+    {
+      "id": "en-012",
+      "text": "Acute myocardial infarction treated with clopidogrel.",
+      "entities": [
+        {"kind": "condition", "text": "Acute myocardial infarction", "start": 0, "end": 27},
+        {"kind": "medication", "text": "clopidogrel", "start": 41, "end": 52}
+      ]
+    }
+  ],
+  "limitations": [
+    "Synthetic English text only.",
+    "The corpus validates integration metrics and routing; it is not clinical validation.",
+    "Entity policy is limited to condition and medication candidate kinds.",
+    "Negation, certainty, temporality, and experiencer are scored separately by the context corpus."
+  ]
+}

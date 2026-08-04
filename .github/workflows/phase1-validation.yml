@@ -5,10 +5,12 @@ on:
     branches:
       - main
       - agent/phase-1-clinical-foundation
+      - agent/phase-2-personal-health-record
   push:
     branches:
       - agent/phase-1-clinical-foundation
       - agent/phase-2-personal-health-record
+      - agent/phase-3-openmed-extraction
 
 permissions:
   contents: read
@@ -17,11 +19,47 @@ jobs:
   validate:
     name: Type-check, tests, and production build
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install OpenMed bridge test dependencies
+        run: python -m pip install --disable-pip-version-check "openmed[service]==2.0.0" pytest
+
+      - name: Test OpenMed bridge
+        run: python -m pytest -q openmed_bridge/tests
+
+      - name: Evaluate synthetic English context corpus
+        run: python -m openmed_bridge.evaluate_context --minimum-axis-accuracy 1 --minimum-exact-case-accuracy 1 --minimum-medication-sig-accuracy 1
+
+      - name: Validate Phase 3 extraction metric contracts
+        run: >-
+          python -m openmed_bridge.evaluate_extraction
+          --ner-gold evaluation/phase3/clinical_ner_en_gold.json
+          --ner-predictions evaluation/phase3/clinical_ner_en_reference_predictions.json
+          --blocked-ner-gold evaluation/phase3/clinical_ner_ar_gold.json
+          --ocr-gold evaluation/phase3/ocr_gold.json
+          --ocr-predictions evaluation/phase3/ocr_reference_predictions.json
+          --minimum-exact-span-f1 1
+          --minimum-relaxed-span-f1 1
+          --minimum-exact-case-accuracy 1
+          --maximum-character-error-rate 0
+          --maximum-word-error-rate 0
+          --minimum-page-text-accuracy 1
+
+      - name: Validate separate OpenMed and Gemini comparison contracts
+        run: >-
+          python -m openmed_bridge.compare_ner_predictions
+          --gold evaluation/phase3/clinical_ner_en_gold.json
+          --provider OpenMed=evaluation/phase3/clinical_ner_en_reference_predictions.json
+          --provider Gemini=evaluation/phase3/clinical_ner_en_gemini_reference_predictions.json
 
       - name: Set up Node.js
         uses: actions/setup-node@v4

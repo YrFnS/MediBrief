@@ -1,0 +1,48 @@
+{
+  "schema_version": "1",
+  "corpus_id": "medibrief-phase3-ocr-v1",
+  "purpose": "Example local fixture mapping for measured OCR capture. Replace each path with a PHI-free PDF or image that corresponds exactly to the gold case.",
+  "fixtures": [
+    {
+      "id": "ocr-en-001",
+      "path": "fixtures/ocr-en-001.pdf",
+      "mime_type": "application/pdf",
+      "ocr_mode": "auto",
+      "ocr_engine": "tesseract",
+      "languages": ["en"],
+      "resolution": 200
+    },
+    {
+      "id": "ocr-en-002",
+      "path": "fixtures/ocr-en-002.png",
+      "mime_type": "image/png",
+      "ocr_mode": "always",
+      "ocr_engine": "tesseract",
+      "languages": ["en"],
+      "resolution": 200
+    },
+    {
+      "id": "ocr-en-003",
+      "path": "fixtures/ocr-en-003.png",
+      "mime_type": "image/png",
+      "ocr_mode": "always",
+      "ocr_engine": "tesseract",
+      "languages": ["en"],
+      "resolution": 200
+    },
+    {
+      "id": "ocr-ar-001",
+      "path": "fixtures/ocr-ar-001.png",
+      "mime_type": "image/png",
+      "ocr_mode": "always",
+      "ocr_engine": "tesseract",
+      "languages": ["ar"],
+      "resolution": 250
+    }
+  ],
+  "limitations": [
+    "This example does not include fixture binaries.",
+    "Fixture files must be synthetic or otherwise free of personal health information.",
+    "Arabic OCR measurement does not enable Arabic clinical NER or assertion context."
+  ]
+}

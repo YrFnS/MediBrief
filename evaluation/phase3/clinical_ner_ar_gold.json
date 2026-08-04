@@ -1,0 +1,62 @@
+{
+  "schema_version": "1",
+  "corpus_id": "medibrief-phase3-clinical-ner-ar-v1",
+  "language": "ar",
+  "phi_free": true,
+  "acceptance_status": "route-blocked-pending-measurement",
+  "purpose": "Synthetic Arabic condition and medication spans for future measured model evaluation. The current MediBrief default clinical models do not run on this route.",
+  "cases": [
+    {
+      "id": "ar-001",
+      "text": "المريض لديه ربو ويستخدم سالبوتامول.",
+      "entities": [
+        {"kind": "condition", "text": "ربو", "start": 12, "end": 15},
+        {"kind": "medication", "text": "سالبوتامول", "start": 24, "end": 34}
+      ]
+    },
+    {
+      "id": "ar-002",
+      "text": "لا توجد علامات التهاب رئوي.",
+      "entities": [
+        {"kind": "condition", "text": "التهاب رئوي", "start": 15, "end": 26}
+      ]
+    },
+    {
+      "id": "ar-003",
+      "text": "يعاني من السكري ويأخذ ميتفورمين.",
+      "entities": [
+        {"kind": "condition", "text": "السكري", "start": 9, "end": 15},
+        {"kind": "medication", "text": "ميتفورمين", "start": 22, "end": 31}
+      ]
+    },
+    {
+      "id": "ar-004",
+      "text": "صداع محتمل؛ استخدم سوماتريبتان عند الحاجة.",
+      "entities": [
+        {"kind": "condition", "text": "صداع", "start": 0, "end": 4},
+        {"kind": "medication", "text": "سوماتريبتان", "start": 19, "end": 30}
+      ]
+    },
+    {
+      "id": "ar-005",
+      "text": "لديه ارتفاع ضغط الدم ومرض كلوي مزمن.",
+      "entities": [
+        {"kind": "condition", "text": "ارتفاع ضغط الدم", "start": 5, "end": 20},
+        {"kind": "condition", "text": "مرض كلوي مزمن", "start": 22, "end": 35}
+      ]
+    },
+    {
+      "id": "ar-006",
+      "text": "ابدأ أموكسيسيلين بجرعة 500 ملغ.",
+      "entities": [
+        {"kind": "medication", "text": "أموكسيسيلين", "start": 5, "end": 16}
+      ]
+    }
+  ],
+  "limitations": [
+    "Synthetic Arabic text only.",
+    "No accepted OpenMed Arabic clinical-NER prediction file is committed.",
+    "OpenMed Arabic PII support and OCR character support are not evidence of Arabic clinical NER or assertion-context accuracy.",
+    "The current application route must remain blocked until a measured model meets explicit thresholds."
+  ]
+}

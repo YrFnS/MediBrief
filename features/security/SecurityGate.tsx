@@ -1,16 +1,17 @@
 import React, { useEffect, useState } from 'react';
+import {
+    AlertTriangleIcon,
+    LockIcon,
+    ShieldCheckIcon,
+} from '../../components/icons';
 import { encryptionService } from '../../services/encryptionService';
 import { useAuditStore } from '../audit/useAuditStore';
 import { useChatStore } from '../chat/stores/useChatStore';
 import { useClinicalStore } from '../clinical-analysis/stores/useClinicalStore';
 import { migrateCurrentLegacyStores } from '../clinical-record/backupService';
 import { useClinicalRecordStore } from '../clinical-record/useClinicalRecordStore';
+import { useDocumentExtractionStore } from '../openmed/useDocumentExtractionStore';
 import { usePatientStore } from '../patient-management/usePatientStore';
-import {
-    AlertTriangleIcon,
-    LockIcon,
-    ShieldCheckIcon,
-} from '../../components/icons';
 
 const rehydrateEncryptedStores = async (): Promise<void> => {
     await Promise.all([
@@ -18,6 +19,7 @@ const rehydrateEncryptedStores = async (): Promise<void> => {
         useChatStore.persist.rehydrate(),
         useClinicalStore.persist.rehydrate(),
         useClinicalRecordStore.persist.rehydrate(),
+        useDocumentExtractionStore.persist.rehydrate(),
         useAuditStore.persist.rehydrate(),
     ]);
 
@@ -101,24 +103,24 @@ const SecurityGate: React.FC<{ children: React.ReactNode }> = ({ children }) => 
     }
 
     return (
-        <div className="flex flex-col items-center justify-center h-screen bg-slate-50 text-slate-900 p-4 relative overflow-hidden">
-            <div className="absolute inset-0 bg-grid-pattern opacity-40 pointer-events-none"></div>
+        <div className="relative flex h-screen flex-col items-center justify-center overflow-hidden bg-slate-50 p-4 text-slate-900">
+            <div className="pointer-events-none absolute inset-0 bg-grid-pattern opacity-40" />
 
-            <div className="max-w-md w-full bg-white border border-slate-200 p-8 rounded-xl shadow-float relative z-10 technical-border">
-                <div className="flex flex-col items-center mb-8">
-                    <div className="p-4 bg-blue-50 rounded-full mb-4 shadow-sm border border-blue-100">
+            <div className="technical-border relative z-10 w-full max-w-md rounded-xl border border-slate-200 bg-white p-8 shadow-float">
+                <div className="mb-8 flex flex-col items-center">
+                    <div className="mb-4 rounded-full border border-blue-100 bg-blue-50 p-4 shadow-sm">
                         {isConfigured ? (
-                            <LockIcon className="w-8 h-8 text-blue-600" />
+                            <LockIcon className="h-8 w-8 text-blue-600" />
                         ) : (
-                            <ShieldCheckIcon className="w-8 h-8 text-blue-600" />
+                            <ShieldCheckIcon className="h-8 w-8 text-blue-600" />
                         )}
                     </div>
-                    <h1 className="text-2xl font-display font-bold uppercase tracking-tight text-center text-slate-900">
+                    <h1 className="text-center text-2xl font-display font-bold uppercase tracking-tight text-slate-900">
                         {isConfigured
                             ? 'Identity Verification'
                             : 'Security Initialization'}
                     </h1>
-                    <p className="text-slate-500 text-[10px] font-mono font-bold uppercase tracking-widest mt-2 text-center">
+                    <p className="mt-2 text-center text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500">
                         {isConfigured
                             ? 'Enter PIN to Decrypt Local Vault'
                             : 'Set a PIN to Encrypt Clinical Data'}
@@ -131,21 +133,22 @@ const SecurityGate: React.FC<{ children: React.ReactNode }> = ({ children }) => 
                             type="password"
                             value={pin}
                             onChange={event => setPin(event.target.value)}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-4 text-center text-2xl tracking-[0.5em] font-mono focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 focus:outline-none transition-all text-slate-900"
+                            className="w-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-4 text-center text-2xl font-mono tracking-[0.5em] text-slate-900 transition-all focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/10"
                             placeholder="••••"
                             autoFocus
                             inputMode="numeric"
+                            aria-label="Vault PIN"
                         />
                         {error && (
-                            <div className="flex items-center gap-2 text-red-600 text-xs font-bold justify-center bg-red-50 p-2.5 rounded-lg border border-red-100">
-                                <AlertTriangleIcon className="w-4 h-4" />
+                            <div className="flex items-center justify-center gap-2 rounded-lg border border-red-100 bg-red-50 p-2.5 text-xs font-bold text-red-600">
+                                <AlertTriangleIcon className="h-4 w-4" />
                                 {error}
                             </div>
                         )}
                         <button
                             type="submit"
                             disabled={!pin || isLoading}
-                            className="w-full py-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold uppercase tracking-widest text-xs rounded-lg transition-all shadow-lg shadow-blue-500/20 active:translate-y-0.5"
+                            className="w-full rounded-lg bg-blue-600 py-4 text-xs font-bold uppercase tracking-widest text-white shadow-lg shadow-blue-500/20 transition-all hover:bg-blue-500 active:translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                             {isLoading
                                 ? 'Decrypting Vault...'
@@ -155,44 +158,44 @@ const SecurityGate: React.FC<{ children: React.ReactNode }> = ({ children }) => 
                 ) : (
                     <form onSubmit={handleSetup} className="space-y-6">
                         <div className="space-y-4">
-                            <div>
-                                <label className="block text-[10px] font-mono font-bold uppercase text-slate-400 mb-1.5 ml-1">
+                            <label className="block">
+                                <span className="mb-1.5 ml-1 block text-[10px] font-mono font-bold uppercase text-slate-400">
                                     Create Access PIN
-                                </label>
+                                </span>
                                 <input
                                     type="password"
                                     value={pin}
                                     onChange={event => setPin(event.target.value)}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-center text-xl tracking-widest font-mono focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 focus:outline-none transition-all text-slate-900"
+                                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-center text-xl font-mono tracking-widest text-slate-900 transition-all focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/10"
                                     placeholder="••••"
                                     autoFocus
                                     inputMode="numeric"
                                 />
-                            </div>
-                            <div>
-                                <label className="block text-[10px] font-mono font-bold uppercase text-slate-400 mb-1.5 ml-1">
+                            </label>
+                            <label className="block">
+                                <span className="mb-1.5 ml-1 block text-[10px] font-mono font-bold uppercase text-slate-400">
                                     Verify PIN
-                                </label>
+                                </span>
                                 <input
                                     type="password"
                                     value={confirmPin}
                                     onChange={event => setConfirmPin(event.target.value)}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-center text-xl tracking-widest font-mono focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 focus:outline-none transition-all text-slate-900"
+                                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-center text-xl font-mono tracking-widest text-slate-900 transition-all focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/10"
                                     placeholder="••••"
                                     inputMode="numeric"
                                 />
-                            </div>
+                            </label>
                         </div>
                         {error && (
-                            <div className="flex items-center gap-2 text-red-600 text-xs font-bold justify-center bg-red-50 p-2.5 rounded-lg border border-red-100">
-                                <AlertTriangleIcon className="w-4 h-4" />
+                            <div className="flex items-center justify-center gap-2 rounded-lg border border-red-100 bg-red-50 p-2.5 text-xs font-bold text-red-600">
+                                <AlertTriangleIcon className="h-4 w-4" />
                                 {error}
                             </div>
                         )}
                         <button
                             type="submit"
                             disabled={!pin || !confirmPin || isLoading}
-                            className="w-full py-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold uppercase tracking-widest text-xs rounded-lg transition-all shadow-lg shadow-blue-500/20 active:translate-y-0.5"
+                            className="w-full rounded-lg bg-blue-600 py-4 text-xs font-bold uppercase tracking-widest text-white shadow-lg shadow-blue-500/20 transition-all hover:bg-blue-500 active:translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                             {isLoading
                                 ? 'Provisioning...'
@@ -201,8 +204,8 @@ const SecurityGate: React.FC<{ children: React.ReactNode }> = ({ children }) => 
                     </form>
                 )}
 
-                <div className="mt-8 pt-6 border-t border-slate-100 text-center">
-                    <p className="text-[9px] text-slate-400 font-mono uppercase tracking-tighter leading-relaxed">
+                <div className="mt-8 border-t border-slate-100 pt-6 text-center">
+                    <p className="text-[9px] font-mono uppercase leading-relaxed tracking-tighter text-slate-400">
                         Zero-Knowledge Architecture // Local AES-256 Encryption
                         <br />
                         Keys never leave memory.
@@ -211,7 +214,7 @@ const SecurityGate: React.FC<{ children: React.ReactNode }> = ({ children }) => 
             </div>
 
             <div className="absolute bottom-10 left-10 opacity-10">
-                <div className="text-[120px] font-display font-bold text-blue-500 select-none">
+                <div className="select-none text-[120px] font-display font-bold text-blue-500">
                     MB
                 </div>
             </div>
