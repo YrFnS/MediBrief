@@ -8,20 +8,11 @@
   <meta name="color-scheme" content="light dark" />
   <title>MediBrief — Local Personal Health Record</title>
   <link rel="manifest" href="/manifest.json" />
+  <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/3063/3063176.png" />
   <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js').then(
-          (registration) => console.log('SW registered: ', registration.scope),
-          (err) => console.log('SW registration failed: ', err)
-        );
-      });
-    }
-  </script>
   <script>
     tailwind.config = {
       darkMode: 'class', // Manual toggle, defaulting to light
@@ -207,7 +198,6 @@
   }
 }
 </script>
-<link rel="stylesheet" href="/index.css">
 </head>
 <body class="bg-slate-50 text-slate-800 antialiased selection:bg-blue-100 selection:text-blue-900 fixed inset-0 overflow-hidden">
   <div id="root" class="h-full w-full relative z-10"></div>
