@@ -1,5 +1,7 @@
-import { Modality, Type } from '@google/genai';
 import { ChatMode } from './types';
+
+const Modality = { AUDIO: 'AUDIO' } as const;
+const Type = { OBJECT: 'OBJECT', STRING: 'STRING' } as const;
 
 export const WELCOME_CONTENT = {
     title: 'MediBrief',

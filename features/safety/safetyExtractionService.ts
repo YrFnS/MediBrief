@@ -1,8 +1,8 @@
 
-import { GoogleGenAI } from "@google/genai";
+import { generateGeminiContent } from '../../services/geminiProxy';
 import { parseAndValidate } from '../../utils';
 import { ParsedMedication } from './types';
-import { MedicationListSchema, MedicationList } from '../chat/schemas';
+import { MedicationListSchema, type MedicationList } from '../chat/schemas';
 
 const MODEL = 'gemini-3-flash-preview'; 
 
@@ -33,9 +33,7 @@ If no medications are found, return an empty array [].
 
 export const extractMedicationsFromText = async (text: string): Promise<MedicationList> => {
     try {
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-        
-        const response = await ai.models.generateContent({
+        const response = await generateGeminiContent({
             model: MODEL,
             contents: [
                 {

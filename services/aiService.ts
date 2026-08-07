@@ -1,13 +1,13 @@
 
-import { GoogleGenAI, GenerateContentResponse, Content, Part } from "@google/genai";
 import type { ChatMessage, ChatMode, UploadedFile } from '../types';
+import { generateGeminiContent } from './geminiProxy';
 import { MODEL_CONFIGS, SYSTEM_INSTRUCTION } from '../constants';
 import { cleanJsonOutput } from '../utils';
 import { scrubPII } from '../utils/piiScrubber';
 import { AIProvider } from '../features/settings/useSettingsStore';
 
 // Helper to extract a concise summary from a previous model response to substitute for an image
-const extractImageInsights = async (modelResponseText: string, apiKey: string, model: string): Promise<string | null> => {
+const extractImageInsights = async (modelResponseText: string, model: string): Promise<string | null> => {
     if (!modelResponseText) return null;
     
     try {
@@ -19,26 +19,31 @@ const extractImageInsights = async (modelResponseText: string, apiKey: string, m
             if (data.summary) return data.summary;
             if (data.findings) return data.findings;
         }
-    } catch (e) {}
+    } catch {
+        // Fall through to the lightweight text matcher.
+    }
 
     const match = modelResponseText.match(/\*\*Visual Observations\*\*:\s*(.*?)(\n|$)/i);
     if (match && match[1]) return match[1].trim();
 
     try {
-        const ai = new GoogleGenAI({ apiKey });
-        const response = await ai.models.generateContent({
-            model: model,
+        const response = await generateGeminiContent({
+            model,
             contents: `Summarize the key clinical findings and visual observations from the following text in 1-2 concise sentences. Focus ONLY on actionable medical data:\n\n${modelResponseText}`,
-            config: {
-                temperature: 0.1,
-            }
+            config: { temperature: 0.1 },
         });
         return response.text?.trim() || null;
-    } catch (e) {
-        console.error("Failed to summarize image insights", e);
+    } catch {
         return null;
     }
 };
+
+type Part = {
+    text?: string;
+    inlineData?: { mimeType: string; data: string };
+};
+type Content = { role: string; parts: Part[] };
+type GenerateContentResponse = { text?: string };
 
 const messageToContent = (message: ChatMessage, isHistory: boolean = false, injectedContext?: string | null): Content => {
     const parts: Part[] = [];
@@ -53,7 +58,7 @@ const messageToContent = (message: ChatMessage, isHistory: boolean = false, inje
     }
 
     if (message.content) {
-        let textToSend = message.role === 'user' ? scrubPII(message.content) : message.content;
+        const textToSend = message.role === 'user' ? scrubPII(message.content) : message.content;
         parts.push({ text: textToSend });
     }
     return { role: message.role, parts };
@@ -81,7 +86,7 @@ const consolidateContents = (contents: Content[]): Content[] => {
 interface GenerateResponseOptions {
   file?: UploadedFile;
   responseType?: 'json' | 'text';
-  apiKey: string;
+  apiKey?: string;
   provider: AIProvider;
   model: string;
 }
@@ -105,7 +110,6 @@ async function* generateGeminiStream(
     mode: ChatMode,
     options: GenerateResponseOptions
 ): AsyncGenerator<GenerateContentResponse> {
-  const ai = new GoogleGenAI({ apiKey: options.apiKey });
   const modelConfig = MODEL_CONFIGS[mode];
   const file = options?.file;
   
@@ -123,7 +127,7 @@ async function* generateGeminiStream(
       const nextMsg = historyToProcess[i + 1];
       let imageContext = null;
       if (msg.role === 'user' && msg.filePreview?.type.startsWith('image/') && nextMsg && nextMsg.role === 'model') {
-          imageContext = await extractImageInsights(nextMsg.content, options.apiKey, options.model);
+          imageContext = await extractImageInsights(nextMsg.content, options.model);
       }
       contents.push(messageToContent(msg, true, imageContext));
   }
@@ -136,25 +140,22 @@ async function* generateGeminiStream(
   currentMessageParts.push({ text: scrubPII(prompt) });
   contents.push({ role: 'user', parts: currentMessageParts });
 
-  const responseStream = await ai.models.generateContentStream({
+  const response = await generateGeminiContent({
     model: options.model,
-    contents: contents,
+    contents,
     config: {
       systemInstruction: SYSTEM_INSTRUCTION,
       ...modelConfig.config,
       ...(options?.responseType === 'json' ? { responseMimeType: 'application/json' } : {})
     },
   });
-
-  for await (const chunk of responseStream) {
-    yield chunk;
-  }
+  yield response;
 }
 
 async function* generateOpenRouterStream(
     prompt: string,
     history: ChatMessage[],
-    mode: ChatMode,
+    _mode: ChatMode,
     options: GenerateResponseOptions
 ): AsyncGenerator<any> {
     const messages = [];
@@ -234,7 +235,9 @@ async function* generateOpenRouterStream(
                             candidates: [{ content: { parts: [{ text: delta }] } }]
                         };
                     }
-                } catch (e) {}
+                } catch {
+                    // Ignore malformed provider chunks.
+                }
             }
         }
     }

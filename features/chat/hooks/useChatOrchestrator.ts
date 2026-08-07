@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import type React from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import {
     ChatMode as ChatModeEnum,
     type ChatMessage,
@@ -80,7 +81,6 @@ export const useChatOrchestrator = ({
     );
     const {
         provider,
-        geminiApiKey,
         openRouterApiKey,
         customModels,
     } = useSettingsStore();
@@ -142,7 +142,7 @@ export const useChatOrchestrator = ({
             try {
                 const modeForRequest = ChatModeEnum.Standard;
                 const apiKey = provider === AIProvider.Gemini
-                    ? geminiApiKey || process.env.API_KEY || ''
+                    ? undefined
                     : openRouterApiKey;
                 const stream = generateResponseStream(
                     SHIFT_BRIEFING_PROMPT(),
@@ -427,7 +427,7 @@ export const useChatOrchestrator = ({
         try {
             const history = groundedTurn ? [] : [...messages];
             const apiKey = provider === AIProvider.Gemini
-                ? geminiApiKey || process.env.API_KEY || ''
+                ? undefined
                 : openRouterApiKey;
             const stream = generateResponseStream(
                 finalApiPrompt,
@@ -589,7 +589,6 @@ export const useChatOrchestrator = ({
         auditActions,
         chatMode,
         clearFile,
-        geminiApiKey,
         getModelForMode,
         isLive,
         messages,

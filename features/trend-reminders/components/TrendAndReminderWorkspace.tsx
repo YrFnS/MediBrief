@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import type React from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
     ActivityIcon,
     AlertTriangleIcon,
@@ -456,7 +457,6 @@ const TrendAndReminderWorkspace: React.FC<TrendAndReminderWorkspaceProps> = ({
     const addResource = useClinicalRecordStore(state => state.actions.addResource);
     const {
         provider,
-        geminiApiKey,
         openRouterApiKey,
         customModels,
     } = useSettingsStore();
@@ -476,12 +476,14 @@ const TrendAndReminderWorkspace: React.FC<TrendAndReminderWorkspaceProps> = ({
     const visibleTrends = trends.explanations.filter(explanation =>
         trendExplanationMatchesSearch(explanation, search));
     const apiKey = provider === AIProvider.Gemini
-        ? geminiApiKey || process.env.API_KEY || ''
+        ? undefined
         : openRouterApiKey;
     const model = customModels[ChatMode.Standard]
         || MODEL_CONFIGS[ChatMode.Standard]?.model
         || 'gemini-flash-lite-latest';
-    const providerReady = Boolean(apiKey.trim() && model.trim());
+    const providerReady = Boolean(
+        (provider === AIProvider.Gemini || apiKey?.trim()) && model.trim(),
+    );
 
     useEffect(() => () => modelAbortRef.current?.abort(), []);
 

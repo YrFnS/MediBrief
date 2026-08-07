@@ -22,7 +22,7 @@ import {
 import type { PersonalRecordView } from '../personal-health-record';
 import SidebarRoster from '../patient-roster/SidebarRoster';
 import SettingsModal from '../settings/SettingsModal';
-import { useSettingsStore } from '../settings/useSettingsStore';
+import { AIProvider, useSettingsStore } from '../settings/useSettingsStore';
 import { useUIStore } from '../ui/UIContext';
 import BioMetricBackground from './BioMetricBackground';
 import DisclaimerModal from '../../components/DisclaimerModal';
@@ -89,12 +89,8 @@ const Phase2Workspace: React.FC = () => {
         state => state.records[activePatientId],
     );
     const { uiState, uiDispatch } = useUIStore();
-    const { geminiApiKey, openRouterApiKey } = useSettingsStore();
-    const hasAnyApiKey = !!(
-        process.env.API_KEY
-        || geminiApiKey
-        || openRouterApiKey
-    );
+    const { provider, openRouterApiKey } = useSettingsStore();
+    const hasAnyApiKey = provider === AIProvider.Gemini || Boolean(openRouterApiKey);
     const { isLocked, isBlurred, unlock } = useSecurityLock();
     const isOnline = useOnlineStatus();
 

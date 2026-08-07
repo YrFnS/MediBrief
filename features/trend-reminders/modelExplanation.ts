@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
+import { generateGeminiContent } from '../../services/geminiProxy';
 import { SYSTEM_INSTRUCTION } from '../../constants';
 import { AIProvider } from '../settings/useSettingsStore';
 import { scrubPII } from '../../utils/piiScrubber';
@@ -6,7 +6,7 @@ import { scrubPII } from '../../utils/piiScrubber';
 export interface GenerateTrendModelExplanationInput {
     prompt: string;
     provider: AIProvider;
-    apiKey: string;
+    apiKey?: string;
     model: string;
     signal?: AbortSignal;
 }
@@ -20,8 +20,7 @@ const generateGeminiExplanation = async ({
     signal,
 }: GenerateTrendModelExplanationInput): Promise<string> => {
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-    const ai = new GoogleGenAI({ apiKey });
-    const response = await ai.models.generateContent({
+    const response = await generateGeminiContent({
         model,
         contents: scrubPII(prompt),
         config: {
@@ -74,8 +73,8 @@ const generateOpenRouterExplanation = async ({
 export const generateTrendModelExplanationText = async (
     input: GenerateTrendModelExplanationInput,
 ): Promise<string> => {
-    if (!input.apiKey.trim()) {
-        throw new Error('An AI provider key is required for optional model wording.');
+    if (input.provider === AIProvider.OpenRouter && !input.apiKey?.trim()) {
+        throw new Error('An OpenRouter key is required for optional model wording.');
     }
     if (!input.model.trim()) {
         throw new Error('A model name is required for optional model wording.');

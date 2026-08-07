@@ -158,7 +158,6 @@ export const useEntityExtractor = () => {
     const documentActions = useDocumentExtractionStore(state => state.actions);
     const auditActions = useAuditStore(state => state.actions);
     const settings = useSettingsStore(useShallow(state => ({
-        geminiApiKey: state.geminiApiKey,
         extractionMode: state.extractionMode,
         openMedBaseUrl: state.openMedBaseUrl,
         openMedDiseaseModel: state.openMedDiseaseModel,
@@ -209,17 +208,8 @@ export const useEntityExtractor = () => {
 
         const addGeminiCompatibilityCandidates = async (): Promise<CandidateWriteCounts> => {
             const counts: CandidateWriteCounts = { created: 0, duplicates: 0 };
-            const apiKey = settings.geminiApiKey || process.env.API_KEY || '';
-            if (!apiKey) {
-                console.warn(
-                    'Gemini compatibility extraction was requested, but no Gemini API key is configured.',
-                );
-                return counts;
-            }
-
             const entities = await extractEntitiesFromUpload(file, {
                 signal: controller.signal,
-                apiKey,
             });
             if (controller.signal.aborted) return counts;
 

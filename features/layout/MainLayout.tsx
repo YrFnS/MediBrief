@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import type React from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
     DocumentTextIcon,
     EyeIcon,
@@ -29,7 +30,7 @@ import { usePatientStore } from '../patient-management/usePatientStore';
 import SidebarRoster from '../patient-roster/SidebarRoster';
 import ScribeInterface from '../scribe/ScribeInterface';
 import SettingsModal from '../settings/SettingsModal';
-import { useSettingsStore } from '../settings/useSettingsStore';
+import { AIProvider, useSettingsStore } from '../settings/useSettingsStore';
 import { useUIStore } from '../ui/UIContext';
 import BioMetricBackground from './BioMetricBackground';
 
@@ -92,12 +93,8 @@ const MainLayout: React.FC = () => {
     const isOnline = useOnlineStatus();
 
     const { isLocked, isBlurred, unlock } = useSecurityLock();
-    const { geminiApiKey, openRouterApiKey } = useSettingsStore();
-    const hasAnyApiKey = !!(
-        process.env.API_KEY
-        || geminiApiKey
-        || openRouterApiKey
-    );
+    const { provider, openRouterApiKey } = useSettingsStore();
+    const hasAnyApiKey = provider === AIProvider.Gemini || Boolean(openRouterApiKey);
 
     useEffect(() => {
         const handleResize = () => {

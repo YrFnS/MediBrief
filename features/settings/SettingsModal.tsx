@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import type React from 'react';
+import { useEffect, useState } from 'react';
 import {
     BoltIcon,
     ShieldCheckIcon,
     XCircleIcon,
 } from '../../components/icons';
-import { ChatMode } from '../../types';
+import type { ChatMode } from '../../types';
 import type {
     OpenMedOcrEngine,
     OpenMedOcrMode,
@@ -22,7 +23,6 @@ interface SettingsModalProps {
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     const settings = useSettingsStore();
-    const [tempGeminiKey, setTempGeminiKey] = useState(settings.geminiApiKey);
     const [tempOpenRouterKey, setTempOpenRouterKey] = useState(
         settings.openRouterApiKey,
     );
@@ -70,7 +70,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
 
     useEffect(() => {
         if (!isOpen) return;
-        setTempGeminiKey(settings.geminiApiKey);
         setTempOpenRouterKey(settings.openRouterApiKey);
         setTempModels(settings.customModels);
         setTempExtractionMode(settings.extractionMode);
@@ -116,7 +115,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
             }
         }
 
-        settings.setGeminiApiKey(tempGeminiKey.trim());
         settings.setOpenRouterApiKey(tempOpenRouterKey.trim());
         Object.entries(tempModels).forEach(([mode, modelName]) => {
             settings.setCustomModel(mode as ChatMode, String(modelName).trim());
@@ -217,29 +215,27 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                             </div>
                         </div>
 
-                        <label className="block">
-                            <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-400">
-                                {settings.provider} API key
-                            </span>
-                            <span className="relative mt-1.5 block">
-                                <input
-                                    type="password"
-                                    value={settings.provider === AIProvider.Gemini
-                                        ? tempGeminiKey
-                                        : tempOpenRouterKey}
-                                    onChange={event => settings.provider === AIProvider.Gemini
-                                        ? setTempGeminiKey(event.target.value)
-                                        : setTempOpenRouterKey(event.target.value)}
-                                    placeholder={`Enter ${settings.provider} key`}
-                                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 pr-10 text-sm font-mono outline-none transition-all focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:border-slate-700 dark:bg-slate-900"
-                                />
-                                <ShieldCheckIcon className={`absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 ${((settings.provider === AIProvider.Gemini && tempGeminiKey)
-                                    || (settings.provider === AIProvider.OpenRouter && tempOpenRouterKey))
-                                    ? 'text-emerald-500'
-                                    : 'text-slate-300'
-                                }`} />
-                            </span>
-                        </label>
+                        {settings.provider === AIProvider.Gemini ? (
+                            <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs leading-relaxed text-emerald-800">
+                                Gemini is routed through the secure server proxy. No Gemini credential is stored in this browser.
+                            </p>
+                        ) : (
+                            <label className="block">
+                                <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-400">
+                                    OpenRouter API key
+                                </span>
+                                <span className="relative mt-1.5 block">
+                                    <input
+                                        type="password"
+                                        value={tempOpenRouterKey}
+                                        onChange={event => setTempOpenRouterKey(event.target.value)}
+                                        placeholder="Enter OpenRouter key"
+                                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 pr-10 text-sm font-mono outline-none transition-all focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:border-slate-700 dark:bg-slate-900"
+                                    />
+                                    <ShieldCheckIcon className={`absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 ${tempOpenRouterKey ? 'text-emerald-500' : 'text-slate-300'}`} />
+                                </span>
+                            </label>
+                        )}
 
                         <div className="space-y-3">
                             <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-400">

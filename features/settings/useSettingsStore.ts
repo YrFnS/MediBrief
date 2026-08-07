@@ -19,7 +19,6 @@ export enum AIProvider {
 
 interface SettingsState {
     provider: AIProvider;
-    geminiApiKey: string;
     openRouterApiKey: string;
     customModels: Record<ChatMode, string>;
 
@@ -38,7 +37,6 @@ interface SettingsState {
     openMedOcrResolution: number;
 
     setProvider: (provider: AIProvider) => void;
-    setGeminiApiKey: (key: string) => void;
     setOpenRouterApiKey: (key: string) => void;
     setCustomModel: (mode: ChatMode, model: string) => void;
     setExtractionMode: (mode: ClinicalExtractionMode) => void;
@@ -84,7 +82,6 @@ export const useSettingsStore = create<SettingsState>()(
     persist(
         set => ({
             provider: AIProvider.Gemini,
-            geminiApiKey: '',
             openRouterApiKey: '',
             customModels: {
                 [ChatMode.Standard]: '',
@@ -110,7 +107,6 @@ export const useSettingsStore = create<SettingsState>()(
             openMedOcrResolution: 200,
 
             setProvider: provider => set({ provider }),
-            setGeminiApiKey: geminiApiKey => set({ geminiApiKey }),
             setOpenRouterApiKey: openRouterApiKey => set({ openRouterApiKey }),
             setCustomModel: (mode, model) => set(state => ({
                 customModels: { ...state.customModels, [mode]: model },

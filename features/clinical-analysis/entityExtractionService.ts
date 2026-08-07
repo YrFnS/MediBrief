@@ -1,5 +1,5 @@
-import { GoogleGenAI } from '@google/genai';
 import type { UploadedFile } from '../../types';
+import { generateGeminiContent } from '../../services/geminiProxy';
 import { ENTITY_EXTRACTION_PROMPT } from '../../constants';
 import { parseAndValidate } from '../../utils';
 import {
@@ -12,7 +12,6 @@ export const ENTITY_EXTRACTION_PROMPT_VERSION = 'entity-extraction-v1';
 
 export interface EntityExtractionOptions {
     signal?: AbortSignal;
-    apiKey?: string;
     model?: string;
 }
 
@@ -36,13 +35,6 @@ export const extractEntitiesFromUpload = async (
     try {
         if (signal?.aborted) return EMPTY_EXTRACTION;
 
-        const apiKey = options.apiKey || process.env.API_KEY || '';
-        if (!apiKey) {
-            console.warn('Entity extraction skipped because no Gemini API key is configured.');
-            return EMPTY_EXTRACTION;
-        }
-
-        const ai = new GoogleGenAI({ apiKey });
         const contents = [
             {
                 role: 'user',
@@ -58,7 +50,7 @@ export const extractEntitiesFromUpload = async (
             },
         ];
 
-        const response = await ai.models.generateContent({
+        const response = await generateGeminiContent({
             model: options.model || ENTITY_EXTRACTION_MODEL,
             contents,
             config: {
