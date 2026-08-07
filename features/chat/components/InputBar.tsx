@@ -1,11 +1,11 @@
 
-import React, { useState, useRef, useCallback, KeyboardEvent, useLayoutEffect, useEffect } from 'react';
+import type React from 'react';
+import { useState, useRef, useCallback, type KeyboardEvent, useLayoutEffect, useEffect } from 'react'
 import type { UploadedFile, ChatMode } from '../../../types';
 import { ChatMode as ChatModeEnum } from '../../../types';
 import { PaperclipIcon, SendIcon, XCircleIcon, BriefingIcon, UserIcon, DrugsIcon, DownloadIcon, DocumentTextIcon, MicrophoneIcon, CameraIcon, LiveIcon, StopIcon, BodyIcon, PlusIcon, EyeIcon } from '../../../components/icons';
 import { useSpeechRecognition } from '../../../hooks/useSpeechRecognition';
 import BodyMap from '../../../components/BodyMap';
-import { useFileDragAndDrop } from '../../../hooks/useFileDragAndDrop';
 
 interface InputBarProps {
     onSend: (prompt: string) => void;
@@ -38,8 +38,6 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const menuRef = useRef<HTMLDivElement>(null);
 
-    // We use the hook here locally just to access the `processFile` logic for clicks
-    const { processFile } = useFileDragAndDrop();
 
     const { isListening, toggleListening, stopListening } = useSpeechRecognition({
         onResult: (transcript) => setPrompt(transcript),
@@ -47,7 +45,7 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
     });
 
     useEffect(() => {
-        let activeUrl = uploadedFile?.url;
+        const activeUrl = uploadedFile?.url;
         return () => {
             if (activeUrl && activeUrl.startsWith('blob:')) {
                 URL.revokeObjectURL(activeUrl);
@@ -183,7 +181,13 @@ const InputBar: React.FC<InputBarProps> = ({ onSend, onClearFile, setUploadedFil
                                         onClick={() => onViewImage && onViewImage(uploadedFile.url!, uploadedFile.file.name)}
                                         className="relative group overflow-hidden rounded-md border border-slate-200"
                                      >
-                                        <img src={uploadedFile.url} alt="Attachment" className="w-10 h-10 object-cover" />
+                                        <img
+                                            src={uploadedFile.url}
+                                            alt={uploadedFile.file.name}
+                                            width={40}
+                                            height={40}
+                                            className="h-10 w-10 object-cover"
+                                        />
                                         <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                             <div className="bg-white/80 p-0.5 rounded-full"><EyeIcon className="w-3 h-3 text-slate-800" /></div>
                                         </div>
