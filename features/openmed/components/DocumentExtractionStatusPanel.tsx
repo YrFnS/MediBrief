@@ -284,7 +284,7 @@ const DocumentExtractionStatusPanel: React.FC<
                     className="mt-3 rounded-lg border border-amber-300 bg-white/70 px-3 py-2 text-xs leading-relaxed dark:bg-slate-950/60"
                 >
                     {retryError || (
-                        'Gemini compatibility fallback was used after local extraction did not complete. Any fallback candidates keep separate cloud-extraction provenance.'
+                        'OpenRouter fallback was used after local extraction did not complete. Any fallback candidates keep separate cloud-extraction provenance and require review.'
                     )}
                 </div>
             )}

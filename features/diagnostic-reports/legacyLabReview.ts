@@ -31,7 +31,7 @@ export const createPendingLegacyLabReview = ({
     report,
     source,
     detectedAt = new Date().toISOString(),
-    extractionEngine = 'Google Gemini lab-report extraction',
+    extractionEngine = 'OpenRouter lab-report extraction',
 }: {
     report: LabReport;
     source: LegacyLabReviewSource;

@@ -1,11 +1,17 @@
 import type React from 'react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
     BoltIcon,
     ShieldCheckIcon,
     XCircleIcon,
 } from '../../components/icons';
-import type { ChatMode } from '../../types';
+import {
+    fetchOpenRouterModels,
+    formatOpenRouterTokenPrice,
+    isFreeOpenRouterModel,
+    searchOpenRouterModels,
+    type OpenRouterModel,
+} from '../../services/openRouter';
 import type {
     OpenMedOcrEngine,
     OpenMedOcrMode,
@@ -14,7 +20,7 @@ import { normalizeOpenMedBaseUrl } from '../openmed/openMedClient';
 import type { ClinicalExtractionMode } from '../openmed/types';
 import OpenMedContextBridgeStatus from './OpenMedContextBridgeStatus';
 import OpenMedSettingsPanel from './OpenMedSettingsPanel';
-import { AIProvider, useSettingsStore } from './useSettingsStore';
+import { useSettingsStore } from './useSettingsStore';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -26,9 +32,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     const [tempOpenRouterKey, setTempOpenRouterKey] = useState(
         settings.openRouterApiKey,
     );
-    const [tempModels, setTempModels] = useState<Record<ChatMode, string>>(
-        settings.customModels,
-    );
+    const [tempModelId, setTempModelId] = useState(settings.openRouterModelId);
+    const [catalog, setCatalog] = useState<OpenRouterModel[]>([]);
+    const [catalogSearch, setCatalogSearch] = useState('');
+    const [freeOnly, setFreeOnly] = useState(false);
+    const [catalogLoading, setCatalogLoading] = useState(false);
+    const [catalogError, setCatalogError] = useState<string | null>(null);
     const [tempExtractionMode, setTempExtractionMode] =
         useState<ClinicalExtractionMode>(settings.extractionMode);
     const [tempOpenMedBaseUrl, setTempOpenMedBaseUrl] = useState(
@@ -50,7 +59,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
         settings.openMedKeepAlive,
     );
     const [tempFallback, setTempFallback] = useState(
-        settings.allowGeminiExtractionFallback,
+        settings.allowOpenRouterExtractionFallback,
     );
     const [tempDocumentExtractionEnabled, setTempDocumentExtractionEnabled] =
         useState(settings.openMedDocumentExtractionEnabled);
@@ -68,10 +77,26 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     );
     const [saveError, setSaveError] = useState<string | null>(null);
 
+    const loadCatalog = useCallback(async (signal?: AbortSignal) => {
+        setCatalogLoading(true);
+        setCatalogError(null);
+        try {
+            setCatalog(await fetchOpenRouterModels(signal));
+        } catch (error) {
+            if (!(error instanceof DOMException && error.name === 'AbortError')) {
+                setCatalogError(
+                    'The live OpenRouter catalog is unavailable. Enter a model ID manually below.',
+                );
+            }
+        } finally {
+            if (!signal?.aborted) setCatalogLoading(false);
+        }
+    }, []);
+
     useEffect(() => {
         if (!isOpen) return;
         setTempOpenRouterKey(settings.openRouterApiKey);
-        setTempModels(settings.customModels);
+        setTempModelId(settings.openRouterModelId);
         setTempExtractionMode(settings.extractionMode);
         setTempOpenMedBaseUrl(settings.openMedBaseUrl);
         setTempDiseaseModel(settings.openMedDiseaseModel);
@@ -79,7 +104,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
         setTempConfidence(settings.openMedConfidenceThreshold);
         setTempTimeoutMs(settings.openMedTimeoutMs);
         setTempKeepAlive(settings.openMedKeepAlive);
-        setTempFallback(settings.allowGeminiExtractionFallback);
+        setTempFallback(settings.allowOpenRouterExtractionFallback);
         setTempDocumentExtractionEnabled(
             settings.openMedDocumentExtractionEnabled,
         );
@@ -88,13 +113,33 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
         setTempOcrLanguages(settings.openMedOcrLanguages);
         setTempOcrResolution(settings.openMedOcrResolution);
         setSaveError(null);
-    }, [isOpen]);
+
+        const controller = new AbortController();
+        void loadCatalog(controller.signal);
+        return () => controller.abort();
+    }, [isOpen, loadCatalog]);
 
     if (!isOpen) return null;
 
+    const visibleModels = searchOpenRouterModels(catalog, catalogSearch)
+        .filter(model => !freeOnly || isFreeOpenRouterModel(model));
+    const listedModels = visibleModels.slice(0, 80);
+
     const handleSave = () => {
+        const apiKey = tempOpenRouterKey.trim();
+        const modelId = tempModelId.trim();
+        if (
+            (tempExtractionMode === 'openrouter' || tempFallback)
+            && (!apiKey || !modelId)
+        ) {
+            setSaveError(
+                'OpenRouter cloud extraction requires your key and an explicitly selected model.',
+            );
+            return;
+        }
+
         let normalizedBaseUrl = tempOpenMedBaseUrl;
-        if (tempExtractionMode !== 'gemini') {
+        if (tempExtractionMode !== 'openrouter') {
             try {
                 normalizedBaseUrl = normalizeOpenMedBaseUrl(tempOpenMedBaseUrl);
             } catch (error) {
@@ -115,10 +160,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
             }
         }
 
-        settings.setOpenRouterApiKey(tempOpenRouterKey.trim());
-        Object.entries(tempModels).forEach(([mode, modelName]) => {
-            settings.setCustomModel(mode as ChatMode, String(modelName).trim());
-        });
+        settings.setOpenRouterApiKey(apiKey);
+        settings.setOpenRouterModelId(modelId);
         settings.setExtractionMode(tempExtractionMode);
         settings.setOpenMedBaseUrl(normalizedBaseUrl);
         settings.setOpenMedDiseaseModel(tempDiseaseModel.trim());
@@ -126,7 +169,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
         settings.setOpenMedConfidenceThreshold(tempConfidence);
         settings.setOpenMedTimeoutMs(tempTimeoutMs);
         settings.setOpenMedKeepAlive(tempKeepAlive.trim());
-        settings.setAllowGeminiExtractionFallback(tempFallback);
+        settings.setAllowOpenRouterExtractionFallback(tempFallback);
         settings.setOpenMedDocumentExtractionEnabled(
             tempDocumentExtractionEnabled,
         );
@@ -136,23 +179,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
         settings.setOpenMedOcrResolution(tempOcrResolution);
         onClose();
     };
-
-    const geminiModels = [
-        'gemini-flash-lite-latest',
-        'gemini-3-flash-preview',
-        'gemini-3.1-pro-preview',
-        'gemini-2.5-flash-native-audio-preview-12-2025',
-    ];
-    const openRouterModels = [
-        'anthropic/claude-3.7-sonnet',
-        'anthropic/claude-3.5-sonnet',
-        'openai/gpt-4o',
-        'deepseek/deepseek-r1',
-        'google/gemini-2.0-flash-001',
-    ];
-    const currentModels = settings.provider === AIProvider.Gemini
-        ? geminiModels
-        : openRouterModels;
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-3 backdrop-blur-sm md:p-6">
@@ -187,39 +213,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                                 id="assistant-settings-title"
                                 className="text-sm font-bold text-slate-900 dark:text-white"
                             >
-                                Assistant AI
+                                OpenRouter assistant
                             </h3>
                             <p className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
-                                These provider settings power chat, voice, scribe, and the Gemini compatibility extractor. They are separate from local OpenMed settings.
+                                Your key stays in this browser&apos;s encrypted vault and is sent only as a Bearer header directly to OpenRouter. MediBrief and Vercel have no AI key or proxy.
                             </p>
                         </div>
 
-                        <div className="space-y-2">
-                            <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-400">
-                                Active chat provider
-                            </span>
-                            <div className="flex rounded-xl bg-slate-100 p-1 dark:bg-slate-900">
-                                {Object.values(AIProvider).map(provider => (
-                                    <button
-                                        key={provider}
-                                        type="button"
-                                        onClick={() => settings.setProvider(provider)}
-                                        className={`flex-1 rounded-lg py-2 text-xs font-bold transition-all ${settings.provider === provider
-                                            ? 'bg-white text-blue-600 shadow-sm dark:bg-slate-800 dark:text-blue-300'
-                                            : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'
-                                        }`}
-                                    >
-                                        {provider}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        {settings.provider === AIProvider.Gemini ? (
-                            <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs leading-relaxed text-emerald-800">
-                                Gemini is routed through the secure server proxy. No Gemini credential is stored in this browser.
-                            </p>
-                        ) : (
+                        <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
                             <label className="block">
                                 <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-400">
                                     OpenRouter API key
@@ -229,42 +230,139 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                                         type="password"
                                         value={tempOpenRouterKey}
                                         onChange={event => setTempOpenRouterKey(event.target.value)}
-                                        placeholder="Enter OpenRouter key"
+                                        placeholder="Enter your OpenRouter key"
+                                        autoComplete="off"
+                                        spellCheck={false}
                                         className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 pr-10 text-sm font-mono outline-none transition-all focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:border-slate-700 dark:bg-slate-900"
                                     />
                                     <ShieldCheckIcon className={`absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 ${tempOpenRouterKey ? 'text-emerald-500' : 'text-slate-300'}`} />
                                 </span>
                             </label>
+                            <button
+                                type="button"
+                                disabled={!tempOpenRouterKey && !settings.openRouterApiKey}
+                                onClick={() => {
+                                    setTempOpenRouterKey('');
+                                    settings.setOpenRouterApiKey('');
+                                }}
+                                className="rounded-xl border border-red-200 px-4 py-3 text-xs font-bold text-red-700 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/30"
+                            >
+                                Clear saved key
+                            </button>
+                        </div>
+
+                        <div className="space-y-2">
+                            <div className="flex flex-wrap items-end justify-between gap-2">
+                                <label className="min-w-0 flex-1">
+                                    <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-400">
+                                        Search live model catalog
+                                    </span>
+                                    <input
+                                        type="search"
+                                        value={catalogSearch}
+                                        onChange={event => setCatalogSearch(event.target.value)}
+                                        placeholder="Search name, ID, description, modality…"
+                                        className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-900"
+                                    />
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={() => void loadCatalog()}
+                                    disabled={catalogLoading}
+                                    className="rounded-xl border border-blue-200 px-4 py-2.5 text-xs font-bold text-blue-700 hover:bg-blue-50 disabled:opacity-50 dark:border-blue-900 dark:text-blue-300"
+                                >
+                                    {catalogLoading ? 'Loading…' : 'Refresh'}
+                                </button>
+                            </div>
+                            <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                                <input
+                                    type="checkbox"
+                                    checked={freeOnly}
+                                    onChange={event => setFreeOnly(event.target.checked)}
+                                />
+                                Free only (all returned prices are zero)
+                            </label>
+                        </div>
+
+                        {catalogError && (
+                            <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+                                {catalogError}
+                            </p>
                         )}
 
-                        <div className="space-y-3">
-                            <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-400">
-                                Chat model configuration
-                            </span>
-                            <div className="grid gap-3 sm:grid-cols-2">
-                                {Object.entries(tempModels).map(([mode, modelValue]) => (
-                                    <label key={mode} className="block">
-                                        <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-                                            {mode} mode
-                                        </span>
-                                        <input
-                                            type="text"
-                                            list="model-suggestions"
-                                            value={modelValue}
-                                            onChange={event => setTempModels(previous => ({
-                                                ...previous,
-                                                [mode]: event.target.value,
-                                            }))}
-                                            className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-mono outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-900"
-                                        />
-                                    </label>
-                                ))}
+                        {!catalogLoading && !catalogError && (
+                            <div className="space-y-2">
+                                <p className="text-[10px] font-mono text-slate-500">
+                                    {visibleModels.length} matching model{visibleModels.length === 1 ? '' : 's'} from the public OpenRouter catalog{visibleModels.length > listedModels.length ? ` · showing first ${listedModels.length}` : ''}
+                                </p>
+                                <div className="max-h-72 space-y-2 overflow-y-auto rounded-xl border border-slate-200 p-2 dark:border-slate-800">
+                                    {listedModels.map(model => (
+                                        <button
+                                            key={model.id}
+                                            type="button"
+                                            onClick={() => setTempModelId(model.id)}
+                                            className={`w-full rounded-lg border p-3 text-left transition-colors ${tempModelId === model.id
+                                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30'
+                                                : 'border-slate-200 hover:border-blue-300 dark:border-slate-800'
+                                            }`}
+                                        >
+                                            <span className="flex flex-wrap items-center justify-between gap-2">
+                                                <span className="text-xs font-bold text-slate-900 dark:text-white">
+                                                    {model.name}
+                                                </span>
+                                                {isFreeOpenRouterModel(model) && (
+                                                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-bold uppercase text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                                                        Free
+                                                    </span>
+                                                )}
+                                            </span>
+                                            <span className="mt-1 block break-all text-[10px] font-mono text-blue-700 dark:text-blue-300">
+                                                {model.id}
+                                            </span>
+                                            {model.description && (
+                                                <span className="mt-1 block line-clamp-2 text-[10px] leading-relaxed text-slate-500 dark:text-slate-400">
+                                                    {model.description}
+                                                </span>
+                                            )}
+                                            <span className="mt-2 block text-[9px] text-slate-500 dark:text-slate-400">
+                                                Context {model.contextLength?.toLocaleString() || 'not listed'} · Input {formatOpenRouterTokenPrice(model.pricing.prompt)} · Output {formatOpenRouterTokenPrice(model.pricing.completion)}{model.modality ? ` · ${model.modality}` : ''}
+                                            </span>
+                                        </button>
+                                    ))}
+                                    {listedModels.length === 0 && (
+                                        <p className="p-4 text-center text-xs text-slate-500">
+                                            No catalog models match these filters. Use a manual ID below.
+                                        </p>
+                                    )}
+                                </div>
                             </div>
-                            <datalist id="model-suggestions">
-                                {currentModels.map(model => (
-                                    <option key={model} value={model} />
-                                ))}
-                            </datalist>
+                        )}
+
+                        <label className="block">
+                            <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-400">
+                                Selected model ID / manual fallback
+                            </span>
+                            <input
+                                type="text"
+                                value={tempModelId}
+                                onChange={event => setTempModelId(event.target.value)}
+                                placeholder="provider/model-id"
+                                spellCheck={false}
+                                className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-mono outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-900"
+                            />
+                        </label>
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="text-[10px] leading-relaxed text-slate-500 dark:text-slate-400">
+                                No model is chosen by default. MediBrief sends this exact ID for every OpenRouter request.
+                            </span>
+                            <button
+                                type="button"
+                                disabled={!tempModelId}
+                                onClick={() => setTempModelId('')}
+                                className="text-[10px] font-bold uppercase tracking-wider text-red-700 disabled:opacity-40 dark:text-red-300"
+                            >
+                                Clear model selection
+                            </button>
                         </div>
                     </section>
 
@@ -276,7 +374,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                         confidenceThreshold={tempConfidence}
                         timeoutMs={tempTimeoutMs}
                         keepAlive={tempKeepAlive}
-                        allowGeminiFallback={tempFallback}
+                        allowOpenRouterFallback={tempFallback}
                         documentExtractionEnabled={tempDocumentExtractionEnabled}
                         ocrMode={tempOcrMode}
                         ocrEngine={tempOcrEngine}
@@ -289,7 +387,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                         onConfidenceThresholdChange={setTempConfidence}
                         onTimeoutMsChange={setTempTimeoutMs}
                         onKeepAliveChange={setTempKeepAlive}
-                        onAllowGeminiFallbackChange={setTempFallback}
+                        onAllowOpenRouterFallbackChange={setTempFallback}
                         onDocumentExtractionEnabledChange={setTempDocumentExtractionEnabled}
                         onOcrModeChange={setTempOcrMode}
                         onOcrEngineChange={setTempOcrEngine}
@@ -297,7 +395,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                         onOcrResolutionChange={setTempOcrResolution}
                     />
 
-                    {tempExtractionMode !== 'gemini' && (
+                    {tempExtractionMode !== 'openrouter' && (
                         <OpenMedContextBridgeStatus
                             baseUrl={tempOpenMedBaseUrl}
                             timeoutMs={tempTimeoutMs}
@@ -332,7 +430,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                         </button>
                     </div>
                     <p className="mt-2 text-center text-[10px] font-mono italic text-slate-400">
-                        Settings persist in the local encrypted vault.
+                        Assistant settings persist only in the local encrypted vault.
                     </p>
                 </div>
             </div>

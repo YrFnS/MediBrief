@@ -12,6 +12,7 @@ import { migrateCurrentLegacyStores } from '../clinical-record/backupService';
 import { useClinicalRecordStore } from '../clinical-record/useClinicalRecordStore';
 import { useDocumentExtractionStore } from '../openmed/useDocumentExtractionStore';
 import { usePatientStore } from '../patient-management/usePatientStore';
+import { useSettingsStore } from '../settings/useSettingsStore';
 
 const rehydrateEncryptedStores = async (): Promise<void> => {
     await Promise.all([
@@ -21,6 +22,7 @@ const rehydrateEncryptedStores = async (): Promise<void> => {
         useClinicalRecordStore.persist.rehydrate(),
         useDocumentExtractionStore.persist.rehydrate(),
         useAuditStore.persist.rehydrate(),
+        useSettingsStore.persist.rehydrate(),
     ]);
 
     // Build or complete the versioned clinical record only after every legacy
@@ -208,7 +210,7 @@ const SecurityGate: React.FC<{ children: React.ReactNode }> = ({ children }) => 
                     <p className="text-[9px] font-mono uppercase leading-relaxed tracking-tighter text-slate-400">
                         Zero-Knowledge Architecture // Local AES-256 Encryption
                         <br />
-                        Keys never leave memory.
+                        Vault encryption key never leaves memory.
                     </p>
                 </div>
             </div>

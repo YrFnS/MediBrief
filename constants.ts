@@ -1,8 +1,5 @@
 import { ChatMode } from './types';
 
-const Modality = { AUDIO: 'AUDIO' } as const;
-const Type = { OBJECT: 'OBJECT', STRING: 'STRING' } as const;
-
 export const WELCOME_CONTENT = {
     title: 'MediBrief',
     subtitle: 'Local Personal Health Record Assistant',
@@ -44,116 +41,25 @@ export const HELP_COMMAND_RESPONSE = `🔧 **MediBrief Command Reference**
 
 **Modes:**
 - **Normal:** General document and record assistance.
-- **Deep Analysis:** More detailed reasoning with source lookup.
-- **Live:** Voice interaction and local appointment proposals.
-- **Ambient Scribe:** Drafts editable SOAP sections for explicit user review and save.`;
-
-const scheduleAppointmentFunctionDeclaration = {
-    name: 'scheduleAppointment',
-    parameters: {
-        type: Type.OBJECT,
-        description: 'Saves a proposed appointment request in the local MediBrief record. It does not contact a clinic, reserve a time, or confirm a booking.',
-        properties: {
-            patientId: {
-                type: Type.STRING,
-                description: 'The local patient-context identifier.',
-            },
-            date: {
-                type: Type.STRING,
-                description: 'Requested date in YYYY-MM-DD format when known.',
-            },
-            time: {
-                type: Type.STRING,
-                description: 'Requested local time in 24-hour HH:MM format when known.',
-            },
-            notes: {
-                type: Type.STRING,
-                description: 'Optional notes for the local appointment proposal.',
-            },
-        },
-        required: ['patientId', 'date', 'time'],
-    },
-};
-
-const updateSoapNoteFunctionDeclaration = {
-    name: 'updateSoapNote',
-    parameters: {
-        type: Type.OBJECT,
-        description: 'Updates the visible draft SOAP fields. The user must review and explicitly save the note before it becomes a durable local record.',
-        properties: {
-            subjective: {
-                type: Type.STRING,
-                description: 'Symptoms, complaints, and history stated in the conversation.',
-            },
-            objective: {
-                type: Type.STRING,
-                description: 'Measurements, findings, and observations stated in the conversation.',
-            },
-            assessment: {
-                type: Type.STRING,
-                description: 'Assessments or differentials explicitly discussed, preserving uncertainty.',
-            },
-            plan: {
-                type: Type.STRING,
-                description: 'Plans, medications, tests, and follow-up explicitly discussed.',
-            },
-        },
-        required: ['subjective', 'objective', 'assessment', 'plan'],
-    },
-};
+- **Deep Analysis:** More detailed reasoning with the selected model.
+- **Live:** Disabled because browser-only OpenRouter BYOK has no real-time audio transport.
+- **Ambient Scribe:** Manual SOAP editing remains available; live transcription is disabled.`;
 
 export const MODEL_CONFIGS = {
     [ChatMode.Standard]: {
-        model: 'gemini-flash-lite-latest',
-        config: {
-            tools: [{ googleSearch: {} }],
-        },
-        description: 'General record and document assistance with web grounding.',
+        description: 'General record and document assistance.',
         contextLimit: 30,
     },
     [ChatMode.Deep]: {
-        model: 'gemini-3.1-pro-preview',
-        config: {
-            maxOutputTokens: 65536,
-            thinkingConfig: { thinkingBudget: 8192 },
-            tools: [{ googleSearch: {} }],
-        },
-        description: 'Detailed reasoning with literature lookup.',
+        description: 'Detailed reasoning with the explicitly selected model.',
         contextLimit: 10,
     },
     [ChatMode.Live]: {
-        model: 'gemini-2.5-flash-native-audio-preview-12-2025',
-        config: {
-            responseModalities: [Modality.AUDIO],
-            outputAudioTranscription: {},
-            inputAudioTranscription: {},
-            speechConfig: {
-                voiceConfig: {
-                    prebuiltVoiceConfig: { voiceName: 'Zephyr' },
-                },
-            },
-            tools: [{
-                functionDeclarations: [scheduleAppointmentFunctionDeclaration],
-            }],
-        },
-        description: 'Voice assistance with local-only appointment proposals.',
+        description: 'Live audio is unavailable with browser-only OpenRouter BYOK.',
         contextLimit: 6,
     },
     [ChatMode.Scribe]: {
-        model: 'gemini-2.5-flash-native-audio-preview-12-2025',
-        config: {
-            responseModalities: [Modality.AUDIO],
-            inputAudioTranscription: {},
-            speechConfig: {
-                voiceConfig: {
-                    prebuiltVoiceConfig: { voiceName: 'Kore' },
-                },
-            },
-            tools: [{
-                functionDeclarations: [updateSoapNoteFunctionDeclaration],
-            }],
-        },
-        description: 'Silent SOAP-note drafting for explicit user review.',
+        description: 'Manual SOAP-note editing remains available; live transcription is disabled.',
         contextLimit: 0,
     },
 };

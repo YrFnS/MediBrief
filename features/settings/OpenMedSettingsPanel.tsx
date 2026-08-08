@@ -26,7 +26,7 @@ interface OpenMedSettingsPanelProps {
     confidenceThreshold: number;
     timeoutMs: number;
     keepAlive: string;
-    allowGeminiFallback: boolean;
+    allowOpenRouterFallback: boolean;
     documentExtractionEnabled: boolean;
     ocrMode: OpenMedOcrMode;
     ocrEngine: OpenMedOcrEngine;
@@ -39,7 +39,7 @@ interface OpenMedSettingsPanelProps {
     onConfidenceThresholdChange: (value: number) => void;
     onTimeoutMsChange: (value: number) => void;
     onKeepAliveChange: (value: string) => void;
-    onAllowGeminiFallbackChange: (value: boolean) => void;
+    onAllowOpenRouterFallbackChange: (value: boolean) => void;
     onDocumentExtractionEnabledChange: (value: boolean) => void;
     onOcrModeChange: (value: OpenMedOcrMode) => void;
     onOcrEngineChange: (value: OpenMedOcrEngine) => void;
@@ -56,7 +56,7 @@ const MODE_OPTIONS: Array<{
         value: 'auto',
         label: 'Auto',
         description:
-            'Use local OpenMed for supported text, PDFs, and images. Use Gemini only when local extraction is unavailable and fallback is enabled.',
+            'Use local OpenMed for supported text, PDFs, and images. Use OpenRouter only when local extraction is unavailable and fallback is enabled.',
     },
     {
         value: 'openmed',
@@ -65,10 +65,10 @@ const MODE_OPTIONS: Array<{
             'Keep extraction local. Text, embedded PDF text, and configured OCR can be used without cloud fallback.',
     },
     {
-        value: 'gemini',
-        label: 'Gemini only',
+        value: 'openrouter',
+        label: 'OpenRouter only',
         description:
-            'Use the existing compatibility extractor. OpenMed and the local document bridge are not contacted.',
+            'Use your selected OpenRouter model. OpenMed and the local document bridge are not contacted.',
     },
 ];
 
@@ -178,7 +178,7 @@ const OpenMedSettingsPanel: React.FC<OpenMedSettingsPanelProps> = props => {
                 </div>
             </fieldset>
 
-            {props.extractionMode !== 'gemini' && (
+            {props.extractionMode !== 'openrouter' && (
                 <div className="space-y-4">
                     <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
                         <label className="block">
@@ -399,12 +399,12 @@ const OpenMedSettingsPanel: React.FC<OpenMedSettingsPanelProps> = props => {
                         <label className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/60 dark:bg-amber-950/20">
                             <input
                                 type="checkbox"
-                                checked={props.allowGeminiFallback}
-                                onChange={event => props.onAllowGeminiFallbackChange(event.target.checked)}
+                                checked={props.allowOpenRouterFallback}
+                                onChange={event => props.onAllowOpenRouterFallbackChange(event.target.checked)}
                                 className="mt-0.5 h-4 w-4 rounded border-amber-300"
                             />
                             <span className="text-xs leading-relaxed text-amber-800 dark:text-amber-200">
-                                Allow the existing Gemini compatibility extractor only when local document or NER extraction is unsupported or unavailable. Gemini output keeps separate cloud-extraction provenance.
+                                Allow your selected OpenRouter model only when local document or NER extraction is unsupported or unavailable. Cloud output keeps separate extraction provenance and remains a review candidate.
                             </span>
                         </label>
                     )}

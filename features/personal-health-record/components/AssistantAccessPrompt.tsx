@@ -26,10 +26,10 @@ const AssistantAccessPrompt: React.FC<AssistantAccessPromptProps> = ({
                     Optional assistant workspace
                 </p>
                 <h1 className="mt-2 text-2xl font-display font-bold text-slate-950 dark:text-white">
-                    Add an AI provider key for grounded questions
+                    Add your OpenRouter key and select a model
                 </h1>
                 <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-slate-600 dark:text-slate-300">
-                    The confirmed-record summary below works locally without AI. Overview, timeline, emergency summary, candidate review, and the local structured record remain available without an AI key. A provider key is needed only for citation-gated questions, general chat, document analysis, live voice, and ambient scribe features.
+                    The confirmed-record summary below works locally without AI. Overview, timeline, emergency summary, candidate review, and the local structured record remain available without a key. OpenRouter is optional for citation-gated questions, general chat, and cloud document analysis; live audio remains unavailable in this browser-only BYOK deployment.
                 </p>
 
                 <div className="mt-5 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-left dark:border-emerald-900/50 dark:bg-emerald-950/30">
@@ -38,7 +38,7 @@ const AssistantAccessPrompt: React.FC<AssistantAccessPromptProps> = ({
                         <span className="text-xs font-bold">Your record is still usable</span>
                     </div>
                     <p className="mt-1 text-xs leading-relaxed text-emerald-800/75 dark:text-emerald-200/70">
-                        The assistant is no longer the gatekeeper for the personal health record. Overview, Health Data, Timeline, Search & Export, Emergency Summary, and the deterministic summary remain available without an AI provider.
+                        The assistant is no longer the gatekeeper for the personal health record. Overview, Health Data, Timeline, Search & Export, Emergency Summary, and the deterministic summary remain available without OpenRouter.
                     </p>
                 </div>
 
@@ -48,7 +48,7 @@ const AssistantAccessPrompt: React.FC<AssistantAccessPromptProps> = ({
                     className="mt-6 inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-blue-500/20 transition-colors hover:bg-blue-500"
                 >
                     <CogIcon className="h-4 w-4" />
-                    Configure AI provider
+                    Configure OpenRouter
                 </button>
             </div>
 

@@ -3,7 +3,6 @@ import { v4 as uuidv4 } from 'uuid';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuditStore } from '../features/audit/useAuditStore';
 import {
-    ENTITY_EXTRACTION_MODEL,
     ENTITY_EXTRACTION_PROMPT_VERSION,
     extractEntitiesFromUpload,
 } from '../features/clinical-analysis/entityExtractionService';
@@ -37,7 +36,7 @@ interface CandidateWriteCounts {
 const normalizedKey = (value: string): string =>
     value.trim().toLowerCase().replace(/\s+/g, ' ');
 
-const geminiCandidateSource = ({
+const openRouterCandidateSource = ({
     documentId,
     file,
     kind,
@@ -54,27 +53,29 @@ const geminiCandidateSource = ({
         fileName: file.file.name,
         excerpt: value,
     },
-    externalSystem: 'medibrief:gemini-entity-extraction',
+    externalSystem: 'medibrief:openrouter-entity-extraction',
     externalId: `${documentId}:${kind}:${normalizedKey(value)}`,
     description:
-        'Compatibility candidate extracted from an uploaded medical document by Gemini.',
+        'Review candidate extracted from an uploaded medical document by the user-selected OpenRouter model.',
 });
 
-const geminiCandidateBase = ({
+const openRouterCandidateBase = ({
     patientId,
     source,
     now,
+    model,
 }: {
     patientId: string;
     source: RecordSource;
     now: string;
+    model: string;
 }) => ({
     id: uuidv4(),
     patientId,
     verificationStatus: 'candidate' as const,
     recordedAt: now,
     effective: createUnknownClinicalDate(
-        'No clinical event date was extracted by the Gemini compatibility path.',
+        'No clinical event date was extracted by the OpenRouter cloud path.',
     ),
     assertion: {
         polarity: 'unknown' as const,
@@ -87,14 +88,14 @@ const geminiCandidateBase = ({
         createdAt: now,
         updatedAt: now,
         extraction: {
-            engine: 'Google Gemini compatibility extraction',
-            model: ENTITY_EXTRACTION_MODEL,
+            engine: 'OpenRouter candidate extraction',
+            model,
             promptVersion: ENTITY_EXTRACTION_PROMPT_VERSION,
             extractedAt: now,
         },
     },
     amendments: [],
-    tags: ['gemini-extracted', 'needs-review'],
+    tags: ['openrouter-extracted', 'needs-review'],
 });
 
 const ensureDocumentReference = ({
@@ -165,7 +166,10 @@ export const useEntityExtractor = () => {
         openMedConfidenceThreshold: state.openMedConfidenceThreshold,
         openMedTimeoutMs: state.openMedTimeoutMs,
         openMedKeepAlive: state.openMedKeepAlive,
-        allowGeminiExtractionFallback: state.allowGeminiExtractionFallback,
+        allowOpenRouterExtractionFallback:
+            state.allowOpenRouterExtractionFallback,
+        openRouterApiKey: state.openRouterApiKey,
+        openRouterModelId: state.openRouterModelId,
         openMedDocumentExtractionEnabled:
             state.openMedDocumentExtractionEnabled,
         openMedOcrMode: state.openMedOcrMode,
@@ -195,7 +199,7 @@ export const useEntityExtractor = () => {
         const mimeType = file.type
             || file.file.type
             || 'application/octet-stream';
-        const localRoute = settings.extractionMode !== 'gemini';
+        const localRoute = settings.extractionMode !== 'openrouter';
 
         const writeCandidate = (candidate: ConditionRecord
             | AllergyIntoleranceRecord
@@ -206,9 +210,11 @@ export const useEntityExtractor = () => {
             return 'other';
         };
 
-        const addGeminiCompatibilityCandidates = async (): Promise<CandidateWriteCounts> => {
+        const addOpenRouterCandidates = async (): Promise<CandidateWriteCounts> => {
             const counts: CandidateWriteCounts = { created: 0, duplicates: 0 };
             const entities = await extractEntitiesFromUpload(file, {
+                apiKey: settings.openRouterApiKey,
+                model: settings.openRouterModelId,
                 signal: controller.signal,
             });
             if (controller.signal.aborted) return counts;
@@ -216,14 +222,19 @@ export const useEntityExtractor = () => {
             entities.diagnosis.forEach(diagnosis => {
                 const clean = diagnosis.trim();
                 if (!clean) return;
-                const source = geminiCandidateSource({
+                const source = openRouterCandidateSource({
                     documentId,
                     file,
                     kind: 'condition',
                     value: clean,
                 });
                 const candidate: ConditionRecord = {
-                    ...geminiCandidateBase({ patientId, source, now }),
+                    ...openRouterCandidateBase({
+                        patientId,
+                        source,
+                        now,
+                        model: settings.openRouterModelId,
+                    }),
                     resourceType: 'Condition',
                     code: { text: clean },
                     clinicalStatus: 'unknown',
@@ -238,14 +249,19 @@ export const useEntityExtractor = () => {
             entities.allergies.forEach(allergy => {
                 const clean = allergy.trim();
                 if (!clean) return;
-                const source = geminiCandidateSource({
+                const source = openRouterCandidateSource({
                     documentId,
                     file,
                     kind: 'allergy',
                     value: clean,
                 });
                 const candidate: AllergyIntoleranceRecord = {
-                    ...geminiCandidateBase({ patientId, source, now }),
+                    ...openRouterCandidateBase({
+                        patientId,
+                        source,
+                        now,
+                        model: settings.openRouterModelId,
+                    }),
                     resourceType: 'AllergyIntolerance',
                     substance: { text: clean },
                     clinicalStatus: 'unknown',
@@ -262,14 +278,19 @@ export const useEntityExtractor = () => {
 
             const codeStatus = entities.codeStatus?.trim();
             if (codeStatus) {
-                const source = geminiCandidateSource({
+                const source = openRouterCandidateSource({
                     documentId,
                     file,
                     kind: 'code-status',
                     value: codeStatus,
                 });
                 const candidate: ObservationRecord = {
-                    ...geminiCandidateBase({ patientId, source, now }),
+                    ...openRouterCandidateBase({
+                        patientId,
+                        source,
+                        now,
+                        model: settings.openRouterModelId,
+                    }),
                     resourceType: 'Observation',
                     status: 'final',
                     category: [{ text: 'Advance directive' }],
@@ -432,7 +453,7 @@ export const useEntityExtractor = () => {
                 const fallbackEligible = openMedResult.status === 'unsupported'
                     || openMedResult.status === 'unavailable';
                 const shouldFallback = settings.extractionMode === 'auto'
-                    && settings.allowGeminiExtractionFallback
+                    && settings.allowOpenRouterExtractionFallback
                     && fallbackEligible;
 
                 if (!shouldFallback) {
@@ -472,7 +493,7 @@ export const useEntityExtractor = () => {
 
                 // Auto mode reaches this branch only for unsupported or
                 // unavailable local extraction when fallback was explicitly enabled.
-                const fallbackCounts = await addGeminiCompatibilityCandidates();
+                const fallbackCounts = await addOpenRouterCandidates();
                 documentActions.fail({
                     patientId,
                     documentId,
@@ -484,15 +505,14 @@ export const useEntityExtractor = () => {
                         : 'failed',
                     warnings: openMedResult.warnings,
                     fallbackUsed: true,
-                    message: `Local extraction did not complete. Gemini compatibility fallback created ${fallbackCounts.created} candidate${fallbackCounts.created === 1 ? '' : 's'} with separate cloud provenance.`,
+                    message: `Local extraction did not complete. OpenRouter fallback created ${fallbackCounts.created} candidate${fallbackCounts.created === 1 ? '' : 's'} with separate cloud provenance.`,
                 });
                 return;
             }
 
-            await addGeminiCompatibilityCandidates();
+            await addOpenRouterCandidates();
         } catch (error) {
             if (!controller.signal.aborted) {
-                console.warn('Candidate extraction failed:', error);
                 if (localRoute) {
                     documentActions.fail({
                         patientId,

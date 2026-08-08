@@ -30,7 +30,7 @@ import { usePatientStore } from '../patient-management/usePatientStore';
 import SidebarRoster from '../patient-roster/SidebarRoster';
 import ScribeInterface from '../scribe/ScribeInterface';
 import SettingsModal from '../settings/SettingsModal';
-import { AIProvider, useSettingsStore } from '../settings/useSettingsStore';
+import { useSettingsStore } from '../settings/useSettingsStore';
 import { useUIStore } from '../ui/UIContext';
 import BioMetricBackground from './BioMetricBackground';
 
@@ -93,8 +93,10 @@ const MainLayout: React.FC = () => {
     const isOnline = useOnlineStatus();
 
     const { isLocked, isBlurred, unlock } = useSecurityLock();
-    const { provider, openRouterApiKey } = useSettingsStore();
-    const hasAnyApiKey = provider === AIProvider.Gemini || Boolean(openRouterApiKey);
+    const { openRouterApiKey, openRouterModelId } = useSettingsStore();
+    const hasAssistantConfig = Boolean(
+        openRouterApiKey.trim() && openRouterModelId.trim(),
+    );
 
     useEffect(() => {
         const handleResize = () => {
@@ -300,7 +302,7 @@ const MainLayout: React.FC = () => {
         );
     }
 
-    if (!hasAnyApiKey && !isSettingsOpen) {
+    if (!hasAssistantConfig && !isSettingsOpen) {
         return (
             <div className="flex h-[100dvh] flex-col items-center justify-center bg-slate-100 p-4 font-sans text-slate-800">
                 <div className="max-w-md rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-xl">
@@ -309,7 +311,7 @@ const MainLayout: React.FC = () => {
                         AI Key Required
                     </h1>
                     <p className="mb-6 text-sm leading-relaxed text-slate-600">
-                        To activate the Clinical Intelligence Layer, provide a Gemini or OpenRouter API key.
+                        Add your OpenRouter API key and explicitly select a model. No key or default model is provided by MediBrief or Vercel.
                     </p>
                     <button
                         onClick={() => setIsSettingsOpen(true)}

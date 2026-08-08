@@ -61,7 +61,7 @@ const LiveTranscriptDisplay: React.FC<LiveTranscriptDisplayProps> = ({ transcrip
                 <div className="relative z-10">
                     <div className="flex items-center gap-2 mb-1 text-green-600 dark:text-green-500">
                         <BotIcon className="w-3 h-3" />
-                        <span className="text-[9px] font-mono uppercase tracking-wider">System_Output (Gemini)</span>
+                        <span className="text-[9px] font-mono uppercase tracking-wider">System output (OpenRouter)</span>
                         {transcript.modelOutput && !transcript.userInput && <AudioWave />}
                     </div>
                     <div className="pl-2 border-l-2 border-green-500/50">

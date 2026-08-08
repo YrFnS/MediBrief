@@ -3,7 +3,7 @@
 
 **MediBrief** is a medical-grade intelligence layer designed to act as a proactive safety partner for healthcare professionals. Unlike standard chatbots, it functions as a **Clinical Decision Support System (CDSS)**, synthesizing raw patient data into structured, actionable artifacts while enforcing strict safety protocols.
 
-It leverages the **Google Gemini 3.0 & 2.5** models for reasoning and **Gemini Live** for real-time voice telemetry, wrapped in a robust, **Zero-Knowledge Encrypted** architecture.
+It uses **browser-local OpenRouter BYOK** for optional AI requests: the user enters a key into the encrypted local vault, explicitly selects a model from OpenRouter's live public catalog (or enters an ID manually), and the browser sends requests directly to OpenRouter. MediBrief and Vercel hold no AI key or default model. Real-time voice and ambient transcription are disabled in this deployment.
 
 ---
 
@@ -32,7 +32,7 @@ graph TD
     end
 
     subgraph "Intelligence Layer"
-        Orchestrator[Chat Orchestrator] --> Gemini[Google Gemini API]
+        Orchestrator[Chat Orchestrator] --> OpenRouter[OpenRouter API via browser BYOK]
         Orchestrator --> Safety[Safety Service]
         Safety --> OpenFDA[openFDA API]
         Safety --> Rules[Rules Engine]
@@ -42,8 +42,7 @@ graph TD
     subgraph "Ingestion Pipeline"
         Upload[File Upload] --> Extractor[Entity Extractor]
         Extractor --> ClinS
-        Scribe -->|Live Audio| GeminiLive[Gemini Live API]
-        GeminiLive -->|SOAP Tool| Chat
+        Scribe -->|Manual Review| Chat
     end
 
     Gate -.-> Crypto
@@ -92,9 +91,9 @@ MediBrief enforces a strict **"Truth Above All"** protocol using a multi-stage v
 *   **RAG Retrieval**: Retrieves relevant hospital protocols (e.g., Sepsis-3, KDIGO AKI) based on patient data tokens.
 *   **Intervention Cards**: High-visibility alerts (Critical/Warning/Info) that overlay the interface when protocols are violated.
 
-### 4. Ambient Scribe Mode
-*   **Passive Documentation**: Uses **Gemini Live** to listen to doctor-patient consultations.
-*   **Real-Time SOAP**: As the consultation progresses, the model calls the `updateSoapNote` tool to populate a structured note in real-time.
+### 4. SOAP Note Workspace
+*   **Manual Review**: SOAP sections remain editable and can be explicitly saved to the local structured record.
+*   **Deployment Boundary**: Ambient transcription is disabled because browser-only OpenRouter chat completions do not provide the required real-time audio transport.
 
 ### 5. Native Multimodal Ingestion
 *   **PACS Viewer**: Specialized image viewer with **Zoom**, **Contrast**, and **Invert (Bone Window)** controls for X-Rays/CTs.
@@ -123,7 +122,7 @@ src/
 │   ├── security/        # EncryptionService, SecurityGate, Auto-Lock
 │   └── ui/              # Global UI state (loading, modes)
 ├── components/          # Shared atomic components (Icons, Toast)
-├── services/            # API wrappers (Gemini, BlobStorage, Encryption)
+├── services/            # OpenRouter BYOK, BlobStorage, and Encryption wrappers
 ├── hooks/               # Utility hooks (Audio, DragAndDrop)
 └── workers/             # Audio processing workers (PCM)
 ```
@@ -137,7 +136,7 @@ src/
 *   **Storage**: `idb-keyval` (IndexedDB wrapper).
 *   **Security**: Web Crypto API (PBKDF2 + AES-GCM).
 *   **Validation**: `zod`.
-*   **AI**: `@google/genai` (v1.29.1).
+*   **AI**: OpenRouter public model catalog and chat-completions HTTP APIs (browser BYOK).
 *   **Audio**: Web Audio API + AudioWorklet (Low latency PCM).
 *   **Data Standard**: FHIR R4 (Partial implementation).
 
@@ -146,10 +145,9 @@ src/
 ## 🚀 Getting Started
 
 1.  **Prerequisites**: Node.js 18+.
-2.  **Environment**: Create a `.env` file with `API_KEY=your_gemini_api_key`.
-    *   *Note: For the Ambient Scribe, ensure your project has access to the Gemini Live API.*
-3.  **Install**: `npm install`
-4.  **Run**: `npm start` (or `npm run dev` depending on your script).
-5.  **Initialize**: On first launch, set a 4-digit PIN to initialize the encryption keystore.
+2.  **Install**: `npm install` (no AI environment variables are used).
+3.  **Run**: `npm run dev`.
+4.  **Initialize**: On first launch, set a 4-digit PIN to initialize the encrypted local vault.
+5.  **Optional AI**: Open Settings, enter your own OpenRouter key, refresh/search the live catalog, and explicitly select a model. The key is stored only in the encrypted browser vault and sent directly to OpenRouter as a Bearer header.
 
 **Disclaimer:** *MediBrief is a demonstration of Clinical AI architecture. It is not a certified medical device. All outputs must be verified by a licensed healthcare professional.*

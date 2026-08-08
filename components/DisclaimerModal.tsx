@@ -49,7 +49,7 @@ const DisclaimerModal: React.FC = () => {
                             <strong className="text-white">2. HUMAN VERIFICATION REQUIRED:</strong> AI-generated summaries, safety checks, and clinical decision support outputs are probabilistic and may be incorrect. <strong className="text-white">You must independently verify all outputs.</strong>
                         </p>
                         <p>
-                            <strong className="text-white">3. DATA TRANSMISSION:</strong> The "Live Scribe" and "Chat" features transmit data to the Google Gemini API. Ensure you are using this software in compliance with your institution's data governance policies (HIPAA/GDPR). Do not input Real Patient Data unless your API key is provisioned under a BAA.
+                            <strong className="text-white">3. DATA TRANSMISSION:</strong> OpenRouter-powered chat and cloud extraction send the submitted content directly from this browser to OpenRouter using your key. Live audio is disabled. Follow applicable privacy, consent, institutional, HIPAA/GDPR, and provider-account requirements; do not submit real patient data without an appropriate approved arrangement.
                         </p>
                     </div>
 

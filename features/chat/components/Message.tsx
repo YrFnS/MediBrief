@@ -13,6 +13,7 @@ import { isHighCredibilitySource } from '../../../utils/sourceVerification';
 import { useAuditStore } from '../../audit/useAuditStore';
 import { usePatientStore } from '../../patient-management/usePatientStore';
 import { reviewMedicationLabelsAsync } from '../../safety/dosageVerifier';
+import { useSettingsStore } from '../../settings/useSettingsStore';
 import { extractMedicationsFromText } from '../../safety/safetyExtractionService';
 import type {
     MedicationLabelReviewResult,
@@ -78,6 +79,8 @@ const Message: React.FC<MessageProps> = ({
 
     const activePatientId = usePatientStore(state => state.activePatientId);
     const auditActions = useAuditStore(state => state.actions);
+    const openRouterApiKey = useSettingsStore(state => state.openRouterApiKey);
+    const openRouterModelId = useSettingsStore(state => state.openRouterModelId);
 
     const labelAbortControllerRef = useRef<AbortController | null>(null);
     const extractAbortControllerRef = useRef<AbortController | null>(null);
@@ -153,7 +156,11 @@ const Message: React.FC<MessageProps> = ({
             message.content.toLowerCase().includes(keyword),
         );
 
-        if (!mightHaveMedications) {
+        if (
+            !mightHaveMedications
+            || !openRouterApiKey.trim()
+            || !openRouterModelId.trim()
+        ) {
             setIsExtractionDone(true);
             return;
         }
@@ -162,6 +169,11 @@ const Message: React.FC<MessageProps> = ({
             try {
                 const medications = await extractMedicationsFromText(
                     message.content,
+                    {
+                        apiKey: openRouterApiKey,
+                        model: openRouterModelId,
+                        signal: controller.signal,
+                    },
                 );
                 if (medications.length > 0 && !controller.signal.aborted) {
                     setExtractedMeds(medications);
@@ -177,7 +189,14 @@ const Message: React.FC<MessageProps> = ({
             window.clearTimeout(timer);
             controller.abort();
         };
-    }, [isModel, message.content, isLoading, isExtractionDone]);
+    }, [
+        isModel,
+        message.content,
+        isLoading,
+        isExtractionDone,
+        openRouterApiKey,
+        openRouterModelId,
+    ]);
 
     const handleReviewLabels = async (medications: ParsedMedication[]) => {
         setExtractedMeds(null);

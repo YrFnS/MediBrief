@@ -21,8 +21,8 @@ describe('Phase 2 personal record workspace', () => {
             '../features/personal-health-record/components/AssistantAccessPrompt.tsx',
         );
 
-        expect(workspace).toContain("view === 'assistant' && hasAnyApiKey");
-        expect(prompt).toContain('record remain available without an AI key');
+        expect(workspace).toContain("view === 'assistant' && hasAssistantConfig");
+        expect(prompt).toContain('record remain available without a key');
         expect(prompt).toContain('assistant is no longer the gatekeeper');
     });
 

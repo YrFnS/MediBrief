@@ -26,16 +26,16 @@ describe('Phase 3 OpenMed workspace contracts', () => {
         expect(settings).toContain('openMedBaseUrl');
         expect(settings).toContain('openMedDiseaseModel');
         expect(settings).toContain('openMedMedicationModel');
-        expect(settings).toContain('allowGeminiExtractionFallback: false');
+        expect(settings).toContain('allowOpenRouterExtractionFallback: false');
         expect(settings).toContain('openMedDocumentExtractionEnabled: true');
         expect(settings).toContain("openMedOcrMode: 'auto'");
         expect(settings).toContain("openMedOcrLanguages: ['en']");
-        expect(modal).toContain('Assistant AI');
+        expect(modal).toContain('OpenRouter assistant');
         expect(modal).toContain('OpenMedSettingsPanel');
         expect(modal).toContain('OpenMedContextBridgeStatus');
         expect(openMedPanel).toContain('Clinical document extraction');
         expect(openMedPanel).toContain('OpenMed only');
-        expect(openMedPanel).toContain('Gemini only');
+        expect(openMedPanel).toContain('OpenRouter only');
         expect(openMedPanel).toContain('Enable local PDF and image text extraction');
         expect(openMedPanel).toContain('Auto — OCR pages without usable embedded text');
         expect(contextStatus).toContain('Test context bridge');
@@ -99,7 +99,7 @@ describe('Phase 3 OpenMed workspace contracts', () => {
         expect(workspace).toContain('ClinicalCandidateReview');
     });
 
-    it('keeps local OpenMed and cloud Gemini provenance distinguishable', () => {
+    it('keeps local OpenMed and cloud OpenRouter provenance distinguishable', () => {
         const extractionHook = source('../hooks/useEntityExtractor.ts');
         const mapping = source(
             '../features/openmed/candidateMapping.ts',
@@ -108,12 +108,12 @@ describe('Phase 3 OpenMed workspace contracts', () => {
         expect(mapping).toContain('OpenMed local REST NER');
         expect(mapping).toContain('openmed-extracted');
         expect(extractionHook).toContain(
-            'Google Gemini compatibility extraction',
+            'OpenRouter candidate extraction',
         );
         expect(extractionHook).toContain(
-            'medibrief:gemini-entity-extraction',
+            'medibrief:openrouter-entity-extraction',
         );
-        expect(extractionHook).toContain('gemini-extracted');
+        expect(extractionHook).toContain('openrouter-extracted');
         expect(extractionHook).toContain('separate cloud provenance');
     });
 
@@ -130,7 +130,7 @@ describe('Phase 3 OpenMed workspace contracts', () => {
             "openMedResult.status === 'unavailable'",
         );
         expect(extractionHook).toContain(
-            'settings.allowGeminiExtractionFallback',
+            'settings.allowOpenRouterExtractionFallback',
         );
         expect(extractionHook).toContain(
             'Auto mode reaches this branch only for unsupported or',
@@ -139,7 +139,7 @@ describe('Phase 3 OpenMed workspace contracts', () => {
             'when local document or NER extraction is unsupported or unavailable',
         );
         expect(settingsPanel).toContain(
-            'Gemini output keeps separate cloud-extraction provenance',
+            'Cloud output keeps separate extraction provenance',
         );
     });
 

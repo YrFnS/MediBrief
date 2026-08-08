@@ -1,67 +1,37 @@
-
-import { generateGeminiContent } from '../../services/geminiProxy';
+import { completeOpenRouterChat } from '../../services/openRouter';
 import { parseAndValidate } from '../../utils';
-import { ParsedMedication } from './types';
-import { MedicationListSchema, type MedicationList } from '../chat/schemas';
-
-const MODEL = 'gemini-3-flash-preview'; 
+import { MedicationListSchema } from '../chat/schemas';
+import type { ParsedMedication } from './types';
 
 const EXTRACTION_PROMPT = `
 You are a Clinical Entity Extractor.
 Extract all medications and their specific dosages from the provided text.
 
-**RULES:**
-1. Return ONLY valid JSON.
-2. Normalize the drug name to its generic name if possible (e.g., "Tylenol" -> "Acetaminophen").
+RULES:
+1. Return only valid JSON.
+2. Normalize the drug name to its generic name if possible.
 3. Extract numerical amount and unit separately.
 4. If no dosage is specified, set amount to 0.
+5. If no medications are found, return an empty array.
 
-**OUTPUT SCHEMA:**
-\`\`\`json
-[
-  { 
-    "drugName": "string", 
-    "amount": number, 
-    "unit": "string" (e.g., "mg", "g", "mcg", "IU"),
-    "context": "string" (e.g., "taking", "prescribed", "discontinued")
-  }
-]
-\`\`\`
-
-If no medications are found, return an empty array [].
+OUTPUT: [{"drugName":"string","amount":number,"unit":"string","context":"string"}]
 `;
 
-export const extractMedicationsFromText = async (text: string): Promise<MedicationList> => {
-    try {
-        const response = await generateGeminiContent({
-            model: MODEL,
-            contents: [
-                {
-                    role: 'user',
-                    parts: [
-                        { text: EXTRACTION_PROMPT },
-                        { text: `\n\n**TEXT TO ANALYZE:**\n${text}` }
-                    ]
-                }
-            ],
-            config: {
-                responseMimeType: 'application/json',
-                temperature: 0
-            }
-        });
-
-        const output = response.text;
-        if (!output) return [];
-
-        const parsed = parseAndValidate(output, MedicationListSchema);
-        
-        if (parsed) {
-            return parsed;
-        }
-        return [];
-
-    } catch (e) {
-        console.warn("Safety Extraction Failed:", e);
-        return [];
-    }
+export const extractMedicationsFromText = async (
+    text: string,
+    options: { apiKey: string; model: string; signal?: AbortSignal },
+): Promise<ParsedMedication[]> => {
+    const output = await completeOpenRouterChat({
+        apiKey: options.apiKey,
+        model: options.model,
+        signal: options.signal,
+        responseFormat: 'json',
+        temperature: 0,
+        title: 'MediBrief Medication Candidate Extraction',
+        messages: [{
+            role: 'user',
+            content: `${EXTRACTION_PROMPT}\n\nTEXT TO ANALYZE:\n${text}`,
+        }],
+    });
+    return (parseAndValidate(output, MedicationListSchema) || []) as ParsedMedication[];
 };

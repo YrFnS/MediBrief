@@ -66,7 +66,6 @@ describe('Phase 4 report-level review workspace contracts', () => {
 
         expect(orchestrator).toContain('createPendingLegacyLabReview');
         expect(orchestrator).toContain('`document-${uploadedFile.storageId}`');
-        expect(orchestrator).toContain('Google Gemini lab-report extraction');
         expect(orchestrator).toContain('OpenRouter lab-report extraction');
         expect(uiState).toContain('PendingLegacyLabReview | null');
         expect(adapter).toContain("verificationStatus: 'candidate'");

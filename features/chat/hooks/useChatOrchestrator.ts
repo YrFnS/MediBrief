@@ -3,7 +3,6 @@ import { useCallback, useEffect, useRef } from 'react';
 import {
     ChatMode as ChatModeEnum,
     type ChatMessage,
-    type GroundingSource,
     type UploadedFile,
 } from '../../../types';
 import {
@@ -11,7 +10,6 @@ import {
     DRUG_ANALYSIS_PROMPT,
     FILE_ANALYSIS_PROMPT,
     HELP_COMMAND_RESPONSE,
-    MODEL_CONFIGS,
     SHIFT_BRIEFING_PROMPT,
 } from '../../../constants';
 import { generateResponseStream } from '../../../services/aiService';
@@ -22,7 +20,6 @@ import {
     isLabReport,
     parseAndValidate,
 } from '../../../utils';
-import { isHighCredibilitySource } from '../../../utils/sourceVerification';
 import { useEntityExtractor } from '../../../hooks/useEntityExtractor';
 import { useAuditStore } from '../../audit/useAuditStore';
 import { useClinicalRecordStore } from '../../clinical-record/useClinicalRecordStore';
@@ -33,7 +30,7 @@ import {
 } from '../../grounded-assistance';
 import type { PatientMetadata } from '../../patient-management/types';
 import { usePatientStore } from '../../patient-management/usePatientStore';
-import { AIProvider, useSettingsStore } from '../../settings/useSettingsStore';
+import { useSettingsStore } from '../../settings/useSettingsStore';
 import type { UIAction } from '../../ui/UIContext';
 import { BriefingSchema, LabReportSchema } from '../schemas';
 import { useChatStore } from '../stores/useChatStore';
@@ -80,15 +77,9 @@ export const useChatOrchestrator = ({
         state => state.records[activePatientId],
     );
     const {
-        provider,
         openRouterApiKey,
-        customModels,
+        openRouterModelId,
     } = useSettingsStore();
-
-    const getModelForMode = useCallback((mode: ChatModeEnum) =>
-        customModels[mode]
-        || MODEL_CONFIGS[mode]?.model
-        || 'gemini-1.5-flash', [customModels]);
 
     const abortControllerRef = useRef<AbortController | null>(null);
     const { triggerExtraction } = useEntityExtractor();
@@ -141,18 +132,15 @@ export const useChatOrchestrator = ({
 
             try {
                 const modeForRequest = ChatModeEnum.Standard;
-                const apiKey = provider === AIProvider.Gemini
-                    ? undefined
-                    : openRouterApiKey;
                 const stream = generateResponseStream(
                     SHIFT_BRIEFING_PROMPT(),
                     history,
                     modeForRequest,
                     {
                         responseType: 'json',
-                        apiKey,
-                        provider,
-                        model: getModelForMode(modeForRequest),
+                        apiKey: openRouterApiKey,
+                        model: openRouterModelId,
+                        signal: abortControllerRef.current.signal,
                     },
                 );
                 let fullResponseText = '';
@@ -426,9 +414,6 @@ export const useChatOrchestrator = ({
 
         try {
             const history = groundedTurn ? [] : [...messages];
-            const apiKey = provider === AIProvider.Gemini
-                ? undefined
-                : openRouterApiKey;
             const stream = generateResponseStream(
                 finalApiPrompt,
                 history,
@@ -436,9 +421,9 @@ export const useChatOrchestrator = ({
                 {
                     file: fileForApi,
                     responseType,
-                    apiKey,
-                    provider,
-                    model: getModelForMode(modeForRequest),
+                    apiKey: openRouterApiKey,
+                    model: openRouterModelId,
+                    signal: abortControllerRef.current.signal,
                 },
             );
 
@@ -449,29 +434,8 @@ export const useChatOrchestrator = ({
                 const textChunk = chunk.text || '';
                 fullResponseBuffer += textChunk;
 
-                const groundingMetadata = chunk.candidates?.[0]
-                    ?.groundingMetadata;
-                let sources: GroundingSource[] | undefined;
-                if (groundingMetadata?.groundingChunks) {
-                    sources = groundingMetadata.groundingChunks
-                        .map(chunk => {
-                            if (chunk.web) {
-                                return {
-                                    web: chunk.web,
-                                    rejected: !isHighCredibilitySource(
-                                        chunk.web.uri,
-                                    ),
-                                };
-                            }
-                            if ((chunk as any).maps) {
-                                return { maps: (chunk as any).maps };
-                            }
-                            return undefined;
-                        })
-                        .filter(Boolean) as GroundingSource[];
-                }
                 if (!groundedTurn) {
-                    appendToLastMessage(activePatientId, textChunk, sources);
+                    appendToLastMessage(activePatientId, textChunk);
                 }
             }
 
@@ -566,9 +530,7 @@ export const useChatOrchestrator = ({
                         payload: createPendingLegacyLabReview({
                             report,
                             source,
-                            extractionEngine: provider === AIProvider.Gemini
-                                ? 'Google Gemini lab-report extraction'
-                                : 'OpenRouter lab-report extraction',
+                            extractionEngine: 'OpenRouter lab-report extraction',
                         }),
                     });
                 } else {
@@ -589,11 +551,10 @@ export const useChatOrchestrator = ({
         auditActions,
         chatMode,
         clearFile,
-        getModelForMode,
         isLive,
         messages,
         openRouterApiKey,
-        provider,
+        openRouterModelId,
         resetChat,
         setUploadedFile,
         stopSession,

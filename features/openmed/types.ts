@@ -7,7 +7,7 @@ import type {
 } from './documentTypes';
 import type { OpenMedLanguageAssessment } from './languagePolicy';
 
-export type ClinicalExtractionMode = 'auto' | 'openmed' | 'gemini';
+export type ClinicalExtractionMode = 'auto' | 'openmed' | 'openrouter';
 
 export interface OpenMedClientConfig {
     baseUrl: string;

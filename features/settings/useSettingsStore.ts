@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { indexedDBStorage } from '../../services/storage';
-import { ChatMode } from '../../types';
 import type {
     OpenMedOcrEngine,
     OpenMedOcrMode,
@@ -12,15 +11,9 @@ import {
 } from '../openmed/openMedClient';
 import type { ClinicalExtractionMode } from '../openmed/types';
 
-export enum AIProvider {
-    Gemini = 'Gemini',
-    OpenRouter = 'OpenRouter',
-}
-
 interface SettingsState {
-    provider: AIProvider;
     openRouterApiKey: string;
-    customModels: Record<ChatMode, string>;
+    openRouterModelId: string;
 
     extractionMode: ClinicalExtractionMode;
     openMedBaseUrl: string;
@@ -29,16 +22,15 @@ interface SettingsState {
     openMedConfidenceThreshold: number;
     openMedTimeoutMs: number;
     openMedKeepAlive: string;
-    allowGeminiExtractionFallback: boolean;
+    allowOpenRouterExtractionFallback: boolean;
     openMedDocumentExtractionEnabled: boolean;
     openMedOcrMode: OpenMedOcrMode;
     openMedOcrEngine: OpenMedOcrEngine;
     openMedOcrLanguages: string[];
     openMedOcrResolution: number;
 
-    setProvider: (provider: AIProvider) => void;
     setOpenRouterApiKey: (key: string) => void;
-    setCustomModel: (mode: ChatMode, model: string) => void;
+    setOpenRouterModelId: (modelId: string) => void;
     setExtractionMode: (mode: ClinicalExtractionMode) => void;
     setOpenMedBaseUrl: (value: string) => void;
     setOpenMedDiseaseModel: (value: string) => void;
@@ -46,7 +38,7 @@ interface SettingsState {
     setOpenMedConfidenceThreshold: (value: number) => void;
     setOpenMedTimeoutMs: (value: number) => void;
     setOpenMedKeepAlive: (value: string) => void;
-    setAllowGeminiExtractionFallback: (value: boolean) => void;
+    setAllowOpenRouterExtractionFallback: (value: boolean) => void;
     setOpenMedDocumentExtractionEnabled: (value: boolean) => void;
     setOpenMedOcrMode: (value: OpenMedOcrMode) => void;
     setOpenMedOcrEngine: (value: OpenMedOcrEngine) => void;
@@ -81,14 +73,8 @@ const normalizeOcrResolution = (value: number): number => {
 export const useSettingsStore = create<SettingsState>()(
     persist(
         set => ({
-            provider: AIProvider.Gemini,
             openRouterApiKey: '',
-            customModels: {
-                [ChatMode.Standard]: '',
-                [ChatMode.Deep]: '',
-                [ChatMode.Live]: '',
-                [ChatMode.Scribe]: '',
-            },
+            openRouterModelId: '',
 
             extractionMode: 'auto',
             openMedBaseUrl: DEFAULT_OPENMED_BASE_URL,
@@ -97,20 +83,15 @@ export const useSettingsStore = create<SettingsState>()(
             openMedConfidenceThreshold: 0.6,
             openMedTimeoutMs: DEFAULT_OPENMED_TIMEOUT_MS,
             openMedKeepAlive: '10m',
-            // Cloud fallback must be a conscious user choice. Existing Gemini
-            // settings remain intact, but Auto mode starts local-only.
-            allowGeminiExtractionFallback: false,
+            allowOpenRouterExtractionFallback: false,
             openMedDocumentExtractionEnabled: true,
             openMedOcrMode: 'auto',
             openMedOcrEngine: 'auto',
             openMedOcrLanguages: ['en'],
             openMedOcrResolution: 200,
 
-            setProvider: provider => set({ provider }),
             setOpenRouterApiKey: openRouterApiKey => set({ openRouterApiKey }),
-            setCustomModel: (mode, model) => set(state => ({
-                customModels: { ...state.customModels, [mode]: model },
-            })),
+            setOpenRouterModelId: openRouterModelId => set({ openRouterModelId }),
             setExtractionMode: extractionMode => set({ extractionMode }),
             setOpenMedBaseUrl: openMedBaseUrl => set({ openMedBaseUrl }),
             setOpenMedDiseaseModel: openMedDiseaseModel => set({
@@ -128,8 +109,8 @@ export const useSettingsStore = create<SettingsState>()(
             setOpenMedKeepAlive: openMedKeepAlive => set({
                 openMedKeepAlive,
             }),
-            setAllowGeminiExtractionFallback: value => set({
-                allowGeminiExtractionFallback: value,
+            setAllowOpenRouterExtractionFallback: value => set({
+                allowOpenRouterExtractionFallback: value,
             }),
             setOpenMedDocumentExtractionEnabled: value => set({
                 openMedDocumentExtractionEnabled: value,
@@ -145,7 +126,23 @@ export const useSettingsStore = create<SettingsState>()(
         }),
         {
             name: 'medibrief-settings-storage',
+            version: 2,
             storage: createJSONStorage(() => indexedDBStorage),
+            skipHydration: true,
+            migrate: persisted => {
+                const legacy = persisted as Partial<SettingsState> &
+                    Record<string, unknown>;
+                const legacyMode = legacy.extractionMode as string | undefined;
+                return {
+                    ...legacy,
+                    openRouterModelId: '',
+                    extractionMode: legacyMode === 'openmed'
+                        || legacyMode === 'openrouter'
+                        ? legacyMode
+                        : 'auto',
+                    allowOpenRouterExtractionFallback: false,
+                } as SettingsState;
+            },
         },
     ),
 );

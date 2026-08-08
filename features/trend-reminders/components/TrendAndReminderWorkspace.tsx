@@ -8,8 +8,6 @@ import {
     ListChecksIcon,
     ShieldCheckIcon,
 } from '../../../components/icons';
-import { MODEL_CONFIGS } from '../../../constants';
-import { ChatMode } from '../../../types';
 import { useAuditStore } from '../../audit/useAuditStore';
 import DocumentSourcePreview from '../../clinical-record/components/DocumentSourcePreview';
 import type {
@@ -35,7 +33,7 @@ import type {
     ExplicitReminderItem,
     ExplicitReminderState,
 } from '../types';
-import { AIProvider, useSettingsStore } from '../../settings/useSettingsStore';
+import { useSettingsStore } from '../../settings/useSettingsStore';
 import { StatusBadge } from '../../personal-health-record/components/CoreModulePrimitives';
 
 interface TrendAndReminderWorkspaceProps {
@@ -158,7 +156,7 @@ const TrendCard: React.FC<{
                             className="min-h-10 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-blue-700 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300"
                             title={providerReady
                                 ? 'Generate optional citation-gated wording without web tools'
-                                : 'Configure an AI provider key to use optional model wording'}
+                                : 'Configure your OpenRouter key and model to use optional model wording'}
                         >
                             Optional model wording
                         </button>
@@ -456,9 +454,8 @@ const TrendAndReminderWorkspace: React.FC<TrendAndReminderWorkspaceProps> = ({
     const auditActions = useAuditStore(state => state.actions);
     const addResource = useClinicalRecordStore(state => state.actions.addResource);
     const {
-        provider,
         openRouterApiKey,
-        customModels,
+        openRouterModelId,
     } = useSettingsStore();
     const referenceDate = useMemo(() => new Date(), [record.updatedAt]);
     const trends = useMemo(
@@ -475,14 +472,8 @@ const TrendAndReminderWorkspace: React.FC<TrendAndReminderWorkspaceProps> = ({
     );
     const visibleTrends = trends.explanations.filter(explanation =>
         trendExplanationMatchesSearch(explanation, search));
-    const apiKey = provider === AIProvider.Gemini
-        ? undefined
-        : openRouterApiKey;
-    const model = customModels[ChatMode.Standard]
-        || MODEL_CONFIGS[ChatMode.Standard]?.model
-        || 'gemini-flash-lite-latest';
     const providerReady = Boolean(
-        (provider === AIProvider.Gemini || apiKey?.trim()) && model.trim(),
+        openRouterApiKey.trim() && openRouterModelId.trim(),
     );
 
     useEffect(() => () => modelAbortRef.current?.abort(), []);
@@ -517,9 +508,8 @@ const TrendAndReminderWorkspace: React.FC<TrendAndReminderWorkspaceProps> = ({
             );
             const rawText = await generateTrendModelExplanationText({
                 prompt: request.prompt,
-                provider,
-                apiKey,
-                model,
+                apiKey: openRouterApiKey,
+                model: openRouterModelId,
                 signal: controller.signal,
             });
             const result = finalizeTrendModelExplanation(rawText, request);

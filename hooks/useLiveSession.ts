@@ -15,9 +15,8 @@ interface LiveSessionOptions {
 }
 
 /**
- * Real-time Gemini uses a browser WebSocket credential. It stays unavailable
- * until a server-side streaming boundary exists, rather than bypassing the
- * credential boundary with a client secret.
+ * OpenRouter chat completions do not provide the real-time audio transport
+ * this mode requires, so browser-only BYOK leaves live audio disabled.
  */
 export const useLiveSession = ({ onTurnComplete }: LiveSessionOptions = {}): UseLiveSessionReturn => {
     const [isLive, setIsLive] = useState(false);
@@ -31,7 +30,7 @@ export const useLiveSession = ({ onTurnComplete }: LiveSessionOptions = {}): Use
     }, [onTurnComplete]);
 
     const startSession = useCallback(async (_history: ChatMessage[] = []) => {
-        setError('Live mode is unavailable in the secure server-proxy deployment.');
+        setError('Live audio is unavailable with browser-only OpenRouter BYOK.');
         await stopSession();
     }, [stopSession]);
 
