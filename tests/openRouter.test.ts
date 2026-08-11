@@ -5,11 +5,13 @@ import { encryptionService } from '../services/encryptionService';
 import { indexedDBStorage } from '../services/storage';
 import {
     buildOpenRouterChatRequest,
+    completeOpenRouterChat,
     fetchOpenRouterModels,
     isFreeOpenRouterModel,
     parseOpenRouterModels,
     redactOpenRouterSecrets,
     searchOpenRouterModels,
+    streamOpenRouterChat,
 } from '../services/openRouter';
 import { useSettingsStore } from '../features/settings/useSettingsStore';
 
@@ -43,10 +45,27 @@ const catalogPayload = {
     ],
 };
 
+const streamingResponse = (...chunks: string[]): Response => {
+    const encoder = new TextEncoder();
+    return new Response(new ReadableStream<Uint8Array>({
+        start(controller) {
+            for (const chunk of chunks) {
+                controller.enqueue(encoder.encode(chunk));
+            }
+            controller.close();
+        },
+    }), {
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream' },
+    });
+};
+
 afterEach(() => {
     encryptionService.lock();
     useSettingsStore.getState().setOpenRouterApiKey('');
     useSettingsStore.getState().setOpenRouterModelId('');
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
 });
 
 describe('OpenRouter catalog', () => {
@@ -174,5 +193,65 @@ describe('OpenRouter request construction', () => {
             messages: [],
             stream: false,
         })).toThrow('Select or enter an OpenRouter model in Settings.');
+    });
+});
+
+describe('OpenRouter response handling', () => {
+    it('processes a final SSE data frame without a trailing newline', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(streamingResponse(
+            'data: {"choices":[{"delta":{"content":"final chunk"}}]}',
+        )));
+
+        const output: string[] = [];
+        for await (const text of streamOpenRouterChat({
+            apiKey: FAKE_KEY,
+            model: MODEL_ID,
+            messages: [{ role: 'user', content: 'synthetic test message' }],
+        })) {
+            output.push(text);
+        }
+
+        expect(output).toEqual(['final chunk']);
+    });
+
+    it('rejects a mid-stream provider error instead of accepting partial output', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(streamingResponse(
+            'data: {"choices":[{"delta":{"content":"partial"}}]}\n\n',
+            'data: {"error":{"code":502,"message":"Provider disconnected unexpectedly","metadata":{"error_type":"provider_unavailable"}},"choices":[{"delta":{"content":""},"finish_reason":"error"}]}\n\n',
+        )));
+
+        const output: string[] = [];
+        const collect = async () => {
+            for await (const text of streamOpenRouterChat({
+                apiKey: FAKE_KEY,
+                model: MODEL_ID,
+                messages: [{ role: 'user', content: 'synthetic test message' }],
+            })) {
+                output.push(text);
+            }
+        };
+
+        await expect(collect()).rejects.toThrow(
+            'Provider disconnected unexpectedly',
+        );
+        expect(output).toEqual(['partial']);
+    });
+
+    it('rejects an embedded non-streaming error and redacts the API key', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(
+            JSON.stringify({
+                error: {
+                    code: 502,
+                    message: `Provider failed while processing ${FAKE_KEY}`,
+                },
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+        )));
+
+        await expect(completeOpenRouterChat({
+            apiKey: FAKE_KEY,
+            model: MODEL_ID,
+            messages: [{ role: 'user', content: 'synthetic test message' }],
+        })).rejects.toThrow('Provider failed while processing [redacted]');
     });
 });

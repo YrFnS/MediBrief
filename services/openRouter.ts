@@ -216,6 +216,33 @@ const requestError = (status: number): Error => {
     return new Error(`OpenRouter request failed with HTTP ${status}.`);
 };
 
+const embeddedOpenRouterError = (
+    payload: unknown,
+    secrets: string[] = [],
+): Error | null => {
+    const root = record(payload);
+    if (!root) return null;
+
+    const firstChoice = Array.isArray(root.choices)
+        ? record(root.choices[0])
+        : null;
+    const error = record(root.error) || record(firstChoice?.error);
+    if (error) {
+        const rawMessage = typeof error.message === 'string' && error.message.trim()
+            ? error.message
+            : 'OpenRouter reported a provider error while generating the response.';
+        return new Error(redactOpenRouterSecrets(rawMessage, secrets));
+    }
+
+    if (firstChoice?.finish_reason === 'error') {
+        return new Error(
+            'OpenRouter reported that the provider stopped with an error.',
+        );
+    }
+
+    return null;
+};
+
 export const completeOpenRouterChat = async (
     options: Omit<BuildOpenRouterRequestOptions, 'stream'>,
 ): Promise<string> => {
@@ -223,14 +250,59 @@ export const completeOpenRouterChat = async (
     const response = await fetch(request.url, request.init);
     if (!response.ok) throw requestError(response.status);
 
-    const payload = await response.json() as {
-        choices?: Array<{ message?: { content?: string } }>;
-    };
-    const text = payload.choices?.[0]?.message?.content;
+    const payload = await response.json() as unknown;
+    const embeddedError = embeddedOpenRouterError(payload, [options.apiKey]);
+    if (embeddedError) throw embeddedError;
+
+    const root = record(payload);
+    const firstChoice = Array.isArray(root?.choices)
+        ? record(root.choices[0])
+        : null;
+    const message = record(firstChoice?.message);
+    const text = message?.content;
     if (typeof text !== 'string' || !text.trim()) {
         throw new Error('The selected OpenRouter model returned no text.');
     }
     return text;
+};
+
+interface ParsedStreamEvent {
+    done: boolean;
+    text?: string;
+}
+
+const parseOpenRouterStreamLine = (
+    line: string,
+    apiKey: string,
+): ParsedStreamEvent => {
+    const normalized = line.trim();
+    if (!normalized || normalized.startsWith(':') || !normalized.startsWith('data:')) {
+        return { done: false };
+    }
+
+    const data = normalized.slice(5).trim();
+    if (data === '[DONE]') return { done: true };
+
+    let payload: unknown;
+    try {
+        payload = JSON.parse(data);
+    } catch {
+        // Ignore malformed provider keep-alive or non-JSON events.
+        return { done: false };
+    }
+
+    const embeddedError = embeddedOpenRouterError(payload, [apiKey]);
+    if (embeddedError) throw embeddedError;
+
+    const root = record(payload);
+    const firstChoice = Array.isArray(root?.choices)
+        ? record(root.choices[0])
+        : null;
+    const delta = record(firstChoice?.delta);
+    const text = delta?.content;
+    return typeof text === 'string' && text
+        ? { done: false, text }
+        : { done: false };
 };
 
 export async function* streamOpenRouterChat(
@@ -244,31 +316,34 @@ export async function* streamOpenRouterChat(
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+    let emittedText = false;
 
     while (true) {
         const { done, value } = await reader.read();
         buffer += decoder.decode(value, { stream: !done });
 
-        let newline = buffer.indexOf('\n');
-        while (newline >= 0) {
-            const line = buffer.slice(0, newline).trim();
-            buffer = buffer.slice(newline + 1);
-            newline = buffer.indexOf('\n');
-            if (!line.startsWith('data:')) continue;
+        const lines = buffer.split(/\r?\n/);
+        buffer = done ? '' : (lines.pop() || '');
 
-            const data = line.slice(5).trim();
-            if (data === '[DONE]') return;
-            try {
-                const payload = JSON.parse(data) as {
-                    choices?: Array<{ delta?: { content?: string } }>;
-                };
-                const text = payload.choices?.[0]?.delta?.content;
-                if (typeof text === 'string' && text) yield text;
-            } catch {
-                // Ignore incomplete or non-JSON provider events.
+        for (const line of lines) {
+            const event = parseOpenRouterStreamLine(line, options.apiKey);
+            if (event.done) {
+                if (!emittedText) {
+                    throw new Error('The selected OpenRouter model returned no text.');
+                }
+                return;
+            }
+            if (event.text) {
+                emittedText = true;
+                yield event.text;
             }
         }
 
-        if (done) return;
+        if (done) {
+            if (!emittedText) {
+                throw new Error('The selected OpenRouter model returned no text.');
+            }
+            return;
+        }
     }
 }
