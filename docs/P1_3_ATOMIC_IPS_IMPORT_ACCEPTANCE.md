@@ -1,5 +1,14 @@
 # P1.3 Atomic, Source-Preserving FHIR IPS Import
 
+## Status
+
+**Accepted, merged, and post-merge validated.**
+
+- Implementation pull request: `#12`
+- Final reviewed head: `3d9be9c5ce8608f89eecf6f3c014abf5150083ab`
+- Squash merge on `main`: `3369b0753e1efa662688005a8dc95d2b076c314b`
+- Validated merge/production source tree: `c5ec158b59aaca4833b797a7a76560da2207c220`
+
 ## Scope
 
 P1.3 replaces MediBrief's former per-resource IPS import action with a staged,
@@ -193,13 +202,14 @@ but cannot delete the preserved source or roll back only part of the graph.
 - [x] Pass P1.4 receiver/terminology, P1.5 named-receiver, P2 multilingual, and
   P3 prospective-validation regressions on the combined current-main merge
   reference.
-- [ ] Review and merge through a pull request.
-- [ ] Pass post-merge validation on `main`.
+- [x] Review and merge through pull request `#12`.
+- [x] Pass all push-triggered post-merge validation on `main`.
 
-## Pre-merge validation evidence
+## Final validation and merge evidence
 
-The implementation head `a9a0e71fbeff96393e04aed41453a32434d9bbe2`
-and its pull-request merge reference against the current `main` line passed:
+The exact final implementation head
+`3d9be9c5ce8608f89eecf6f3c014abf5150083ab` passed the pull-request gate matrix
+against the then-current `main` line:
 
 - `P1.3 Atomic Source-Preserving IPS Import`;
 - `MediBrief Clinical Validation`;
@@ -209,12 +219,44 @@ and its pull-request merge reference against the current `main` line passed:
 - `P1.5 HAPI Named Receiver Validation`;
 - `P2 Terminology and Multilingual Validation`;
 - `P3 Prospective Validation Foundation`;
-- `P0 Browser Acceptance`, including the encrypted source-database boundary and
-  live deployment-header/service-worker checks.
+- `P0 Browser Acceptance`, including encrypted source-database inspection,
+  identity gating, Composition-reachable mapping, one-record commit, and live
+  deployment-header/service-worker checks.
 
-The acceptance-document update is evidence-only and does not alter the runtime
-contracts above. Its refreshed merge reference must pass the same gates before
-review status changes or merge.
+Pull request `#12` was squash-merged as
+`3369b0753e1efa662688005a8dc95d2b076c314b`. The successful generated merge
+reference and the squash merge resolve to the identical Git tree
+`c5ec158b59aaca4833b797a7a76560da2207c220`.
+
+The merge commit then passed every push-triggered workflow on `main`:
+
+- `MediBrief Clinical Validation`;
+- `P1.3 Atomic Source-Preserving IPS Import`;
+- `P1 FHIR IPS Validation`;
+- `P1.4 Receiver and Terminology Validation`;
+- `P1.5 HAPI Named Receiver Validation`;
+- `P2 Terminology and Multilingual Validation`;
+- `P3 Prospective Validation Foundation`.
+
+`P0 Browser Acceptance` is intentionally pull-request-only. Its successful
+merge-reference evidence applies to the merged commit because the Git tree is
+identical.
+
+## Deployment boundary at acceptance closure
+
+P1.3 is merged and fully validated but was not promoted to production during
+this acceptance closure:
+
+- the Vercel production target remained on prior `main` commit
+  `3d56c3c56b7b97b4aad5a45758b02b27dac7b876`;
+- Vercel rejected the final P1.3 head and squash merge because the account hit
+  its deployment build-rate limit;
+- Netlify skipped the exact final preview because account build usage was
+  exceeded.
+
+These are hosting-account limits, not application build, test, FHIR conformance,
+or browser-acceptance failures. Production promotion remains an operational
+step after hosting capacity is available.
 
 ## Deliberately deferred
 
