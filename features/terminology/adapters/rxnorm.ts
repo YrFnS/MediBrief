@@ -126,7 +126,7 @@ export const createRxNormValidationAdapter = (
                     response,
                     maxResponseBytes,
                 );
-                if (!bounded.ok) {
+                if ('reason' in bounded) {
                     return createTerminologyResult({
                         adapterId: id,
                         status: 'indeterminate',
