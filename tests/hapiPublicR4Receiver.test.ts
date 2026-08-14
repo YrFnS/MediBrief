@@ -230,6 +230,42 @@ describe('HAPI public R4 synthetic transaction probe', () => {
         expect(fetchImpl).not.toHaveBeenCalled();
     });
 
+    it('rejects invalid timeout configuration before network use', async () => {
+        const fetchImpl = vi.fn();
+        await expect(runHapiPublicR4Probe({
+            enabled: true,
+            fetchImpl,
+            timeoutMs: 0,
+            now: NOW,
+            probeId: 'timeout-test',
+            resourceUuid: 'd1243e8f-6784-47ec-9596-cf26431d4779',
+        })).rejects.toThrow(
+            'Probe timeout must be an integer between 100 and 120000 milliseconds.',
+        );
+        expect(fetchImpl).not.toHaveBeenCalled();
+    });
+
+    it('blocks an oversized capability response before any write', async () => {
+        const fetchImpl = vi.fn(async () => new Response('{}', {
+            status: 200,
+            headers: {
+                'content-type': 'application/fhir+json',
+                'content-length': String((8 * 1024 * 1024) + 1),
+            },
+        }));
+
+        await expect(runHapiPublicR4Probe({
+            enabled: true,
+            fetchImpl,
+            now: NOW,
+            probeId: 'oversized-capability-test',
+            resourceUuid: '33fb2220-e4c2-42c7-866c-3f14031d37a5',
+        })).rejects.toThrow(
+            'Capability discovery exceeded the configured response limit.',
+        );
+        expect(fetchImpl).toHaveBeenCalledTimes(1);
+    });
+
     it('fails closed on capability drift before attempting a write', async () => {
         const fetchImpl = vi.fn(async () => jsonResponse(
             capabilityStatement({ fhirVersion: '5.0.0' }),
@@ -247,6 +283,47 @@ describe('HAPI public R4 synthetic transaction probe', () => {
             HAPI_PUBLIC_R4_CAPABILITY_URL,
             expect.objectContaining({ method: 'GET' }),
         );
+    });
+
+    it('still cleans up when a transaction response exceeds the limit', async () => {
+        let cleanupAttempted = false;
+        const fetchImpl = vi.fn(async (
+            input: string | URL | Request,
+            init?: RequestInit,
+        ): Promise<Response> => {
+            const url = String(input);
+            const method = init?.method || 'GET';
+            if (url === HAPI_PUBLIC_R4_CAPABILITY_URL && method === 'GET') {
+                return jsonResponse(capabilityStatement());
+            }
+            if (url === HAPI_PUBLIC_R4_BASE_URL && method === 'POST') {
+                return new Response('{}', {
+                    status: 200,
+                    headers: {
+                        'content-type': 'application/fhir+json',
+                        'content-length': String((1024 * 1024) + 1),
+                    },
+                });
+            }
+            if (url.startsWith(`${HAPI_PUBLIC_R4_BASE_URL}/Basic/`)
+                && method === 'DELETE') {
+                cleanupAttempted = true;
+                return new Response(null, { status: 204 });
+            }
+            throw new Error(`Unexpected synthetic probe request: ${method} ${url}`);
+        });
+
+        await expect(runHapiPublicR4Probe({
+            enabled: true,
+            fetchImpl,
+            now: NOW,
+            probeId: 'oversized-transaction-test',
+            resourceUuid: '0e173fc8-6e5f-45d2-9639-a4daafcff728',
+        })).rejects.toThrow(
+            'Synthetic transaction exceeded the configured response limit.',
+        );
+        expect(fetchImpl).toHaveBeenCalledTimes(3);
+        expect(cleanupAttempted).toBe(true);
     });
 
     it('discovers, writes one Basic resource, and confirms cleanup', async () => {
