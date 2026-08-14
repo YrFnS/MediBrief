@@ -2,16 +2,7 @@
 
 ## Product direction
 
-MediBrief should become a private, longitudinal, source-faithful personal health record that makes it easy to see:
-
-- where each fact came from;
-- whether it is a candidate or confirmed record;
-- what remains uncertain or unknown;
-- what changed and why;
-- what requires human review;
-- what can and cannot safely be sent to an external service.
-
-The roadmap does not treat additional AI output as progress unless the underlying record, interoperability, validation, and governance boundaries improve with it.
+MediBrief is a private, longitudinal, source-faithful personal health record that makes it clear where each fact came from, whether it is a candidate or confirmed record, what remains uncertain, what changed, and what requires review. Additional AI output is not progress unless the record, interoperability, validation, and governance boundaries improve with it.
 
 ## P0 — Safety boundary
 
@@ -19,43 +10,58 @@ The roadmap does not treat additional AI output as progress unless the underlyin
 
 - truthful product language and capability matrix;
 - session-scoped cloud acknowledgement;
-- fail-closed reviewed clinical model registry;
-- OpenRouter ZDR/no-collection routing;
-- strong new-vault passphrases and local retry delays;
-- legacy-vault warning without destructive migration;
+- fail-closed reviewed model/provider registry;
+- privacy-restricted OpenRouter routing;
+- strong new-vault passphrases and retry delays;
 - locally bundled production shell, CSP, and offline app shell;
 - hazard, limitations, change-control, and model-registry documents.
 
-## P1 — Interoperable record foundation
+## P1 — FHIR R4 / International Patient Summary
 
-**Status: In progress — export/import foundation implemented**
+**Status: Complete**
 
-1. **Implemented:** target FHIR R4 4.0.1 and IPS 2.0.1 with an explicit supported-profile registry.
-2. **Implemented foundation:** validate IPS documents before conversion and quarantine supported resources as unconfirmed candidates.
-3. **Implemented foundation:** generate a document Bundle with Composition first, required IPS sections, narrative, resolvable references, and unavailable empty sections.
-4. **Implemented foundation:** preserve original quantity values, local confirmation boundaries, import provenance, and exclusion reasons.
-5. **Next P1 slice:** governed terminology mappings for laboratory observations, units, medications, conditions, procedures, and allergies.
-6. **Implemented foundation:** downloadable validation, warning, inclusion, exclusion, and skipped-resource reports.
-7. **Next P1 slice:** encrypted, consent-controlled sharing with expiry and revocation semantics.
-8. **Implemented:** deterministic tests plus the official HL7 validator in CI; expand to receiver-specific integration suites after the core profile is stable.
+- deterministic FHIR R4 document Bundle targeting IPS 2.0.1;
+- required Problems, Allergies, and Medication Summary sections;
+- unavailable empty sections that do not claim clinical absence;
+- confirmed, patient-applicable export eligibility;
+- candidate-only import with patient-identity preview;
+- local validation, inclusion/exclusion reports, and audit events;
+- official HL7 validator and Chromium acceptance gates.
 
-## P2 — Medical-document validation
+## P2 — Governed terminology and multilingual validation
 
-**Status: Planned after P1 contracts are stable**
+**Status: Complete**
 
-1. Build representative English, Arabic, and bilingual datasets.
-2. Separate evaluation by discharge summary, laboratory report, medication list, prescription, imaging report, clinical note, and poor-quality scan.
-3. Measure exact and relaxed extraction accuracy, omission rate, unsupported-addition rate, negation, uncertainty, temporality, family-history attribution, dates, and units.
+1. Reviewed exact-alias LOINC candidates for a deliberately small observation subset.
+2. Case-sensitive UCUM unit coding with original-value preservation.
+3. Explicit analyte/code/unit conversion profiles only; no generic conversion guesses.
+4. Source-provided medication terminology coding with no automatic search or selection.
+5. Externally licensed SNOMED CT attachment only; no bundled content or automated search.
+6. Human-reviewed amendment and audit workflow for every applied terminology mapping.
+7. PHI-free English, Arabic, and mixed-script document corpus across seven document types.
+8. Metrics for additions, omissions, exact facts, assertion context, dates, quantities, languages, and document types.
+9. Permanent CI gate that distinguishes contract fixtures from measured runtime output.
+10. Arabic and mixed-script clinical extraction remain blocked pending named measured routes and review.
+11. Six-test Chromium acceptance plus built-shell and live deployment/header-contract checks.
+12. Hosting preview quota failures are recorded as infrastructure limits; fresh previews remain mandatory whenever deployment/header configuration changes.
+
+## P3 — Prospective medical-document validation
+
+**Status: Next**
+
+1. Capture measured runtime output from named extraction and OCR configurations.
+2. Build representative, legally usable document sets with clinician-authored gold labels.
+3. Separate evaluation by discharge summary, laboratory report, medication list, prescription, imaging report, clinical note, and poor-quality scan.
 4. Add blinded clinician review for high-risk and boundary cases.
-5. Define release thresholds and stop-ship thresholds for each task.
+5. Define release and stop-ship thresholds per task and language.
 6. Add model/version regression gates and retained evaluation artifacts.
-7. Validate medication-record reconciliation before any medication-safety advice is considered.
+7. Validate medication-record reconciliation before considering any medication-safety capability.
 
-## P3 — Product simplification and accessibility
+## P4 — Product simplification and accessibility
 
 **Status: Planned**
 
-Group the record around user jobs rather than exposing every resource type as a first-level destination:
+Group the record around user jobs:
 
 - Today
 - Health record
@@ -67,19 +73,10 @@ Group the record around user jobs rather than exposing every resource type as a 
 
 Add task-oriented onboarding, mobile navigation, keyboard and screen-reader verification, empty-state education, review queues, and usability studies with representative users.
 
-## P4 — Carefully bounded clinical assistance
+## P5 — Carefully bounded clinical assistance
 
 **Status: Gated**
 
-A clinical function may only enter this phase after it has:
-
-- a precise intended use and intended population;
-- named clinical and engineering owners;
-- required inputs and explicit exclusions;
-- evidence and version metadata;
-- a reviewed model/provider or deterministic rule package;
-- representative positive, negative, missing-data, and adversarial tests;
-- human factors review;
-- monitoring, rollback, incident, and retirement procedures.
+A clinical function may enter this phase only after it has a precise intended use and population, named clinical and engineering owners, explicit inputs and exclusions, evidence/version metadata, representative positive/negative/missing-data/adversarial tests, human-factors review, and monitoring/rollback/incident procedures.
 
 Patient-specific medication safety, diagnosis, treatment, emergency triage, autonomous actions, and diagnostic imaging remain disabled until their individual packages satisfy these conditions.
