@@ -59,8 +59,11 @@ jobs:
             exit 1
           fi
 
-      - name: Test atomic source-preserving import contracts
-        run: npx vitest run tests/atomicIpsImport.test.ts
+      - name: Test atomic import and encrypted source-vault contracts
+        run: >-
+          npx vitest run
+          tests/atomicIpsImport.test.ts
+          tests/encryptedSourceStorage.test.ts
 
       - name: Re-run FHIR, backup, and source-document regressions
         run: >-
