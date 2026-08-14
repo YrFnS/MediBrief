@@ -128,7 +128,8 @@ same explicit acknowledgement; MediBrief does not silently merge identities.
 - [x] Build one source `DocumentReference` and one complete replacement record.
 - [x] Parse the complete replacement through the strict clinical-record schema.
 - [x] Publish the clinical graph with one `replacePatientRecord` action.
-- [x] Emit one audit event for the complete import transaction.
+- [x] Attempt one audit event for the complete import transaction; report audit
+  failure without removing source evidence after record publication.
 - [x] Never call the former per-candidate `addResource` loop from the user
   import path.
 
@@ -141,6 +142,9 @@ replacement failure triggers source cleanup. These are separate IndexedDB and
 state-persistence systems, not one browser database transaction; an unexpected
 process termination between the two operations can leave an unreferenced
 encrypted source, but cannot leave a partially imported clinical graph.
+
+Once the patient record is published, a later audit-write failure is reported
+but cannot delete the preserved source or roll back only part of the graph.
 
 ## P1.3.6 User interface
 
@@ -170,6 +174,9 @@ encrypted source, but cannot leave a partially imported clinical graph.
 - [x] Test textually different equivalent-source deduplication and relationship
   remapping.
 - [x] Test the protected source-size limit.
+- [x] Test ciphertext-only source-vault storage, integrity-checked recovery,
+  backup export, deletion, restore, and re-encryption.
+- [x] Test source substitution rejection after preview evidence is computed.
 - [x] Add Chromium acceptance for graph exclusion, identity acknowledgement,
   one-record commit, and candidate-only status.
 - [x] Inspect the source IndexedDB boundary in Chromium and require an opaque
@@ -177,14 +184,37 @@ encrypted source, but cannot leave a partially imported clinical graph.
 - [x] Prove the source database row does not expose the file name, patient name,
   diagnosis, or source digest as plaintext fields.
 - [x] Add a permanent P1.3 GitHub Actions workflow.
-- [ ] Pass the permanent P1.3 branch workflow.
-- [ ] Pass full MediBrief clinical regression at the final branch head.
-- [ ] Pass official FHIR R4 / IPS 2.0.1 validation on the pull-request merge
+- [x] Pass the permanent P1.3 branch and pull-request workflows.
+- [x] Pass full MediBrief clinical regression at the final implementation head.
+- [x] Pass official FHIR R4 / IPS 2.0.1 validation on the pull-request merge
   reference.
-- [ ] Pass Chromium safety-boundary acceptance on the pull-request merge
+- [x] Pass Chromium safety-boundary acceptance on the pull-request merge
+  reference.
+- [x] Pass P1.4 receiver/terminology, P1.5 named-receiver, P2 multilingual, and
+  P3 prospective-validation regressions on the combined current-main merge
   reference.
 - [ ] Review and merge through a pull request.
 - [ ] Pass post-merge validation on `main`.
+
+## Pre-merge validation evidence
+
+The implementation head `a9a0e71fbeff96393e04aed41453a32434d9bbe2`
+and its pull-request merge reference against the current `main` line passed:
+
+- `P1.3 Atomic Source-Preserving IPS Import`;
+- `MediBrief Clinical Validation`;
+- `P1 FHIR IPS Validation`, including the official FHIR R4 / IPS 2.0.1
+  validator;
+- `P1.4 Receiver and Terminology Validation`;
+- `P1.5 HAPI Named Receiver Validation`;
+- `P2 Terminology and Multilingual Validation`;
+- `P3 Prospective Validation Foundation`;
+- `P0 Browser Acceptance`, including the encrypted source-database boundary and
+  live deployment-header/service-worker checks.
+
+The acceptance-document update is evidence-only and does not alter the runtime
+contracts above. Its refreshed merge reference must pass the same gates before
+review status changes or merge.
 
 ## Deliberately deferred
 
