@@ -8,6 +8,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest",
     "test:run": "vitest run",
+    "test:p1-5": "vitest run tests/hapiPublicR4Receiver.test.ts tests/receiverExchangeValidation.test.ts",
+    "probe:hapi-public": "node scripts/hapi-public-r4-probe.mjs",
     "build:app": "vite build",
     "build": "npm run typecheck && npm run test:run && npm run build:app",
     "validate": "npm run build",
