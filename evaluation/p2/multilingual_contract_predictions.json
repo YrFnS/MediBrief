@@ -1,0 +1,539 @@
+{
+  "schema_version": "1",
+  "corpus_id": "medibrief-p2-multilingual-documents-v1",
+  "prediction_source": "deterministic-contract-fixture",
+  "engine": "medibrief-p2-evaluator-contract",
+  "engine_version": "1",
+  "captured_at": "2026-08-14T00:00:00.000Z",
+  "phi_free": true,
+  "cases": [
+    {
+      "id": "en-discharge-001",
+      "predicted_route": "evaluated-english-defaults",
+      "facts": [
+        {
+          "kind": "condition",
+          "text": "chronic heart failure",
+          "start": 35,
+          "end": 56,
+          "context": {
+            "polarity": "affirmed",
+            "certainty": "certain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        },
+        {
+          "kind": "medication",
+          "text": "furosemide",
+          "start": 67,
+          "end": 77,
+          "context": {
+            "polarity": "affirmed",
+            "certainty": "certain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        }
+      ],
+      "dates": [
+        "2026-08-20"
+      ],
+      "quantities": [
+        {
+          "value": 40,
+          "source_unit": "mg",
+          "normalized_unit": null
+        }
+      ]
+    },
+    {
+      "id": "en-lab-001",
+      "predicted_route": "evaluated-english-defaults",
+      "facts": [
+        {
+          "kind": "observation",
+          "text": "Serum creatinine mass concentration",
+          "start": 19,
+          "end": 54,
+          "context": {
+            "polarity": "affirmed",
+            "certainty": "certain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        }
+      ],
+      "dates": [
+        "2026-08-12"
+      ],
+      "quantities": [
+        {
+          "value": 1.4,
+          "source_unit": "mg/dL",
+          "normalized_unit": "mg/dL",
+          "loinc": "2160-0",
+          "ucum": "mg/dL"
+        }
+      ]
+    },
+    {
+      "id": "en-med-list-001",
+      "predicted_route": "evaluated-english-defaults",
+      "facts": [
+        {
+          "kind": "medication",
+          "text": "metformin",
+          "start": 17,
+          "end": 26,
+          "context": {
+            "polarity": "affirmed",
+            "certainty": "certain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        },
+        {
+          "kind": "medication",
+          "text": "aspirin",
+          "start": 47,
+          "end": 54,
+          "context": {
+            "polarity": "affirmed",
+            "certainty": "certain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        }
+      ],
+      "dates": [],
+      "quantities": [
+        {
+          "value": 500,
+          "source_unit": "mg",
+          "normalized_unit": null
+        },
+        {
+          "value": 81,
+          "source_unit": "mg",
+          "normalized_unit": null
+        }
+      ]
+    },
+    {
+      "id": "en-prescription-001",
+      "predicted_route": "evaluated-english-defaults",
+      "facts": [
+        {
+          "kind": "medication",
+          "text": "amoxicillin",
+          "start": 14,
+          "end": 25,
+          "context": {
+            "polarity": "affirmed",
+            "certainty": "certain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        }
+      ],
+      "dates": [],
+      "quantities": [
+        {
+          "value": 500,
+          "source_unit": "mg",
+          "normalized_unit": null
+        }
+      ]
+    },
+    {
+      "id": "en-imaging-001",
+      "predicted_route": "evaluated-english-defaults",
+      "facts": [
+        {
+          "kind": "condition",
+          "text": "pneumonia",
+          "start": 25,
+          "end": 34,
+          "context": {
+            "polarity": "negated",
+            "certainty": "certain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        },
+        {
+          "kind": "condition",
+          "text": "cardiomegaly",
+          "start": 41,
+          "end": 53,
+          "context": {
+            "polarity": "affirmed",
+            "certainty": "certain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        }
+      ],
+      "dates": [],
+      "quantities": []
+    },
+    {
+      "id": "en-note-001",
+      "predicted_route": "evaluated-english-defaults",
+      "facts": [
+        {
+          "kind": "condition",
+          "text": "migraine",
+          "start": 9,
+          "end": 17,
+          "context": {
+            "polarity": "affirmed",
+            "certainty": "uncertain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        },
+        {
+          "kind": "condition",
+          "text": "breast cancer",
+          "start": 44,
+          "end": 57,
+          "context": {
+            "polarity": "affirmed",
+            "certainty": "certain",
+            "temporality": "historical",
+            "experiencer": "family"
+          }
+        }
+      ],
+      "dates": [],
+      "quantities": []
+    },
+    {
+      "id": "en-scan-001",
+      "predicted_route": "evaluated-english-defaults",
+      "facts": [
+        {
+          "kind": "condition",
+          "text": "chest pain",
+          "start": 15,
+          "end": 25,
+          "context": {
+            "polarity": "negated",
+            "certainty": "certain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        },
+        {
+          "kind": "medication",
+          "text": "clopidogrel",
+          "start": 33,
+          "end": 44,
+          "context": {
+            "polarity": "affirmed",
+            "certainty": "certain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        }
+      ],
+      "dates": [],
+      "quantities": []
+    },
+    {
+      "id": "ar-discharge-001",
+      "predicted_route": "unsupported-arabic-clinical-ner",
+      "facts": [
+        {
+          "kind": "condition",
+          "text": "قصور قلب مزمن",
+          "start": 24,
+          "end": 37,
+          "context": {
+            "polarity": "affirmed",
+            "certainty": "certain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        },
+        {
+          "kind": "medication",
+          "text": "فوروسيميد",
+          "start": 44,
+          "end": 53,
+          "context": {
+            "polarity": "affirmed",
+            "certainty": "certain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        }
+      ],
+      "dates": [
+        "2026-08-20"
+      ],
+      "quantities": [
+        {
+          "value": 40,
+          "source_unit": "ملغ",
+          "normalized_unit": null
+        }
+      ]
+    },
+    {
+      "id": "ar-lab-001",
+      "predicted_route": "unsupported-arabic-clinical-ner",
+      "facts": [
+        {
+          "kind": "observation",
+          "text": "تركيز كرياتينين المصل أو البلازما الكتلي",
+          "start": 15,
+          "end": 55,
+          "context": {
+            "polarity": "affirmed",
+            "certainty": "certain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        }
+      ],
+      "dates": [
+        "2026-08-12"
+      ],
+      "quantities": [
+        {
+          "value": 124,
+          "source_unit": "ميكرومول/لتر",
+          "normalized_unit": "mg/dL",
+          "loinc": "2160-0",
+          "ucum": "umol/L"
+        }
+      ]
+    },
+    {
+      "id": "ar-med-list-001",
+      "predicted_route": "unsupported-arabic-clinical-ner",
+      "facts": [
+        {
+          "kind": "medication",
+          "text": "ميتفورمين",
+          "start": 15,
+          "end": 24,
+          "context": {
+            "polarity": "affirmed",
+            "certainty": "certain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        },
+        {
+          "kind": "medication",
+          "text": "أسبرين",
+          "start": 47,
+          "end": 53,
+          "context": {
+            "polarity": "affirmed",
+            "certainty": "certain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        }
+      ],
+      "dates": [],
+      "quantities": [
+        {
+          "value": 500,
+          "source_unit": "ملغ",
+          "normalized_unit": null
+        },
+        {
+          "value": 81,
+          "source_unit": "ملغ",
+          "normalized_unit": null
+        }
+      ]
+    },
+    {
+      "id": "ar-prescription-001",
+      "predicted_route": "unsupported-arabic-clinical-ner",
+      "facts": [
+        {
+          "kind": "medication",
+          "text": "أموكسيسيلين",
+          "start": 6,
+          "end": 17,
+          "context": {
+            "polarity": "affirmed",
+            "certainty": "certain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        }
+      ],
+      "dates": [],
+      "quantities": [
+        {
+          "value": 500,
+          "source_unit": "ملغ",
+          "normalized_unit": null
+        }
+      ]
+    },
+    {
+      "id": "ar-imaging-001",
+      "predicted_route": "unsupported-arabic-clinical-ner",
+      "facts": [
+        {
+          "kind": "condition",
+          "text": "التهاب رئوي",
+          "start": 22,
+          "end": 33,
+          "context": {
+            "polarity": "negated",
+            "certainty": "certain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        },
+        {
+          "kind": "condition",
+          "text": "تضخم بسيط في القلب",
+          "start": 45,
+          "end": 63,
+          "context": {
+            "polarity": "affirmed",
+            "certainty": "certain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        }
+      ],
+      "dates": [],
+      "quantities": []
+    },
+    {
+      "id": "ar-note-001",
+      "predicted_route": "unsupported-arabic-clinical-ner",
+      "facts": [
+        {
+          "kind": "condition",
+          "text": "صداع",
+          "start": 0,
+          "end": 4,
+          "context": {
+            "polarity": "affirmed",
+            "certainty": "uncertain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        },
+        {
+          "kind": "condition",
+          "text": "سرطان الثدي",
+          "start": 32,
+          "end": 43,
+          "context": {
+            "polarity": "affirmed",
+            "certainty": "certain",
+            "temporality": "historical",
+            "experiencer": "family"
+          }
+        }
+      ],
+      "dates": [],
+      "quantities": []
+    },
+    {
+      "id": "ar-scan-001",
+      "predicted_route": "unsupported-arabic-clinical-ner",
+      "facts": [
+        {
+          "kind": "condition",
+          "text": "ألم الصدر",
+          "start": 13,
+          "end": 22,
+          "context": {
+            "polarity": "negated",
+            "certainty": "certain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        },
+        {
+          "kind": "medication",
+          "text": "كلوبيدوغريل",
+          "start": 29,
+          "end": 40,
+          "context": {
+            "polarity": "affirmed",
+            "certainty": "certain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        }
+      ],
+      "dates": [],
+      "quantities": []
+    },
+    {
+      "id": "mixed-lab-001",
+      "predicted_route": "mixed-script-review",
+      "facts": [
+        {
+          "kind": "observation",
+          "text": "Body temperature",
+          "start": 11,
+          "end": 27,
+          "context": {
+            "polarity": "affirmed",
+            "certainty": "certain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        }
+      ],
+      "dates": [],
+      "quantities": [
+        {
+          "value": 38,
+          "source_unit": "°C",
+          "normalized_unit": "°C",
+          "loinc": "8310-5",
+          "ucum": "Cel"
+        }
+      ]
+    },
+    {
+      "id": "mixed-med-001",
+      "predicted_route": "mixed-script-review",
+      "facts": [
+        {
+          "kind": "medication",
+          "text": "metformin",
+          "start": 17,
+          "end": 26,
+          "context": {
+            "polarity": "affirmed",
+            "certainty": "certain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        }
+      ],
+      "dates": [],
+      "quantities": [
+        {
+          "value": 500,
+          "source_unit": "mg",
+          "normalized_unit": null
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "This file mirrors the gold corpus to validate evaluator contracts.",
+    "Perfect scores are not runtime extraction accuracy and must never enable an Arabic or mixed-script clinical route."
+  ]
+}

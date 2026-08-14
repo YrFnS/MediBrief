@@ -1,0 +1,585 @@
+{
+  "schema_version": "1",
+  "corpus_id": "medibrief-p2-multilingual-documents-v1",
+  "phi_free": true,
+  "purpose": "Synthetic multilingual document-type and safety-boundary evaluation contract for MediBrief P2.",
+  "cases": [
+    {
+      "id": "en-discharge-001",
+      "language": "en",
+      "document_type": "discharge-summary",
+      "text": "Discharge summary: The patient has chronic heart failure and takes furosemide 40 mg daily. Follow-up on 2026-08-20.",
+      "dates": [
+        "2026-08-20"
+      ],
+      "quantities": [
+        {
+          "value": 40,
+          "source_unit": "mg",
+          "normalized_unit": null
+        }
+      ],
+      "facts": [
+        {
+          "kind": "condition",
+          "text": "chronic heart failure",
+          "start": 35,
+          "end": 56,
+          "context": {
+            "polarity": "affirmed",
+            "certainty": "certain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        },
+        {
+          "kind": "medication",
+          "text": "furosemide",
+          "start": 67,
+          "end": 77,
+          "context": {
+            "polarity": "affirmed",
+            "certainty": "certain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        }
+      ],
+      "expected_route": "evaluated-english-defaults"
+    },
+    {
+      "id": "en-lab-001",
+      "language": "en",
+      "document_type": "laboratory-report",
+      "text": "Laboratory report: Serum creatinine mass concentration 1.4 mg/dL on 2026-08-12.",
+      "dates": [
+        "2026-08-12"
+      ],
+      "quantities": [
+        {
+          "value": 1.4,
+          "source_unit": "mg/dL",
+          "normalized_unit": "mg/dL",
+          "loinc": "2160-0",
+          "ucum": "mg/dL"
+        }
+      ],
+      "facts": [
+        {
+          "kind": "observation",
+          "text": "Serum creatinine mass concentration",
+          "start": 19,
+          "end": 54,
+          "context": {
+            "polarity": "affirmed",
+            "certainty": "certain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        }
+      ],
+      "expected_route": "evaluated-english-defaults"
+    },
+    {
+      "id": "en-med-list-001",
+      "language": "en",
+      "document_type": "medication-list",
+      "text": "Medication list: metformin 500 mg twice daily; aspirin 81 mg daily.",
+      "dates": [],
+      "quantities": [
+        {
+          "value": 500,
+          "source_unit": "mg",
+          "normalized_unit": null
+        },
+        {
+          "value": 81,
+          "source_unit": "mg",
+          "normalized_unit": null
+        }
+      ],
+      "facts": [
+        {
+          "kind": "medication",
+          "text": "metformin",
+          "start": 17,
+          "end": 26,
+          "context": {
+            "polarity": "affirmed",
+            "certainty": "certain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        },
+        {
+          "kind": "medication",
+          "text": "aspirin",
+          "start": 47,
+          "end": 54,
+          "context": {
+            "polarity": "affirmed",
+            "certainty": "certain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        }
+      ],
+      "expected_route": "evaluated-english-defaults"
+    },
+    {
+      "id": "en-prescription-001",
+      "language": "en",
+      "document_type": "prescription",
+      "text": "Prescription: amoxicillin 500 mg orally three times daily for 7 days.",
+      "dates": [],
+      "quantities": [
+        {
+          "value": 500,
+          "source_unit": "mg",
+          "normalized_unit": null
+        }
+      ],
+      "facts": [
+        {
+          "kind": "medication",
+          "text": "amoxicillin",
+          "start": 14,
+          "end": 25,
+          "context": {
+            "polarity": "affirmed",
+            "certainty": "certain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        }
+      ],
+      "expected_route": "evaluated-english-defaults"
+    },
+    {
+      "id": "en-imaging-001",
+      "language": "en",
+      "document_type": "imaging-report",
+      "text": "Imaging report: No focal pneumonia. Mild cardiomegaly is present.",
+      "dates": [],
+      "quantities": [],
+      "facts": [
+        {
+          "kind": "condition",
+          "text": "pneumonia",
+          "start": 25,
+          "end": 34,
+          "context": {
+            "polarity": "negated",
+            "certainty": "certain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        },
+        {
+          "kind": "condition",
+          "text": "cardiomegaly",
+          "start": 41,
+          "end": 53,
+          "context": {
+            "polarity": "affirmed",
+            "certainty": "certain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        }
+      ],
+      "expected_route": "evaluated-english-defaults"
+    },
+    {
+      "id": "en-note-001",
+      "language": "en",
+      "document_type": "clinical-note",
+      "text": "Possible migraine; the patient's mother had breast cancer.",
+      "dates": [],
+      "quantities": [],
+      "facts": [
+        {
+          "kind": "condition",
+          "text": "migraine",
+          "start": 9,
+          "end": 17,
+          "context": {
+            "polarity": "affirmed",
+            "certainty": "uncertain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        },
+        {
+          "kind": "condition",
+          "text": "breast cancer",
+          "start": 44,
+          "end": 57,
+          "context": {
+            "polarity": "affirmed",
+            "certainty": "certain",
+            "temporality": "historical",
+            "experiencer": "family"
+          }
+        }
+      ],
+      "expected_route": "evaluated-english-defaults"
+    },
+    {
+      "id": "en-scan-001",
+      "language": "en",
+      "document_type": "poor-quality-scan",
+      "text": "Pati3nt d3nies chest pain. Takes clopidogrel.",
+      "dates": [],
+      "quantities": [],
+      "facts": [
+        {
+          "kind": "condition",
+          "text": "chest pain",
+          "start": 15,
+          "end": 25,
+          "context": {
+            "polarity": "negated",
+            "certainty": "certain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        },
+        {
+          "kind": "medication",
+          "text": "clopidogrel",
+          "start": 33,
+          "end": 44,
+          "context": {
+            "polarity": "affirmed",
+            "certainty": "certain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        }
+      ],
+      "expected_route": "evaluated-english-defaults"
+    },
+    {
+      "id": "ar-discharge-001",
+      "language": "ar",
+      "document_type": "discharge-summary",
+      "text": "ملخص الخروج: لدى المريض قصور قلب مزمن ويأخذ فوروسيميد 40 ملغ يومياً. المراجعة بتاريخ 2026-08-20.",
+      "dates": [
+        "2026-08-20"
+      ],
+      "quantities": [
+        {
+          "value": 40,
+          "source_unit": "ملغ",
+          "normalized_unit": null
+        }
+      ],
+      "facts": [
+        {
+          "kind": "condition",
+          "text": "قصور قلب مزمن",
+          "start": 24,
+          "end": 37,
+          "context": {
+            "polarity": "affirmed",
+            "certainty": "certain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        },
+        {
+          "kind": "medication",
+          "text": "فوروسيميد",
+          "start": 44,
+          "end": 53,
+          "context": {
+            "polarity": "affirmed",
+            "certainty": "certain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        }
+      ],
+      "expected_route": "unsupported-arabic-clinical-ner"
+    },
+    {
+      "id": "ar-lab-001",
+      "language": "ar",
+      "document_type": "laboratory-report",
+      "text": "تقرير المختبر: تركيز كرياتينين المصل أو البلازما الكتلي 124 ميكرومول/لتر بتاريخ 2026-08-12.",
+      "dates": [
+        "2026-08-12"
+      ],
+      "quantities": [
+        {
+          "value": 124,
+          "source_unit": "ميكرومول/لتر",
+          "normalized_unit": "mg/dL",
+          "loinc": "2160-0",
+          "ucum": "umol/L"
+        }
+      ],
+      "facts": [
+        {
+          "kind": "observation",
+          "text": "تركيز كرياتينين المصل أو البلازما الكتلي",
+          "start": 15,
+          "end": 55,
+          "context": {
+            "polarity": "affirmed",
+            "certainty": "certain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        }
+      ],
+      "expected_route": "unsupported-arabic-clinical-ner"
+    },
+    {
+      "id": "ar-med-list-001",
+      "language": "ar",
+      "document_type": "medication-list",
+      "text": "قائمة الأدوية: ميتفورمين 500 ملغ مرتين يومياً وأسبرين 81 ملغ يومياً.",
+      "dates": [],
+      "quantities": [
+        {
+          "value": 500,
+          "source_unit": "ملغ",
+          "normalized_unit": null
+        },
+        {
+          "value": 81,
+          "source_unit": "ملغ",
+          "normalized_unit": null
+        }
+      ],
+      "facts": [
+        {
+          "kind": "medication",
+          "text": "ميتفورمين",
+          "start": 15,
+          "end": 24,
+          "context": {
+            "polarity": "affirmed",
+            "certainty": "certain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        },
+        {
+          "kind": "medication",
+          "text": "أسبرين",
+          "start": 47,
+          "end": 53,
+          "context": {
+            "polarity": "affirmed",
+            "certainty": "certain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        }
+      ],
+      "expected_route": "unsupported-arabic-clinical-ner"
+    },
+    {
+      "id": "ar-prescription-001",
+      "language": "ar",
+      "document_type": "prescription",
+      "text": "وصفة: أموكسيسيلين 500 ملغ فموياً ثلاث مرات يومياً لمدة 7 أيام.",
+      "dates": [],
+      "quantities": [
+        {
+          "value": 500,
+          "source_unit": "ملغ",
+          "normalized_unit": null
+        }
+      ],
+      "facts": [
+        {
+          "kind": "medication",
+          "text": "أموكسيسيلين",
+          "start": 6,
+          "end": 17,
+          "context": {
+            "polarity": "affirmed",
+            "certainty": "certain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        }
+      ],
+      "expected_route": "unsupported-arabic-clinical-ner"
+    },
+    {
+      "id": "ar-imaging-001",
+      "language": "ar",
+      "document_type": "imaging-report",
+      "text": "تقرير الأشعة: لا يوجد التهاب رئوي بؤري. يوجد تضخم بسيط في القلب.",
+      "dates": [],
+      "quantities": [],
+      "facts": [
+        {
+          "kind": "condition",
+          "text": "التهاب رئوي",
+          "start": 22,
+          "end": 33,
+          "context": {
+            "polarity": "negated",
+            "certainty": "certain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        },
+        {
+          "kind": "condition",
+          "text": "تضخم بسيط في القلب",
+          "start": 45,
+          "end": 63,
+          "context": {
+            "polarity": "affirmed",
+            "certainty": "certain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        }
+      ],
+      "expected_route": "unsupported-arabic-clinical-ner"
+    },
+    {
+      "id": "ar-note-001",
+      "language": "ar",
+      "document_type": "clinical-note",
+      "text": "صداع محتمل، ووالدة المريض لديها سرطان الثدي.",
+      "dates": [],
+      "quantities": [],
+      "facts": [
+        {
+          "kind": "condition",
+          "text": "صداع",
+          "start": 0,
+          "end": 4,
+          "context": {
+            "polarity": "affirmed",
+            "certainty": "uncertain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        },
+        {
+          "kind": "condition",
+          "text": "سرطان الثدي",
+          "start": 32,
+          "end": 43,
+          "context": {
+            "polarity": "affirmed",
+            "certainty": "certain",
+            "temporality": "historical",
+            "experiencer": "family"
+          }
+        }
+      ],
+      "expected_route": "unsupported-arabic-clinical-ner"
+    },
+    {
+      "id": "ar-scan-001",
+      "language": "ar",
+      "document_type": "poor-quality-scan",
+      "text": "المريـض ينفي ألم الصدر ويأخذ كلوبيدوغريل.",
+      "dates": [],
+      "quantities": [],
+      "facts": [
+        {
+          "kind": "condition",
+          "text": "ألم الصدر",
+          "start": 13,
+          "end": 22,
+          "context": {
+            "polarity": "negated",
+            "certainty": "certain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        },
+        {
+          "kind": "medication",
+          "text": "كلوبيدوغريل",
+          "start": 29,
+          "end": 40,
+          "context": {
+            "polarity": "affirmed",
+            "certainty": "certain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        }
+      ],
+      "expected_route": "unsupported-arabic-clinical-ner"
+    },
+    {
+      "id": "mixed-lab-001",
+      "language": "mixed",
+      "document_type": "laboratory-report",
+      "text": "Lab/مختبر: Body temperature درجة حرارة الجسم 38 °C.",
+      "dates": [],
+      "quantities": [
+        {
+          "value": 38,
+          "source_unit": "°C",
+          "normalized_unit": "°C",
+          "loinc": "8310-5",
+          "ucum": "Cel"
+        }
+      ],
+      "facts": [
+        {
+          "kind": "observation",
+          "text": "Body temperature",
+          "start": 11,
+          "end": 27,
+          "context": {
+            "polarity": "affirmed",
+            "certainty": "certain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        }
+      ],
+      "expected_route": "mixed-script-review"
+    },
+    {
+      "id": "mixed-med-001",
+      "language": "mixed",
+      "document_type": "medication-list",
+      "text": "Medication/دواء: metformin ميتفورمين 500 mg.",
+      "dates": [],
+      "quantities": [
+        {
+          "value": 500,
+          "source_unit": "mg",
+          "normalized_unit": null
+        }
+      ],
+      "facts": [
+        {
+          "kind": "medication",
+          "text": "metformin",
+          "start": 17,
+          "end": 26,
+          "context": {
+            "polarity": "affirmed",
+            "certainty": "certain",
+            "temporality": "current",
+            "experiencer": "patient"
+          }
+        }
+      ],
+      "expected_route": "mixed-script-review"
+    }
+  ],
+  "limitations": [
+    "Synthetic PHI-free text only; not a measurement of a production model.",
+    "Arabic and mixed-script application routes remain fail-closed unless a separately measured and reviewed model route is approved.",
+    "Fact spans and context labels are engineering gold labels, not clinician-validated real-world performance evidence."
+  ]
+}

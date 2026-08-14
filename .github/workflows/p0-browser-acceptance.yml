@@ -39,6 +39,19 @@ jobs:
       - name: Build production application
         run: npm run build:app
 
+      - name: Verify built shell runtime boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f dist/index.html
+          if grep -Eqi \
+            'cdn\.tailwindcss\.com|fonts\.googleapis\.com|api\.iconify\.design|<script[^>]+src="https?://' \
+            dist/index.html; then
+            echo 'The built shell contains a disallowed remote runtime dependency.' >&2
+            exit 1
+          fi
+          grep -q 'MediBrief' dist/index.html
+
       - name: Install Playwright test runtime
         run: |
           npm install --no-save --no-package-lock @playwright/test@1.55.0
@@ -50,24 +63,44 @@ jobs:
       - name: Run P0 browser acceptance
         run: npx playwright test --config=playwright.acceptance.config.ts
 
-      - name: Verify public Netlify preview headers and shell
+      - name: Verify public deployment header contract
         if: github.event_name == 'pull_request'
         env:
+          BASE_REF: ${{ github.base_ref }}
           PREVIEW_URL: https://deploy-preview-${{ github.event.pull_request.number }}--clinixsummary.netlify.app
+          PRODUCTION_URL: https://clinixsummary.netlify.app
         shell: bash
         run: |
           set -euo pipefail
 
+          git fetch --no-tags --depth=1 origin "$BASE_REF"
+          target_url="$PREVIEW_URL"
+          attempts=30
+
+          # A preview is mandatory whenever the deployment/header contract
+          # changes. Otherwise the branch shell is tested locally above and the
+          # unchanged provider header contract is verified against production.
+          if git diff --quiet "origin/$BASE_REF" HEAD -- \
+            netlify.toml vercel.json public/_headers; then
+            target_url="$PRODUCTION_URL"
+            attempts=3
+            echo 'Deployment/header configuration is unchanged; verifying the live production header contract.'
+          else
+            echo 'Deployment/header configuration changed; a fresh public deploy preview is required.'
+          fi
+
           headers=''
           body=''
-          for attempt in $(seq 1 30); do
-            headers="$(curl -fsSI "$PREVIEW_URL" || true)"
-            body="$(curl -fsS "$PREVIEW_URL" || true)"
+          for attempt in $(seq 1 "$attempts"); do
+            headers="$(curl -fsSI "$target_url" || true)"
+            body="$(curl -fsS "$target_url" || true)"
             if printf '%s\n' "$headers" | grep -qi '^content-security-policy:' \
               && printf '%s' "$body" | grep -q 'MediBrief'; then
               break
             fi
-            sleep 10
+            if [ "$attempt" -lt "$attempts" ]; then
+              sleep 10
+            fi
           done
 
           printf '%s\n' "$headers"
@@ -77,13 +110,7 @@ jobs:
           printf '%s\n' "$headers" | grep -qi '^referrer-policy: *no-referrer'
           printf '%s\n' "$headers" | grep -qi '^permissions-policy:.*camera=().*microphone=()'
 
-          if printf '%s' "$body" | grep -Eqi \
-            'cdn\.tailwindcss\.com|fonts\.googleapis\.com|api\.iconify\.design|<script[^>]+src="https?://'; then
-            echo 'The deployed shell still contains a disallowed runtime dependency.' >&2
-            exit 1
-          fi
-
-          sw_headers="$(curl -fsSI "$PREVIEW_URL/sw.js")"
+          sw_headers="$(curl -fsSI "$target_url/sw.js")"
           printf '%s\n' "$sw_headers" | grep -qi '^service-worker-allowed: */'
           printf '%s\n' "$sw_headers" | grep -qi '^cache-control:.*max-age=0.*must-revalidate'
 

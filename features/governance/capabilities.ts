@@ -77,6 +77,27 @@ export const MEDIBRIEF_CAPABILITIES: CapabilityDefinition[] = [
         boundary: 'It is not a diagnostic viewer, DICOM workstation, PACS, or calibrated medical display.',
     },
     {
+        id: 'fhir-ips',
+        name: 'FHIR R4 / International Patient Summary exchange',
+        status: 'experimental',
+        description: 'Exports confirmed local records as an IPS 2.0.1 document Bundle and imports supported IPS resources as review candidates.',
+        boundary: 'Validation establishes structure for the tested document; it does not prove patient identity, clinical truth, complete terminology equivalence, source authenticity, or acceptance by every receiving system.',
+    },
+    {
+        id: 'terminology-review',
+        name: 'Governed terminology review',
+        status: 'experimental',
+        description: 'Offers exact reviewed LOINC and UCUM candidates, source-provided medication coding, and attachment of externally licensed SNOMED CT codes.',
+        boundary: 'No mapping is automatic. The bundled subset is intentionally small, original source truth is preserved, and a code does not prove clinical correctness.',
+    },
+    {
+        id: 'multilingual-evaluation',
+        name: 'Multilingual document-evaluation contracts',
+        status: 'experimental',
+        description: 'Measures PHI-free English, Arabic, and mixed-script engineering fixtures by language and document type.',
+        boundary: 'Committed perfect contract scores validate metric plumbing only. Arabic and mixed-script clinical extraction remain blocked pending measured, reviewed routes.',
+    },
+    {
         id: 'clinical-diagnosis',
         name: 'Automated diagnosis, treatment, or triage',
         status: 'disabled',
@@ -88,7 +109,7 @@ export const MEDIBRIEF_CAPABILITIES: CapabilityDefinition[] = [
         name: 'Patient-specific medication safety',
         status: 'disabled',
         description: 'Dose checking, interactions, renal/hepatic adjustment, pregnancy checks, and patient-specific contraindication decisions are disabled.',
-        boundary: 'FDA label lookup is informational and must not be presented as a safety verdict.',
+        boundary: 'Label or terminology lookup is informational and must not be presented as a safety verdict.',
     },
     {
         id: 'autonomous-actions',
@@ -105,13 +126,6 @@ export const MEDIBRIEF_CAPABILITIES: CapabilityDefinition[] = [
         boundary: 'No microphone permission is requested by the production application.',
     },
     {
-        id: 'fhir-ips',
-        name: 'FHIR R4 / International Patient Summary exchange',
-        status: 'experimental',
-        description: 'Exports confirmed local records as an IPS 2.0.1 document Bundle and imports supported IPS resources as review candidates.',
-        boundary: 'Validation establishes structure for the tested document; it does not prove patient identity, clinical truth, complete terminology equivalence, source authenticity, or acceptance by every receiving system.',
-    },
-    {
         id: 'dicomweb',
         name: 'DICOMweb imaging integration',
         status: 'planned',
@@ -122,7 +136,7 @@ export const MEDIBRIEF_CAPABILITIES: CapabilityDefinition[] = [
         id: 'clinical-validation',
         name: 'Prospective clinical validation and governance',
         status: 'planned',
-        description: 'Representative multilingual datasets, clinician review, failure thresholds, and post-release monitoring are planned.',
+        description: 'Representative measured datasets, clinician review, failure thresholds, and post-release monitoring are planned.',
         boundary: 'Automated tests and synthetic fixtures are engineering evidence, not clinical certification.',
     },
 ];

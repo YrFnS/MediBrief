@@ -1,59 +1,77 @@
-# MediBrief P1 — FHIR R4 / International Patient Summary
+# MediBrief P2 — Governed Terminology and Multilingual Validation
 
-**Branch:** `agent/p1-fhir-ips-interoperability`
+**Branch:** `agent/p2-terminology-multilingual-validation`
 
-**Standards target:** FHIR R4 `4.0.1` and `hl7.fhir.uv.ips#2.0.1`.
+**Status:** Accepted and ready to merge.
 
-**Objective:** Add a standards-based document exchange foundation without weakening MediBrief's provenance, uncertainty, patient-identity, or human-review boundaries.
+**Objective:** Improve semantic interoperability and document-evaluation discipline without converting source text into unreviewed clinical truth or enabling unevaluated multilingual routes.
 
-## P1.1 IPS document export
+## P2.1 Terminology registry
 
-- [x] Generate a FHIR document `Bundle` with `type = document`.
-- [x] Place the IPS `Composition` first and include resolvable Patient and software-author references.
-- [x] Include persistent Bundle and Composition identifiers.
-- [x] Declare the IPS 2.0.1 Bundle, Composition, Patient, and supported resource profiles.
-- [x] Include required Problems, Allergies, and Medication Summary sections.
-- [x] Use `emptyReason = unavailable` for empty required sections without asserting clinical absence.
-- [x] Generate XHTML narrative for every included section.
-- [x] Include supported conditions, allergies, medications, procedures, immunizations, observations, diagnostic reports, and specimens.
-- [x] Keep original quantities and omit unsafe non-UCUM machine coding rather than silently normalizing it.
-- [x] Produce a separate inclusion, exclusion, warning, and validation report.
+- [x] Define canonical LOINC, UCUM, RxNorm, and SNOMED CT system metadata.
+- [x] Record content/version and licensing boundaries.
+- [x] Bundle only a small reviewed exact-alias LOINC subset.
+- [x] Refuse generic specimen- and method-ambiguous observation names.
+- [x] Add reviewed English and Arabic aliases for the same precisely defined observations.
 
-## P1.2 Safe import
+## P2.2 Unit normalization
 
-- [x] Parse and structurally validate an IPS JSON document before conversion.
-- [x] Preview the IPS Patient identity without overwriting the selected local patient.
-- [x] Convert supported resources into local `candidate` records only.
-- [x] Preserve import provenance and document-local references.
-- [x] Report unsupported and skipped resource types.
-- [x] Leave the local record unchanged when validation fails.
+- [x] Map reviewed source-unit aliases to case-sensitive UCUM codes.
+- [x] Preserve original quantities.
+- [x] Convert only when analyte code and source unit match an explicit conversion profile.
+- [x] Remove legacy hard-coded physiological plausibility verdicts.
+- [x] Preserve unknown units and return a non-clinical warning.
 
-## P1.3 User interface
+## P2.3 Medication and clinical-concept coding
 
-- [x] Add an unlocked-app FHIR & IPS center.
-- [x] Download `application/fhir+json` and the validation/exclusion report.
-- [x] Preview a selected IPS before import.
-- [x] Show candidate counts, identity comparison, validation errors, exclusions, and limitations.
-- [x] Audit exports and candidate imports.
+- [x] Add source-provided RxNorm coding for an existing medication record.
+- [x] Require a reviewed RxCUI, display, and source description.
+- [x] Do not search for or choose a medication concept inside MediBrief.
+- [x] Do not perform interaction, dose, or medication-safety checking.
+- [x] Do not bundle or search SNOMED CT.
+- [x] Accept SNOMED CT coding only from an acknowledged external licensed source with an edition/version URI.
 
-## P1.4 Validation gates
+## P2.4 Review workflow
 
-- [x] Add deterministic export, empty-section, round-trip import, and malformed-document tests.
-- [x] Add a dedicated P1 GitHub workflow.
-- [x] Generate a synthetic PHI-free IPS fixture during CI.
-- [x] Run the official HL7 validator against FHIR R4 and `hl7.fhir.uv.ips#2.0.1`.
-- [ ] Resolve every HL7 validator error and complete branch validation.
-- [ ] Run deployment/browser acceptance and merge through a reviewed PR.
+- [x] Add an in-app terminology review center.
+- [x] Display coverage and pending deterministic candidates.
+- [x] Apply mappings only through explicit human review.
+- [x] Preserve source text/value and amendment history.
+- [x] Audit terminology mapping actions.
+- [x] Display licensing and clinical-validation boundaries.
 
-## P1.5 Deliberately deferred to the next P1 slice
+## P2.5 Multilingual document evaluation
 
-- Broad terminology service integration and governed mappings for LOINC, UCUM, medication, condition, procedure, and allergy concepts.
-- Import/export of every optional IPS section and resource profile.
-- SMART App Launch and live EHR connection flows.
-- Encrypted sharing links, expiry, revocation, and recipient audit semantics.
-- Digital signatures and source-authenticity verification.
-- National or jurisdiction-specific IPS derivatives.
+- [x] Add a PHI-free English, Arabic, and mixed-script corpus.
+- [x] Cover seven representative document types.
+- [x] Measure fact precision/recall/F1, unsupported additions, omissions, language routing, assertion axes, dates, and quantities.
+- [x] Group metrics by language and document type.
+- [x] Separate deterministic contract fixtures from measured runtime output.
+- [x] Prevent contract results from enabling Arabic or mixed-script clinical extraction.
+
+## P2.6 Validation gates
+
+- [x] Add terminology-governance Vitest tests.
+- [x] Add Python evaluator tests.
+- [x] Add a permanent P2 GitHub workflow and retained PHI-free artifacts.
+- [x] Add Chromium acceptance for explicit-only terminology review.
+- [x] Pass full clinical regression on the branch and pull-request merge reference.
+- [x] Pass official FHIR R4 / IPS 2.0.1 validation on the pull-request merge reference.
+- [x] Pass the P2 terminology and multilingual gate on the pull-request merge reference.
+- [x] Pass six Chromium acceptance tests.
+- [x] Verify the branch-built shell and unchanged live deployment/header contract.
+- [x] Record the Netlify/Vercel account-quota exception without weakening the requirement for a fresh preview when deployment/header files change.
+
+## Deliberately deferred
+
+- Full LOINC distribution or authenticated production terminology service integration.
+- Measured Arabic clinical NER and Arabic assertion-context model approval.
+- Measured mixed-script clinical NER approval.
+- Automated SNOMED CT search, mapping, or distribution.
+- Terminology-server validation of externally supplied SNOMED CT codes.
+- Clinician-blinded real-world document study and prospective workflow validation.
+- Patient-specific medication safety, interactions, dosing, or contraindication logic.
 
 ## Safety boundary
 
-FHIR/IPS validation verifies structure and declared profiles for the tested document. It does not establish patient identity, source authenticity, clinical truth, semantic completeness, terminology equivalence, regulatory status, or acceptance by every receiving system. Imported facts remain candidates until a person reviews and confirms them.
+A terminology code improves semantic representation only when it faithfully represents the source. It does not prove diagnosis, allergy status, medication appropriateness, result accuracy, patient identity, source authenticity, or record completeness. Synthetic evaluation and contract fixtures are engineering evidence, not clinical certification.
