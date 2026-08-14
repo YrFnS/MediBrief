@@ -54,6 +54,7 @@ export interface FhirValidateCodeAdapterOptions {
     endpoint: string;
     supportedSystems: string[];
     timeoutMs?: number;
+    maxResponseBytes?: number;
     fetchImpl?: typeof fetch;
 }
 
@@ -62,6 +63,7 @@ export interface RxNormValidationAdapterOptions {
     name?: string;
     endpoint?: string;
     timeoutMs?: number;
+    maxResponseBytes?: number;
     fetchImpl?: typeof fetch;
 }
 
