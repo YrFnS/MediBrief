@@ -22,13 +22,16 @@ const isObject = value =>
 
 const asArray = value => Array.isArray(value) ? value : [];
 
-const boundedJson = async (response, maxBytes, label) => {
-    const contentType = response.headers.get('content-type')
-        ?.toLowerCase();
-    if (contentType && !contentType.includes('json')) {
-        throw new Error(`${label} returned a non-JSON content type.`);
+const resolveTimeoutMs = value => {
+    if (!Number.isInteger(value) || value < 100 || value > 120_000) {
+        throw new Error(
+            'Probe timeout must be an integer between 100 and 120000 milliseconds.',
+        );
     }
+    return value;
+};
 
+const readBoundedBytes = async (response, maxBytes, label) => {
     const contentLength = Number(
         response.headers.get('content-length') || Number.NaN,
     );
@@ -36,11 +39,51 @@ const boundedJson = async (response, maxBytes, label) => {
         throw new Error(`${label} exceeded the configured response limit.`);
     }
 
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    if (bytes.byteLength > maxBytes) {
-        throw new Error(`${label} exceeded the configured response limit.`);
+    if (!response.body) {
+        const bytes = new Uint8Array(await response.arrayBuffer());
+        if (bytes.byteLength > maxBytes) {
+            throw new Error(`${label} exceeded the configured response limit.`);
+        }
+        return bytes;
     }
 
+    const reader = response.body.getReader();
+    const chunks = [];
+    let totalBytes = 0;
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            totalBytes += value.byteLength;
+            if (totalBytes > maxBytes) {
+                await reader.cancel();
+                throw new Error(
+                    `${label} exceeded the configured response limit.`,
+                );
+            }
+            chunks.push(value);
+        }
+    } finally {
+        reader.releaseLock();
+    }
+
+    const bytes = new Uint8Array(totalBytes);
+    let offset = 0;
+    chunks.forEach(chunk => {
+        bytes.set(chunk, offset);
+        offset += chunk.byteLength;
+    });
+    return bytes;
+};
+
+const boundedJson = async (response, maxBytes, label) => {
+    const contentType = response.headers.get('content-type')
+        ?.toLowerCase();
+    if (contentType && !contentType.includes('json')) {
+        throw new Error(`${label} returned a non-JSON content type.`);
+    }
+
+    const bytes = await readBoundedBytes(response, maxBytes, label);
     try {
         return JSON.parse(new TextDecoder().decode(bytes));
     } catch {
@@ -52,15 +95,17 @@ const fetchWithTimeout = async (
     fetchImpl,
     url,
     init,
-    timeoutMs = DEFAULT_TIMEOUT_MS,
+    timeoutMs,
+    consume = response => response,
 ) => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
-        return await fetchImpl(url, {
+        const response = await fetchImpl(url, {
             ...init,
             signal: controller.signal,
         });
+        return await consume(response);
     } finally {
         clearTimeout(timeout);
     }
@@ -380,6 +425,7 @@ export const runHapiPublicR4Probe = async ({
     if (typeof fetchImpl !== 'function') {
         throw new Error('A Fetch API implementation is required.');
     }
+    const resolvedTimeoutMs = resolveTimeoutMs(timeoutMs);
 
     const bundle = buildSyntheticProbeBundle({
         probeId,
@@ -393,7 +439,7 @@ export const runHapiPublicR4Probe = async ({
         );
     }
 
-    const metadataResponse = await fetchWithTimeout(
+    const capabilityPayload = await fetchWithTimeout(
         fetchImpl,
         HAPI_PUBLIC_R4_CAPABILITY_URL,
         {
@@ -405,17 +451,19 @@ export const runHapiPublicR4Probe = async ({
             credentials: 'omit',
             referrerPolicy: 'no-referrer',
         },
-        timeoutMs,
-    );
-    if (!metadataResponse.ok) {
-        throw new Error(
-            `Capability discovery returned HTTP ${metadataResponse.status}.`,
-        );
-    }
-    const capabilityPayload = await boundedJson(
-        metadataResponse,
-        MAX_CAPABILITY_BYTES,
-        'Capability discovery',
+        resolvedTimeoutMs,
+        async response => {
+            if (!response.ok) {
+                throw new Error(
+                    `Capability discovery returned HTTP ${response.status}.`,
+                );
+            }
+            return boundedJson(
+                response,
+                MAX_CAPABILITY_BYTES,
+                'Capability discovery',
+            );
+        },
     );
     const capability = inspectHapiCapabilityStatement(capabilityPayload);
     if (capability.errors.length > 0) {
@@ -433,7 +481,7 @@ export const runHapiPublicR4Probe = async ({
 
     try {
         writeAttempted = true;
-        const transactionResponse = await fetchWithTimeout(
+        transactionResult = await fetchWithTimeout(
             fetchImpl,
             HAPI_PUBLIC_R4_BASE_URL,
             {
@@ -447,21 +495,20 @@ export const runHapiPublicR4Probe = async ({
                 credentials: 'omit',
                 referrerPolicy: 'no-referrer',
             },
-            timeoutMs,
-        );
-        if (!transactionResponse.ok) {
-            throw new Error(
-                `Synthetic transaction returned HTTP ${transactionResponse.status}.`,
-            );
-        }
-        const transactionPayload = await boundedJson(
-            transactionResponse,
-            MAX_TRANSACTION_RESPONSE_BYTES,
-            'Synthetic transaction',
-        );
-        transactionResult = inspectTransactionResponse(
-            transactionPayload,
-            resourceId,
+            resolvedTimeoutMs,
+            async response => {
+                if (!response.ok) {
+                    throw new Error(
+                        `Synthetic transaction returned HTTP ${response.status}.`,
+                    );
+                }
+                const payload = await boundedJson(
+                    response,
+                    MAX_TRANSACTION_RESPONSE_BYTES,
+                    'Synthetic transaction',
+                );
+                return inspectTransactionResponse(payload, resourceId);
+            },
         );
     } catch (error) {
         primaryError = error;
@@ -480,7 +527,7 @@ export const runHapiPublicR4Probe = async ({
                         credentials: 'omit',
                         referrerPolicy: 'no-referrer',
                     },
-                    timeoutMs,
+                    resolvedTimeoutMs,
                 );
                 cleanupStatus = cleanupResponse.status;
                 if (!cleanupResponse.ok && cleanupResponse.status !== 404) {
