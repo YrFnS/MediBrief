@@ -1,4 +1,5 @@
 export * from './components';
+export * from './atomicIpsImport';
 export * from './ipsConstants';
 export * from './ipsExport';
 export * from './ipsImport';
