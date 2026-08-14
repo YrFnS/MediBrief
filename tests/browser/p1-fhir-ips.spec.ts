@@ -227,7 +227,7 @@ test('IPS import preserves one reachable candidate graph only after identity ack
     await expect(dialog.getByText('Local IPS structural checks passed')).toBeVisible();
     await expect(dialog.getByText('Synthetic Import Patient')).toBeVisible();
     await expect(dialog.getByText('4 of 5 Bundle entries')).toBeVisible();
-    await expect(dialog.getByText('Condition: 1')).toBeVisible();
+    await expect(dialog.getByText('Condition: 1')).toHaveCount(2);
     await expect(dialog.getByText('Exact source evidence')).toBeVisible();
     await expect(dialog.getByText('Patient identity comparison', {
         exact: false,
