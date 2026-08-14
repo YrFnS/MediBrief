@@ -1,0 +1,120 @@
+{
+  "schemaVersion": "1",
+  "receiverProfileId": "hapi-public-r4-test-server",
+  "snapshotId": "hapi-public-r4-2026-08-15",
+  "reviewedAt": "2026-08-15",
+  "receiver": {
+    "name": "HAPI FHIR Public R4 Test Server",
+    "environment": "public-test",
+    "baseUrl": "https://hapi.fhir.org/baseR4",
+    "capabilityStatementUrl": "https://hapi.fhir.org/baseR4/metadata",
+    "fhirVersion": "4.0.1",
+    "authentication": {
+      "mode": "none-observed-on-public-test-endpoint",
+      "productionEquivalent": false,
+      "notes": [
+        "The public endpoint is reachable without an OAuth token.",
+        "Absence of authentication is a test-server characteristic and must never be copied into a production receiver configuration."
+      ]
+    }
+  },
+  "authoritativeReferences": [
+    {
+      "kind": "project-documentation",
+      "url": "https://hapifhir.io/",
+      "supports": [
+        "The project identifies hapi.fhir.org as its public demonstration/test server.",
+        "The public server is not production and must not receive personal health or confidential information."
+      ]
+    },
+    {
+      "kind": "server-test-page",
+      "url": "https://hapi.fhir.org/",
+      "supports": [
+        "The selected endpoint is the HAPI Test Server for FHIR R4.",
+        "The page warns that the service is non-production, regularly purged, and must not receive PHI or confidential information.",
+        "The page exposes a server transaction action."
+      ]
+    },
+    {
+      "kind": "server-openapi",
+      "url": "https://hapi.fhir.org/baseR4/swagger-ui/?page=System+Level+Operations",
+      "supports": [
+        "The endpoint reports FHIR 4.0.1.",
+        "GET /metadata returns the server CapabilityStatement.",
+        "POST / executes a FHIR transaction or batch Bundle."
+      ]
+    },
+    {
+      "kind": "implementation-documentation",
+      "url": "https://hapifhir.io/hapi-fhir/docs/server_jpa/",
+      "supports": [
+        "HAPI FHIR JPA Server is a general RESTful FHIR server implementation.",
+        "The implementation can store standard FHIR resources and expose standard interactions."
+      ]
+    },
+    {
+      "kind": "transaction-example",
+      "url": "https://hapifhir.io/hapi-fhir/docs/model/bundle_builder.html",
+      "supports": [
+        "HAPI documents transaction create behavior.",
+        "The example is implementation guidance, not proof of a specific public-server acceptance rule."
+      ]
+    }
+  ],
+  "receiverContract": {
+    "ipsPackage": "hl7.fhir.uv.ips#2.0.1",
+    "requiredProfiles": [
+      "http://hl7.org/fhir/uv/ips/StructureDefinition/Bundle-uv-ips",
+      "http://hl7.org/fhir/uv/ips/StructureDefinition/Composition-uv-ips",
+      "http://hl7.org/fhir/uv/ips/StructureDefinition/Patient-uv-ips"
+    ],
+    "requiredExtensions": [],
+    "advertisedIpsConsumerProfiles": [],
+    "supportedIpsResourceTypesObserved": [
+      "Composition",
+      "Patient",
+      "Device",
+      "Condition",
+      "AllergyIntolerance",
+      "MedicationStatement",
+      "MedicationRequest",
+      "Immunization",
+      "Procedure",
+      "DiagnosticReport",
+      "Specimen",
+      "Observation"
+    ],
+    "compatibilityConclusion": "indeterminate",
+    "reason": "The public server exposes general R4 resource and transaction support, but the reviewed evidence does not establish an IPS consumer profile, IPS-specific validation, durable document storage, or successful clinical rendering."
+  },
+  "syntheticProbeBoundary": {
+    "manualOnly": true,
+    "enabledByDefault": false,
+    "requiredEnvironmentVariable": "MEDIBRIEF_ALLOW_PUBLIC_SYNTHETIC_PROBE=true",
+    "payloadResourceTypes": [
+      "Basic"
+    ],
+    "patientDataTransmitted": false,
+    "ipsDocumentTransmitted": false,
+    "cleanupRequired": true,
+    "notes": [
+      "The probe performs capability discovery before any write.",
+      "The probe sends one hard-coded nonclinical Basic resource in a transaction Bundle.",
+      "The probe does not accept a file, patient identifier, clinical record, IPS Bundle, arbitrary endpoint, or arbitrary payload.",
+      "The created Basic resource is deleted before the probe reports success."
+    ]
+  },
+  "claimsNotEstablished": [
+    "receiver identity",
+    "authorization to disclose patient information",
+    "patient identity matching",
+    "consent",
+    "IPS ingestion",
+    "clinical rendering",
+    "durability",
+    "source authenticity",
+    "clinical truth",
+    "production readiness"
+  ]
+}
