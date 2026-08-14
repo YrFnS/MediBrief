@@ -51,7 +51,7 @@ describe('local reviewed terminology adapter', () => {
 });
 
 describe('FHIR validate-code adapter', () => {
-    it('hardens configured endpoints', () => {
+    it('hardens configured endpoints and numeric safety limits', () => {
         expect(normalizeTerminologyEndpoint(
             'https://terminology.example/fhir/',
         )).toBe('https://terminology.example/fhir');
@@ -67,16 +67,46 @@ describe('FHIR validate-code adapter', () => {
         expect(() => normalizeTerminologyEndpoint(
             'https://terminology.example/fhir?token=secret',
         )).toThrow(/query or fragment/);
+        expect(() => createFhirValidateCodeAdapter({
+            endpoint: 'https://terminology.example/fhir',
+            supportedSystems: [TERMINOLOGY_URIS.loinc],
+            timeoutMs: 0,
+        })).toThrow(/timeout/i);
+        expect(() => createFhirValidateCodeAdapter({
+            endpoint: 'https://terminology.example/fhir',
+            supportedSystems: [TERMINOLOGY_URIS.loinc],
+            maxResponseBytes: 10,
+        })).toThrow(/response limit/i);
     });
 
-    it('builds a coded-only FHIR Parameters request', () => {
-        const parameters = buildFhirValidateCodeParameters({
+    it('builds R4 CodeSystem and ValueSet Parameters with the correct version field', () => {
+        const codeSystemParameters = buildFhirValidateCodeParameters({
             system: TERMINOLOGY_URIS.loinc,
             code: '8867-4',
             version: '2.82',
             display: 'Heart rate',
         });
-        const serialized = JSON.stringify(parameters);
+        expect(codeSystemParameters.parameter).toContainEqual({
+            name: 'version',
+            valueString: '2.82',
+        });
+
+        const valueSetParameters = buildFhirValidateCodeParameters({
+            system: TERMINOLOGY_URIS.loinc,
+            code: '8867-4',
+            version: '2.82',
+            valueSetUrl: 'https://receiver.example/ValueSet/heart-rate',
+        });
+        expect(valueSetParameters.parameter).toContainEqual({
+            name: 'systemVersion',
+            valueString: '2.82',
+        });
+        expect(valueSetParameters.parameter).not.toContainEqual({
+            name: 'version',
+            valueString: '2.82',
+        });
+
+        const serialized = JSON.stringify(codeSystemParameters);
         expect(serialized).toContain('8867-4');
         expect(serialized).toContain(TERMINOLOGY_URIS.loinc);
         expect(serialized).not.toContain('patientId');
@@ -84,7 +114,7 @@ describe('FHIR validate-code adapter', () => {
         expect(serialized).not.toContain('sourceText');
     });
 
-    it('omits unexpected clinical fields and fails closed on unusable responses', async () => {
+    it('omits unexpected clinical fields and validates a matching coded response', async () => {
         const captured: Array<{ url: string; init?: RequestInit }> = [];
         const fetchImpl = vi.fn(async (
             input: RequestInfo | URL,
@@ -96,6 +126,8 @@ describe('FHIR validate-code adapter', () => {
                 parameter: [
                     { name: 'result', valueBoolean: true },
                     { name: 'display', valueString: 'Heart rate' },
+                    { name: 'system', valueUri: TERMINOLOGY_URIS.loinc },
+                    { name: 'code', valueCode: '8867-4' },
                 ],
             }), {
                 status: 200,
@@ -129,6 +161,28 @@ describe('FHIR validate-code adapter', () => {
         expect(body).not.toContain('must-not-leave-browser');
         expect(body).not.toContain('patientId');
         expect(body).not.toContain('sourceText');
+    });
+
+    it('fails closed on identity drift, malformed JSON, and oversized responses', async () => {
+        const mismatchAdapter = createFhirValidateCodeAdapter({
+            endpoint: 'https://terminology.example/fhir',
+            supportedSystems: [TERMINOLOGY_URIS.loinc],
+            fetchImpl: (async () => new Response(JSON.stringify({
+                resourceType: 'Parameters',
+                parameter: [
+                    { name: 'result', valueBoolean: true },
+                    { name: 'system', valueUri: TERMINOLOGY_URIS.loinc },
+                    { name: 'code', valueCode: 'different-code' },
+                ],
+            }), {
+                status: 200,
+                headers: { 'content-type': 'application/fhir+json' },
+            })) as typeof fetch,
+        });
+        expect((await mismatchAdapter.validateCode({
+            system: TERMINOLOGY_URIS.loinc,
+            code: '8867-4',
+        })).status).toBe('indeterminate');
 
         const malformedAdapter = createFhirValidateCodeAdapter({
             endpoint: 'https://terminology.example/fhir',
@@ -141,6 +195,44 @@ describe('FHIR validate-code adapter', () => {
             system: TERMINOLOGY_URIS.loinc,
             code: '8867-4',
         })).status).toBe('indeterminate');
+
+        const oversizedAdapter = createFhirValidateCodeAdapter({
+            endpoint: 'https://terminology.example/fhir',
+            supportedSystems: [TERMINOLOGY_URIS.loinc],
+            maxResponseBytes: 1_024,
+            fetchImpl: (async () => new Response(JSON.stringify({
+                resourceType: 'Parameters',
+                parameter: [
+                    { name: 'result', valueBoolean: true },
+                    { name: 'message', valueString: 'x'.repeat(2_000) },
+                ],
+            }), {
+                status: 200,
+                headers: { 'content-type': 'application/fhir+json' },
+            })) as typeof fetch,
+        });
+        const oversized = await oversizedAdapter.validateCode({
+            system: TERMINOLOGY_URIS.loinc,
+            code: '8867-4',
+        });
+        expect(oversized.status).toBe('indeterminate');
+        expect(oversized.message).toMatch(/safety limit/i);
+    });
+
+    it('does not make a request for a system outside the adapter allowlist', async () => {
+        const fetchImpl = vi.fn() as unknown as typeof fetch;
+        const adapter = createFhirValidateCodeAdapter({
+            endpoint: 'https://terminology.example/fhir',
+            supportedSystems: [TERMINOLOGY_URIS.loinc],
+            fetchImpl,
+        });
+        const result = await adapter.validateCode({
+            system: TERMINOLOGY_URIS.snomedCt,
+            code: '59621000',
+        });
+        expect(result.status).toBe('indeterminate');
+        expect(result.externalRequest).toBe(false);
+        expect(fetchImpl).not.toHaveBeenCalled();
     });
 });
 
@@ -158,7 +250,7 @@ describe('RxNorm adapter', () => {
         )).toThrow(/RxCUI/);
     });
 
-    it('does not expose display text in the URL and distinguishes missing active concepts', async () => {
+    it('does not expose display text in the URL and distinguishes active, missing, and version-specific concepts', async () => {
         const urls: string[] = [];
         const activeAdapter = createRxNormValidationAdapter({
             fetchImpl: (async (input: RequestInfo | URL) => {
@@ -167,8 +259,12 @@ describe('RxNorm adapter', () => {
                     properties: {
                         rxcui: '308135',
                         name: 'Amlodipine 5 MG Oral Tablet',
+                        suppress: 'N',
                     },
-                }), { status: 200 });
+                }), {
+                    status: 200,
+                    headers: { 'content-type': 'application/json' },
+                });
             }) as typeof fetch,
         });
         const active = await activeAdapter.validateCode({
@@ -183,14 +279,52 @@ describe('RxNorm adapter', () => {
             'U.S. National Library of Medicine',
         );
 
+        const versionSpecific = await activeAdapter.validateCode({
+            system: TERMINOLOGY_URIS.rxnorm,
+            code: '308135',
+            version: '2025-07-01',
+        });
+        expect(versionSpecific.status).toBe('indeterminate');
+        expect(versionSpecific.message).toMatch(/historical version/i);
+
         const missingAdapter = createRxNormValidationAdapter({
             fetchImpl: (async () => new Response('{}', {
                 status: 200,
+                headers: { 'content-type': 'application/json' },
             })) as typeof fetch,
         });
         expect((await missingAdapter.validateCode({
             system: TERMINOLOGY_URIS.rxnorm,
             code: '308135',
         })).status).toBe('invalid');
+    });
+
+    it('fails closed on an oversized response and avoids network for invalid identifiers', async () => {
+        const oversizedAdapter = createRxNormValidationAdapter({
+            maxResponseBytes: 1_024,
+            fetchImpl: (async () => new Response(JSON.stringify({
+                properties: {
+                    rxcui: '308135',
+                    name: 'x'.repeat(2_000),
+                },
+            }), {
+                status: 200,
+                headers: { 'content-type': 'application/json' },
+            })) as typeof fetch,
+        });
+        expect((await oversizedAdapter.validateCode({
+            system: TERMINOLOGY_URIS.rxnorm,
+            code: '308135',
+        })).status).toBe('indeterminate');
+
+        const fetchImpl = vi.fn() as unknown as typeof fetch;
+        const invalidAdapter = createRxNormValidationAdapter({ fetchImpl });
+        const invalid = await invalidAdapter.validateCode({
+            system: TERMINOLOGY_URIS.rxnorm,
+            code: 'amlodipine',
+        });
+        expect(invalid.status).toBe('invalid');
+        expect(invalid.externalRequest).toBe(false);
+        expect(fetchImpl).not.toHaveBeenCalled();
     });
 });
