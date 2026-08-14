@@ -3,6 +3,7 @@ import { encryptionService } from './encryptionService';
 const DB_NAME = 'MediBrief_EncryptedSourceStore';
 const STORE_NAME = 'sources';
 const DB_VERSION = 1;
+const ENVELOPE_SCHEMA_VERSION = 1;
 
 export const ENCRYPTED_SOURCE_STORAGE_PREFIX =
     'medibrief-encrypted-source:';
@@ -20,6 +21,18 @@ export interface EncryptedSourceInput {
 interface StoredEncryptedSource {
     id: string;
     encryptedPayload: string;
+    // Legacy prototype fields are optional so an existing local preview record
+    // can still be opened and migrated by the next successful save.
+    fileName?: string;
+    mimeType?: string;
+    sha256?: string;
+    byteLength?: number;
+    storedAt?: string;
+}
+
+interface EncryptedSourceEnvelope {
+    schemaVersion: 1;
+    text: string;
     fileName: string;
     mimeType: string;
     sha256: string;
@@ -60,6 +73,55 @@ export const sha256Hex = async (value: string): Promise<string> => {
 
 export const isEncryptedSourceStorageId = (value: string): boolean =>
     value.startsWith(ENCRYPTED_SOURCE_STORAGE_PREFIX);
+
+const isObject = (value: unknown): value is Record<string, unknown> =>
+    typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const parseEnvelope = (
+    decrypted: string,
+    stored: StoredEncryptedSource,
+): EncryptedSourceEnvelope => {
+    try {
+        const parsed = JSON.parse(decrypted) as unknown;
+        if (
+            isObject(parsed)
+            && parsed.schemaVersion === ENVELOPE_SCHEMA_VERSION
+            && typeof parsed.text === 'string'
+            && typeof parsed.fileName === 'string'
+            && typeof parsed.mimeType === 'string'
+            && typeof parsed.sha256 === 'string'
+            && typeof parsed.byteLength === 'number'
+            && typeof parsed.storedAt === 'string'
+        ) {
+            return parsed as unknown as EncryptedSourceEnvelope;
+        }
+    } catch {
+        // The first prototype encrypted only the source text. The optional
+        // plaintext fields below are read solely for backward compatibility.
+    }
+
+    if (
+        typeof stored.fileName === 'string'
+        && typeof stored.mimeType === 'string'
+        && typeof stored.sha256 === 'string'
+        && typeof stored.byteLength === 'number'
+        && typeof stored.storedAt === 'string'
+    ) {
+        return {
+            schemaVersion: ENVELOPE_SCHEMA_VERSION,
+            text: decrypted,
+            fileName: stored.fileName,
+            mimeType: stored.mimeType,
+            sha256: stored.sha256,
+            byteLength: stored.byteLength,
+            storedAt: stored.storedAt,
+        };
+    }
+
+    throw new Error(
+        'Encrypted source evidence has an unsupported envelope format.',
+    );
+};
 
 const openDB = (): Promise<IDBDatabase> => {
     if (!globalThis.indexedDB) {
@@ -136,14 +198,20 @@ export const encryptedSourceStorage = {
             );
         }
 
-        await put({
-            id: input.id,
-            encryptedPayload: await encryptionService.encrypt(input.text),
+        const envelope: EncryptedSourceEnvelope = {
+            schemaVersion: ENVELOPE_SCHEMA_VERSION,
+            text: input.text,
             fileName: input.fileName,
             mimeType: input.mimeType,
             sha256,
             byteLength,
             storedAt: input.storedAt,
+        };
+        await put({
+            id: input.id,
+            encryptedPayload: await encryptionService.encrypt(
+                JSON.stringify(envelope),
+            ),
         });
     },
 
@@ -156,20 +224,20 @@ export const encryptedSourceStorage = {
             throw new Error('The local vault is locked.');
         }
 
-        const text = await encryptionService.decrypt(
+        const decrypted = await encryptionService.decrypt(
             stored.encryptedPayload,
         );
-        if (text === null) {
+        if (decrypted === null) {
             throw new Error(
                 'Encrypted source evidence could not be decrypted.',
             );
         }
-
-        const byteLength = bytes(text);
-        const sha256 = await sha256Hex(text);
+        const envelope = parseEnvelope(decrypted, stored);
+        const byteLength = bytes(envelope.text);
+        const sha256 = await sha256Hex(envelope.text);
         if (
-            byteLength !== stored.byteLength
-            || sha256 !== stored.sha256
+            byteLength !== envelope.byteLength
+            || sha256 !== envelope.sha256
         ) {
             throw new Error(
                 'Encrypted source evidence failed integrity verification.',
@@ -178,12 +246,12 @@ export const encryptedSourceStorage = {
 
         return {
             id: stored.id,
-            text,
-            fileName: stored.fileName,
-            mimeType: stored.mimeType,
+            text: envelope.text,
+            fileName: envelope.fileName,
+            mimeType: envelope.mimeType,
             sha256,
             byteLength,
-            storedAt: stored.storedAt,
+            storedAt: envelope.storedAt,
         };
     },
 
