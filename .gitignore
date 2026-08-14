@@ -19,6 +19,11 @@ __pycache__/
 .coverage
 htmlcov/
 
+# P3 controlled/local validation material
+evaluation/p3/private/
+evaluation/p3/local/
+p3-evidence/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

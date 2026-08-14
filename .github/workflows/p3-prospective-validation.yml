@@ -1,0 +1,86 @@
+name: P3 Prospective Validation Foundation
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+  push:
+    branches:
+      - main
+      - 'agent/p3-prospective-validation-foundation'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p3-prospective-validation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-p3:
+    name: Prospective protocol, review, and stop-ship contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install evaluator test dependency
+        run: python -m pip install --disable-pip-version-check pytest==8.4.1
+
+      - name: Test prospective validation contracts
+        run: >-
+          python -m pytest
+          openmed_bridge/tests/test_evaluate_prospective_validation.py
+          -q
+
+      - name: Evaluate PHI-free P3 contract fixture
+        run: >-
+          python -m openmed_bridge.evaluate_prospective_validation
+          --protocol evaluation/p3/protocol_contract_fixture.json
+          --results evaluation/p3/runtime_results_contract_fixture.json
+          --reviews evaluation/p3/clinician_reviews_contract_fixture.json
+          --policy evaluation/p3/release_policy_contract_fixture.json
+          --require-contract-fixture
+          --output p3-evidence/prospective-validation-contract-report.json
+
+      - name: Verify contract cannot authorize release
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(
+              Path("p3-evidence/prospective-validation-contract-report.json")
+              .read_text(encoding="utf-8")
+          )
+          assert report["decision"] == "contract-only"
+          assert report["route_change_authorized"] is False
+          assert report["clinical_validation_established"] is False
+          assert report["medication_safety_enabled"] is False
+          PY
+
+      - name: Upload PHI-free P3 evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: p3-prospective-validation-contract-evidence
+          path: |
+            p3-evidence/prospective-validation-contract-report.json
+            evaluation/p3/protocol_contract_fixture.json
+            evaluation/p3/runtime_results_contract_fixture.json
+            evaluation/p3/clinician_reviews_contract_fixture.json
+            evaluation/p3/release_policy_contract_fixture.json
+          if-no-files-found: error
+          retention-days: 14

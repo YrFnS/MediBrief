@@ -1,77 +1,106 @@
-# MediBrief P2 — Governed Terminology and Multilingual Validation
+# MediBrief P3 — Prospective Medical-Document Validation
 
-**Branch:** `agent/p2-terminology-multilingual-validation`
+**Branch:** `agent/p3-prospective-validation-foundation`
 
-**Status:** Accepted and ready to merge.
+**Status:** In progress — protocol and fail-closed release-gate foundation implemented.
 
-**Objective:** Improve semantic interoperability and document-evaluation discipline without converting source text into unreviewed clinical truth or enabling unevaluated multilingual routes.
+**Objective:** Replace synthetic-only confidence with governed measured
+evidence from named, locked extraction and OCR configurations, while keeping
+all outputs candidate-only and preventing incomplete evidence from enabling a
+clinical route.
 
-## P2.1 Terminology registry
+## P3.0 Protocol and evidence classes
 
-- [x] Define canonical LOINC, UCUM, RxNorm, and SNOMED CT system metadata.
-- [x] Record content/version and licensing boundaries.
-- [x] Bundle only a small reviewed exact-alias LOINC subset.
-- [x] Refuse generic specimen- and method-ambiguous observation names.
-- [x] Add reviewed English and Arabic aliases for the same precisely defined observations.
+- [x] Define `contract-fixture` and `measured-prospective-run` evidence classes.
+- [x] Require a frozen intended use, population boundary, task list, language
+  list, document strata, and case-inventory hash.
+- [x] Require named runtime configurations with explicit version, source
+  revision, parameters, environment, and lock status.
+- [x] Prevent a contract fixture from producing a release candidate.
+- [x] Keep route authorization and clinical-validation claims outside the
+  evaluator.
 
-## P2.2 Unit normalization
+## P3.1 Data and gold-label governance
 
-- [x] Map reviewed source-unit aliases to case-sensitive UCUM codes.
-- [x] Preserve original quantities.
-- [x] Convert only when analyte code and source unit match an explicit conversion profile.
-- [x] Remove legacy hard-coded physiological plausibility verdicts.
-- [x] Preserve unknown units and return a non-clinical warning.
+- [x] Require legally usable, independent test data with documented
+  training-overlap assessment.
+- [x] Require preprocessing to be frozen before scoring.
+- [x] Require clinician-authored independent gold labels and completed
+  adjudication for measured release evaluation.
+- [x] Forbid committed source documents and raw patient/source fields in
+  derived evidence.
+- [ ] Acquire the first representative legally usable dataset.
+- [ ] Complete clinician-authored gold labels and adjudication.
 
-## P2.3 Medication and clinical-concept coding
+## P3.2 Stratified runtime evaluation
 
-- [x] Add source-provided RxNorm coding for an existing medication record.
-- [x] Require a reviewed RxCUI, display, and source description.
-- [x] Do not search for or choose a medication concept inside MediBrief.
-- [x] Do not perform interaction, dose, or medication-safety checking.
-- [x] Do not bundle or search SNOMED CT.
-- [x] Accept SNOMED CT coding only from an acknowledged external licensed source with an edition/version URI.
+- [x] Support the seven roadmap document strata.
+- [x] Stratify results by task, language, document type, and combined stratum.
+- [x] Aggregate extraction, OCR, and medication-reconciliation metrics.
+- [x] Treat runtime failures, identity mismatch, and critical errors as
+  explicit stop-ship inputs.
+- [ ] Capture measured output from the first approved extraction configuration.
+- [ ] Capture measured output from the first approved OCR configuration.
+- [ ] Add site and clinically relevant subgroup analyses after the dataset is
+  approved.
 
-## P2.4 Review workflow
+## P3.3 Blinded clinician review
 
-- [x] Add an in-app terminology review center.
-- [x] Display coverage and pending deterministic candidates.
-- [x] Apply mappings only through explicit human review.
-- [x] Preserve source text/value and amendment history.
-- [x] Audit terminology mapping actions.
-- [x] Display licensing and clinical-validation boundaries.
+- [x] Require independent blinded review of high-risk and boundary results.
+- [x] Track exact-verdict agreement and safety-class agreement.
+- [x] Require adjudication on safety disagreement.
+- [x] Stop-ship missing review, unresolved disagreement, unsafe adjudication,
+  or reviewer-reported critical error according to policy.
+- [ ] Recruit and credential the clinical review panel.
+- [ ] Complete the first blinded review round.
 
-## P2.5 Multilingual document evaluation
+## P3.4 Release and regression policy
 
-- [x] Add a PHI-free English, Arabic, and mixed-script corpus.
-- [x] Cover seven representative document types.
-- [x] Measure fact precision/recall/F1, unsupported additions, omissions, language routing, assertion axes, dates, and quantities.
-- [x] Group metrics by language and document type.
-- [x] Separate deterministic contract fixtures from measured runtime output.
-- [x] Prevent contract results from enabling Arabic or mixed-script clinical extraction.
+- [x] Add task-specific threshold contracts.
+- [x] Add minimum case counts by task, language, and document type.
+- [x] Add zero-tolerance critical-error, identity-mismatch, and runtime-failure
+  gates.
+- [x] Add accepted-baseline regression comparisons.
+- [x] Return `contract-only`, `stop-ship`, or
+  `engineering-release-candidate`.
+- [x] Keep route changes and medication safety disabled regardless of result.
+- [ ] Approve the first clinical/statistical release policy.
+- [ ] Establish the first accepted measured baseline.
 
-## P2.6 Validation gates
+## P3.5 Automation and evidence retention
 
-- [x] Add terminology-governance Vitest tests.
-- [x] Add Python evaluator tests.
-- [x] Add a permanent P2 GitHub workflow and retained PHI-free artifacts.
-- [x] Add Chromium acceptance for explicit-only terminology review.
-- [x] Pass full clinical regression on the branch and pull-request merge reference.
-- [x] Pass official FHIR R4 / IPS 2.0.1 validation on the pull-request merge reference.
-- [x] Pass the P2 terminology and multilingual gate on the pull-request merge reference.
-- [x] Pass six Chromium acceptance tests.
-- [x] Verify the branch-built shell and unchanged live deployment/header contract.
-- [x] Record the Netlify/Vercel account-quota exception without weakening the requirement for a fresh preview when deployment/header files change.
+- [x] Add prospective-validation unit tests.
+- [x] Add a permanent P3 GitHub workflow.
+- [x] Retain the PHI-free contract report as CI evidence.
+- [ ] Retain approved derived measured reports in the controlled evidence
+  location.
+- [ ] Add change-control review for model, engine, threshold, or preprocessing
+  updates.
 
-## Deliberately deferred
+## P3.6 Medication reconciliation
 
-- Full LOINC distribution or authenticated production terminology service integration.
-- Measured Arabic clinical NER and Arabic assertion-context model approval.
-- Measured mixed-script clinical NER approval.
-- Automated SNOMED CT search, mapping, or distribution.
-- Terminology-server validation of externally supplied SNOMED CT codes.
-- Clinician-blinded real-world document study and prospective workflow validation.
-- Patient-specific medication safety, interactions, dosing, or contraindication logic.
+- [x] Add precision, recall, F1, unsupported-addition, omission, and
+  attribute-accuracy gates.
+- [x] Keep medication-safety capability disabled.
+- [ ] Validate reconciliation on representative medication lists and
+  prescriptions.
+- [ ] Complete blinded review of medication additions, omissions, status,
+  route, dose, frequency, and timing errors.
+
+## Deliberately blocked
+
+- Enabling Arabic or mixed-script clinical extraction from synthetic or
+  contract evidence.
+- Automatic provider selection or combining provider predictions.
+- Committing source medical documents or raw patient text to the repository.
+- Treating engineering thresholds as clinical validation.
+- Patient-specific medication interactions, dosing, contraindication, or
+  treatment recommendations.
+- Any route change without separate reviewed change control.
 
 ## Safety boundary
 
-A terminology code improves semantic representation only when it faithfully represents the source. It does not prove diagnosis, allergy status, medication appropriateness, result accuracy, patient identity, source authenticity, or record completeness. Synthetic evaluation and contract fixtures are engineering evidence, not clinical certification.
+A passing P3 report can identify an engineering release candidate for one
+exact, frozen configuration and evaluation scope. It does not authorize a
+MediBrief route change, establish clinical truth or patient identity, prove
+improved outcomes, provide regulatory clearance, or enable medication safety.

@@ -1,0 +1,118 @@
+{
+  "schema_version": "1",
+  "study_id": "medibrief-p3-prospective-contract-v1",
+  "evidence_class": "contract-fixture",
+  "protocol_version": "1.0.0",
+  "intended_use": "Validate the P3 study, aggregation, blinded-review, release-threshold, and stop-ship contracts using derived synthetic evidence only.",
+  "route_change_requested": false,
+  "tasks": [
+    "document-fact-extraction",
+    "ocr",
+    "medication-reconciliation"
+  ],
+  "languages": [
+    "en",
+    "ar",
+    "mixed"
+  ],
+  "document_types": [
+    "discharge-summary",
+    "laboratory-report",
+    "medication-list",
+    "prescription",
+    "imaging-report",
+    "clinical-note",
+    "poor-quality-scan"
+  ],
+  "runtime_configurations": [
+    {
+      "id": "contract-extraction-v1",
+      "task": "document-fact-extraction",
+      "provider": "contract",
+      "model_or_engine": "reference-exact-facts",
+      "version": "1.0.0",
+      "source_revision": "contract-revision-1",
+      "locked": true,
+      "parameters": {
+        "confidence_threshold": 1.0
+      },
+      "runtime": {
+        "operating_system": "synthetic-contract",
+        "hardware": "not-applicable",
+        "language_runtime": "python-3.12"
+      }
+    },
+    {
+      "id": "contract-ocr-v1",
+      "task": "ocr",
+      "provider": "contract",
+      "model_or_engine": "reference-exact-ocr",
+      "version": "1.0.0",
+      "source_revision": "contract-revision-1",
+      "locked": true,
+      "parameters": {
+        "languages": [
+          "en",
+          "ar"
+        ]
+      },
+      "runtime": {
+        "operating_system": "synthetic-contract",
+        "hardware": "not-applicable",
+        "language_runtime": "python-3.12"
+      }
+    },
+    {
+      "id": "contract-medication-reconciliation-v1",
+      "task": "medication-reconciliation",
+      "provider": "contract",
+      "model_or_engine": "reference-exact-medication-reconciliation",
+      "version": "1.0.0",
+      "source_revision": "contract-revision-1",
+      "locked": true,
+      "parameters": {
+        "match_mode": "exact-contract"
+      },
+      "runtime": {
+        "operating_system": "synthetic-contract",
+        "hardware": "not-applicable",
+        "language_runtime": "python-3.12"
+      }
+    }
+  ],
+  "dataset": {
+    "dataset_id": "medibrief-p3-contract-dataset-v1",
+    "case_inventory_hash": "sha256:a26b3d9182155178d2e77d57f8bfc1f03edffd33353568f8585b2950964ff10c",
+    "legally_usable": true,
+    "independent_test_set": true,
+    "training_overlap_assessed": true,
+    "preprocessing_locked_before_scoring": true,
+    "source_documents_committed": false,
+    "derived_evidence_only": true,
+    "contains_phi": false,
+    "controlled_environment": false,
+    "gold_labels": {
+      "clinician_authored": false,
+      "author_count": 0,
+      "independent_annotation": false,
+      "adjudication_complete": false,
+      "version": "synthetic-contract-v1",
+      "content_hash": "sha256:24aecbc53ba0ce81f40fe04cb740d72d8b8bd261ebc6f4a6aefd8a51a523dc8a"
+    }
+  },
+  "registration": {
+    "registered_before_execution": true,
+    "identifier": "internal-contract:p3-v1",
+    "frozen_at": "2026-08-14T00:00:00Z"
+  },
+  "review_plan": {
+    "blinded_to_configuration": true,
+    "minimum_independent_reviewers": 2,
+    "adjudication_required_on_disagreement": true
+  },
+  "approvals": {
+    "clinical_owner": false,
+    "statistical_owner": false,
+    "engineering_owner": true
+  }
+}
