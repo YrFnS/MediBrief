@@ -94,9 +94,52 @@ export const REVIEWED_CODING_IPS_RECEIVER_PROFILE: ReceiverExchangeProfile = {
     ],
 };
 
+const HAPI_PUBLIC_R4_IPS_RESOURCE_TYPES = [
+    'Composition',
+    'Patient',
+    'Device',
+    'Condition',
+    'AllergyIntolerance',
+    'MedicationStatement',
+    'MedicationRequest',
+    'Immunization',
+    'Procedure',
+    'DiagnosticReport',
+    'Specimen',
+    'Observation',
+];
+
+/**
+ * Pinned engineering contract for the public HAPI FHIR R4 test endpoint.
+ *
+ * This is deliberately not a production receiver profile. HAPI advertises a
+ * general R4 server and transaction support, but not an IPS consumer document
+ * profile. The resulting compatibility state therefore remains indeterminate
+ * even when the generated IPS passes all computable local checks.
+ */
+export const HAPI_PUBLIC_R4_RECEIVER_PROFILE: ReceiverExchangeProfile = {
+    ...GENERIC_IPS_RECEIVER_PROFILE,
+    id: 'hapi-public-r4-test-server',
+    name: 'HAPI FHIR Public R4 Test Server',
+    version: '2026-08-15',
+    sourceReference: 'https://hapi.fhir.org/baseR4/metadata',
+    advertisedResourceTypes: HAPI_PUBLIC_R4_IPS_RESOURCE_TYPES,
+    capabilityWarnings: [
+        'The reviewed HAPI CapabilityStatement advertises a general FHIR R4 server and transaction support, but it does not establish an IPS consumer document profile or successful IPS rendering.',
+        'The public test endpoint is mutable and can change independently of this pinned MediBrief contract; live capability drift must be reviewed before relying on a synthetic probe.',
+    ],
+    limitations: [
+        'This is a public, non-production engineering endpoint. Never send real patient data, protected health information, confidential documents, or locally imported records.',
+        'The server is available without receiver authentication and does not establish patient identity, consent, disclosure authorization, destination trust, or organizational acceptance.',
+        'Public test data can be purged or replaced; successful storage does not establish durability, provenance preservation, clinical display, or downstream usability.',
+        'The MediBrief live probe is manual-only and sends one hard-coded nonclinical Basic resource. It does not transmit the selected patient or the generated IPS document.',
+    ],
+};
+
 export const RECEIVER_EXCHANGE_PROFILES: ReceiverExchangeProfile[] = [
     GENERIC_IPS_RECEIVER_PROFILE,
     REVIEWED_CODING_IPS_RECEIVER_PROFILE,
+    HAPI_PUBLIC_R4_RECEIVER_PROFILE,
 ];
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
