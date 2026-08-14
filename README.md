@@ -21,7 +21,7 @@ MediBrief does not:
 - declare a medication or regimen safe for a patient;
 - place orders, transmit prescriptions, book external appointments, or record proposals as completed care;
 - provide a diagnostic DICOM/PACS viewer;
-- claim standards-conformant FHIR or International Patient Summary exchange;
+- guarantee that a FHIR/IPS file is clinically complete, semantically equivalent to every source, authentic, or accepted by every receiving system;
 - treat automated tests or synthetic fixtures as clinical certification.
 
 The in-app **Safety & capabilities** panel is the authoritative user-facing status matrix.
@@ -76,9 +76,22 @@ See `docs/APPROVED_MODEL_REGISTRY.md`.
 | Diagnosis, treatment, triage, dose checking | Disabled | Requires formal intended use and clinical validation |
 | Autonomous orders and completed-care actions | Disabled | Local tasks remain proposals/reminders |
 | Ambient audio | Disabled | Production permissions policy disables microphone access |
-| FHIR R4 / IPS exchange | Planned | Current exports are MediBrief-specific |
+| FHIR R4 / IPS exchange | Experimental | Confirmed-record IPS export and candidate-only import; identity and semantic review remain required |
 | DICOMweb | Planned | Current image preview is non-diagnostic |
 | Prospective clinical validation | Planned | Engineering CI is not clinical evidence |
+
+
+## FHIR R4 and International Patient Summary
+
+MediBrief can export supported, confirmed, patient-applicable local records as a FHIR R4 document `Bundle` declaring the International Patient Summary 2.0.1 profiles. The document includes a `Composition` as its first entry, resolvable Patient and software-author references, required Problems/Allergies/Medication sections, generated section narrative, and a separate validation and exclusion report.
+
+When a required section has no confirmed local information, MediBrief marks the section as unavailable and explicitly states that this does not prove clinical absence. Candidate, rejected, entered-in-error, negated, family-history, hypothetical, unsupported, and unsafe-to-map records are excluded rather than being promoted into the summary.
+
+A received IPS may be previewed and structurally validated. Supported clinical resources are converted into local candidates only. The IPS Patient resource is displayed for identity comparison and never overwrites the selected local patient automatically.
+
+The dedicated P1 workflow generates a PHI-free fixture and runs the official HL7 validator against FHIR R4 `4.0.1` and `hl7.fhir.uv.ips#2.0.1`. Passing validation establishes structure for the tested fixture; it does not establish patient identity, source authenticity, clinical correctness, complete terminology equivalence, or universal receiver acceptance.
+
+See `docs/P1_FHIR_IPS_ACCEPTANCE.md`.
 
 ## Local vault
 
@@ -104,7 +117,7 @@ A custom OpenMed endpoint must be explicitly allowed in the deployment CSP befor
 - observations, laboratory results, diagnostic reports, and trends;
 - visits, procedures, immunizations, appointments, tasks, care plans, and notes;
 - source documents and candidate review;
-- search, history, corrections, backups, and complete confirmed-record export;
+- search, history, corrections, backups, complete confirmed-record export, and FHIR R4 IPS exchange;
 - deterministic emergency summary;
 - low-risk rules and audit review.
 
@@ -119,6 +132,7 @@ A custom OpenMed endpoint must be explicitly allowed in the deployment CSP befor
 - Vitest
 - OpenMed local bridge support
 - Optional browser-to-OpenRouter BYOK transport under the cloud policy guard
+- Deterministic FHIR R4 / IPS 2.0.1 document generation and candidate-only import
 
 ## Development
 
@@ -141,7 +155,7 @@ npm run validate
 python -m pytest -q openmed_bridge/tests
 ```
 
-The GitHub workflow additionally evaluates the synthetic extraction corpora and runs TypeScript checking, Vitest, and the production build.
+The GitHub workflows additionally evaluate the synthetic extraction corpora, run TypeScript and Vitest validation, build the production app, generate a PHI-free IPS fixture, and validate it with the official HL7 FHIR validator.
 
 ## Governance documents
 
@@ -150,5 +164,6 @@ The GitHub workflow additionally evaluates the synthetic extraction corpora and 
 - `docs/CLINICAL_CHANGE_CONTROL.md`
 - `docs/APPROVED_MODEL_REGISTRY.md`
 - `docs/P0_SAFETY_BOUNDARY_ACCEPTANCE.md`
+- `docs/P1_FHIR_IPS_ACCEPTANCE.md`
 
 Older phase documents are implementation history. When an older document conflicts with the active code, this README, the governance documents above, and the in-app capability matrix take precedence.

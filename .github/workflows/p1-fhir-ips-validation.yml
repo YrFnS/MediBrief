@@ -1,0 +1,82 @@
+name: P1 FHIR IPS Validation
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+  push:
+    branches:
+      - main
+      - 'agent/p1-fhir-ips-interoperability'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p1-fhir-ips-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-ips:
+    name: FHIR R4 and IPS 2.0.1 conformance
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install application dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Type-check application
+        run: npm run typecheck
+
+      - name: Generate and test deterministic IPS fixture
+        env:
+          MEDIBRIEF_IPS_FIXTURE: /tmp/medibrief-ips.json
+        run: npx vitest run tests/fhirIpsInterop.test.ts
+
+      - name: Build production application
+        run: npm run build:app
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Download official HL7 FHIR validator
+        run: >-
+          curl -fL --retry 4 --retry-delay 5
+          https://github.com/hapifhir/org.hl7.fhir.core/releases/latest/download/validator_cli.jar
+          -o /tmp/validator_cli.jar
+
+      - name: Validate fixture against FHIR R4 and IPS 2.0.1
+        run: >-
+          java -jar /tmp/validator_cli.jar
+          /tmp/medibrief-ips.json
+          -version 4.0.1
+          -ig hl7.fhir.uv.ips#2.0.1
+          -profile http://hl7.org/fhir/uv/ips/StructureDefinition/Bundle-uv-ips
+          -tx n/a
+
+      - name: Upload PHI-free interoperability evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p1-ips-synthetic-fixture
+          path: /tmp/medibrief-ips.json
+          if-no-files-found: ignore
+          retention-days: 14
