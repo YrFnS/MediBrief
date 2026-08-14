@@ -1,0 +1,63 @@
+name: P4 Workspace Information Hierarchy
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+  push:
+    branches:
+      - main
+      - 'agent/p4-workspace-information-hierarchy'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p4-workspace-hierarchy-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-p4:
+    name: Grouped record navigation and accessibility contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install application dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Type-check application
+        run: npm run typecheck
+
+      - name: Test workspace information hierarchy
+        run: >-
+          npx vitest run
+          tests/p4WorkspaceHierarchy.test.ts
+          tests/personalRecordWorkspace.test.ts
+          tests/phase2AccessibilityResponsive.test.ts
+
+      - name: Build production application
+        run: npm run build:app
+
+      - name: Upload PHI-free P4 acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p4-workspace-hierarchy-contract-evidence
+          path: docs/P4_WORKSPACE_HIERARCHY_ACCEPTANCE.md
+          if-no-files-found: error
+          retention-days: 14
