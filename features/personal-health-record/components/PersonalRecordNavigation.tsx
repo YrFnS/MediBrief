@@ -24,16 +24,16 @@ const items: Array<{
 }> = [
     {
         value: 'overview',
-        label: 'Overview',
-        shortLabel: 'Overview',
-        description: 'Confirmed record at a glance',
+        label: 'Today',
+        shortLabel: 'Today',
+        description: 'Attention items and confirmed record at a glance',
         icon: ActivityIcon,
     },
     {
         value: 'health-data',
-        label: 'Health Data',
-        shortLabel: 'Health Data',
-        description: 'Clinical domains and record management',
+        label: 'Health Record',
+        shortLabel: 'Record',
+        description: 'Grouped clinical details, care, and documents',
         icon: DocumentTextIcon,
     },
     {
@@ -47,12 +47,12 @@ const items: Array<{
         value: 'search',
         label: 'Search & Export',
         shortLabel: 'Search',
-        description: 'Record-wide search and complete summary',
+        description: 'Find records and create local summaries',
         icon: MagnifyingGlassIcon,
     },
     {
         value: 'emergency',
-        label: 'Emergency Summary',
+        label: 'Emergency',
         shortLabel: 'Emergency',
         description: 'Printable confirmed-data summary',
         icon: ShieldCheckIcon,
@@ -61,7 +61,7 @@ const items: Array<{
         value: 'assistant',
         label: 'Assistant',
         shortLabel: 'Assistant',
-        description: 'Chat, document analysis, and scribe',
+        description: 'Optional reviewed-model tools',
         icon: BotIcon,
     },
 ];
@@ -129,8 +129,12 @@ const PersonalRecordNavigation: React.FC<PersonalRecordNavigationProps> = ({
                             </span>
                             <span className="min-w-0 flex-1">
                                 <span className="flex items-center gap-1.5 text-xs font-bold">
-                                    <span className="hidden sm:inline">{item.label}</span>
-                                    <span className="sm:hidden">{item.shortLabel}</span>
+                                    <span className="hidden sm:inline">
+                                        {item.label}
+                                    </span>
+                                    <span className="sm:hidden">
+                                        {item.shortLabel}
+                                    </span>
                                     {(item.value === 'overview'
                                         || item.value === 'health-data')
                                         && pendingCandidates > 0 && (
