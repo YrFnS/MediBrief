@@ -106,10 +106,10 @@ export const MEDIBRIEF_CAPABILITIES: CapabilityDefinition[] = [
     },
     {
         id: 'fhir-ips',
-        name: 'Validated FHIR R4 / International Patient Summary exchange',
-        status: 'planned',
-        description: 'Standards-conformant import, validation, export, and interoperable sharing are planned.',
-        boundary: 'Current exports use MediBrief-specific local formats and must not be described as conformant FHIR exchange.',
+        name: 'FHIR R4 / International Patient Summary exchange',
+        status: 'experimental',
+        description: 'Exports confirmed local records as an IPS 2.0.1 document Bundle and imports supported IPS resources as review candidates.',
+        boundary: 'Validation establishes structure for the tested document; it does not prove patient identity, clinical truth, complete terminology equivalence, source authenticity, or acceptance by every receiving system.',
     },
     {
         id: 'dicomweb',

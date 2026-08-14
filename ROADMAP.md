@@ -28,16 +28,16 @@ The roadmap does not treat additional AI output as progress unless the underlyin
 
 ## P1 — Interoperable record foundation
 
-**Status: Next**
+**Status: In progress — export/import foundation implemented**
 
-1. Define supported FHIR R4 profiles and implementation-guide versions.
-2. Build validated FHIR import with quarantine for invalid or unsupported resources.
-3. Generate a conformant International Patient Summary document bundle.
-4. Preserve MediBrief provenance and original source evidence beside normalized resources.
-5. Add terminology mappings for laboratory observations, units, medications, conditions, procedures, and allergies.
-6. Add validation reports that explain every rejected, downgraded, or partially mapped field.
-7. Create encrypted, consent-controlled sharing with expiry and revocation semantics.
-8. Add integration tests against external FHIR validators.
+1. **Implemented:** target FHIR R4 4.0.1 and IPS 2.0.1 with an explicit supported-profile registry.
+2. **Implemented foundation:** validate IPS documents before conversion and quarantine supported resources as unconfirmed candidates.
+3. **Implemented foundation:** generate a document Bundle with Composition first, required IPS sections, narrative, resolvable references, and unavailable empty sections.
+4. **Implemented foundation:** preserve original quantity values, local confirmation boundaries, import provenance, and exclusion reasons.
+5. **Next P1 slice:** governed terminology mappings for laboratory observations, units, medications, conditions, procedures, and allergies.
+6. **Implemented foundation:** downloadable validation, warning, inclusion, exclusion, and skipped-resource reports.
+7. **Next P1 slice:** encrypted, consent-controlled sharing with expiry and revocation semantics.
+8. **Implemented:** deterministic tests plus the official HL7 validator in CI; expand to receiver-specific integration suites after the core profile is stable.
 
 ## P2 — Medical-document validation
 

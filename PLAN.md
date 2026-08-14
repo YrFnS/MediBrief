@@ -1,61 +1,59 @@
-# MediBrief P0 — Safety Boundary
+# MediBrief P1 — FHIR R4 / International Patient Summary
 
-**Status:** Implemented on `agent/p0-safety-boundary`
+**Branch:** `agent/p1-fhir-ips-interoperability`
 
-**Objective:** Make the active product boundary truthful, visible, and enforceable before adding new medical functionality.
+**Standards target:** FHIR R4 `4.0.1` and `hl7.fhir.uv.ips#2.0.1`.
 
-## P0.1 Product claims
+**Objective:** Add a standards-based document exchange foundation without weakening MediBrief's provenance, uncertainty, patient-identity, or human-review boundaries.
 
-- [x] Reframed MediBrief as a local personal health record and source-traceable review assistant.
-- [x] Removed deployment-readiness and broad medical-grade/CDSS claims from the primary documentation.
-- [x] Documented that diagnosis, prescribing, triage, patient-specific medication safety, autonomous orders, ambient audio, DICOM/PACS, and standards-conformant FHIR exchange are not active capabilities.
-- [x] Added an in-app capability matrix with Available, Experimental, Disabled, and Planned states.
+## P1.1 IPS document export
 
-## P0.2 Cloud AI boundary
+- [x] Generate a FHIR document `Bundle` with `type = document`.
+- [x] Place the IPS `Composition` first and include resolvable Patient and software-author references.
+- [x] Include persistent Bundle and Composition identifiers.
+- [x] Declare the IPS 2.0.1 Bundle, Composition, Patient, and supported resource profiles.
+- [x] Include required Problems, Allergies, and Medication Summary sections.
+- [x] Use `emptyReason = unavailable` for empty required sections without asserting clinical absence.
+- [x] Generate XHTML narrative for every included section.
+- [x] Include supported conditions, allergies, medications, procedures, immunizations, observations, diagnostic reports, and specimens.
+- [x] Keep original quantities and omit unsafe non-UCUM machine coding rather than silently normalizing it.
+- [x] Produce a separate inclusion, exclusion, warning, and validation report.
 
-- [x] Cloud processing is disabled by default for each browser tab.
-- [x] The general disclaimer does not double as cloud consent.
-- [x] OpenRouter calls are intercepted immediately before transmission.
-- [x] Requests enforce ZDR, deny provider data collection, disable fallback, and require parameter support.
-- [x] Patient-record and medical document/image calls require an exact reviewed model/provider registry entry.
-- [x] The production registry starts empty and therefore fails closed.
-- [x] Blocked requests open the Safety & capabilities panel and state that no patient evidence was transmitted.
+## P1.2 Safe import
 
-## P0.3 Local vault boundary
+- [x] Parse and structurally validate an IPS JSON document before conversion.
+- [x] Preview the IPS Patient identity without overwriting the selected local patient.
+- [x] Convert supported resources into local `candidate` records only.
+- [x] Preserve import provenance and document-local references.
+- [x] Report unsupported and skipped resource types.
+- [x] Leave the local record unchanged when validation fails.
 
-- [x] New vaults require a passphrase of at least 12 characters and reject numeric-only secrets.
-- [x] New credentials use a higher PBKDF2 work factor and a versioned policy marker.
-- [x] Repeated failures trigger exponential local retry delays.
-- [x] Legacy PIN vaults remain accessible to avoid destructive migration and are visibly identified.
-- [x] Recovery limitations and backup-before-migration guidance are explicit.
+## P1.3 User interface
 
-## P0.4 Production web boundary
+- [x] Add an unlocked-app FHIR & IPS center.
+- [x] Download `application/fhir+json` and the validation/exclusion report.
+- [x] Preview a selected IPS before import.
+- [x] Show candidate counts, identity comparison, validation errors, exclusions, and limitations.
+- [x] Audit exports and candidate imports.
 
-- [x] Replaced Tailwind CDN with a local PostCSS/Tailwind build.
-- [x] Removed external fonts, Iconify runtime assets, and ESM import maps.
-- [x] Added a local application icon and manifest.
-- [x] Added a same-origin application-shell service worker.
-- [x] Added CSP and restrictive browser security headers.
-- [x] Disabled camera and microphone permissions in production.
+## P1.4 Validation gates
 
-## P0.5 Governance
+- [x] Add deterministic export, empty-section, round-trip import, and malformed-document tests.
+- [x] Add a dedicated P1 GitHub workflow.
+- [x] Generate a synthetic PHI-free IPS fixture during CI.
+- [x] Run the official HL7 validator against FHIR R4 and `hl7.fhir.uv.ips#2.0.1`.
+- [ ] Resolve every HL7 validator error and complete branch validation.
+- [ ] Run deployment/browser acceptance and merge through a reviewed PR.
 
-- [x] Added known limitations.
-- [x] Added a clinical hazard register with owners, controls, and verification expectations.
-- [x] Added clinical change-control rules.
-- [x] Added the reviewed model/provider registry procedure.
-- [x] Added P0 acceptance criteria.
+## P1.5 Deliberately deferred to the next P1 slice
 
-## Explicitly deferred
+- Broad terminology service integration and governed mappings for LOINC, UCUM, medication, condition, procedure, and allergy concepts.
+- Import/export of every optional IPS section and resource profile.
+- SMART App Launch and live EHR connection flows.
+- Encrypted sharing links, expiry, revocation, and recipient audit semantics.
+- Digital signatures and source-authenticity verification.
+- National or jurisdiction-specific IPS derivatives.
 
-The following are not silently included in P0:
+## Safety boundary
 
-1. Strong-passphrase re-encryption of existing legacy vaults.
-2. FHIR R4 / International Patient Summary conformance.
-3. Terminology normalization through LOINC, UCUM, medication, and condition code systems.
-4. Patient-specific medication-safety rules.
-5. Diagnostic, treatment, or emergency-triage rules.
-6. DICOMweb and diagnostic image viewing.
-7. Prospective clinical validation and monitored clinical deployment.
-
-These items remain gated by the roadmap and change-control process.
+FHIR/IPS validation verifies structure and declared profiles for the tested document. It does not establish patient identity, source authenticity, clinical truth, semantic completeness, terminology equivalence, regulatory status, or acceptance by every receiving system. Imported facts remain candidates until a person reviews and confirms them.
