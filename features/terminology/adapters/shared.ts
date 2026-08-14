@@ -8,6 +8,94 @@ import type {
 export const NLM_RXNORM_ATTRIBUTION =
     'This product uses publicly available data from the U.S. National Library of Medicine (NLM), National Institutes of Health, Department of Health and Human Services; NLM is not responsible for the product and does not endorse or recommend this or any other product.';
 
+export const DEFAULT_TERMINOLOGY_TIMEOUT_MS = 10_000;
+export const DEFAULT_TERMINOLOGY_MAX_RESPONSE_BYTES = 512 * 1024;
+
+const boundedInteger = (
+    value: number | undefined,
+    fallback: number,
+    label: string,
+    minimum: number,
+    maximum: number,
+): number => {
+    const resolved = value ?? fallback;
+    if (!Number.isFinite(resolved)
+        || !Number.isInteger(resolved)
+        || resolved < minimum
+        || resolved > maximum) {
+        throw new Error(
+            `${label} must be an integer between ${minimum} and ${maximum}.`,
+        );
+    }
+    return resolved;
+};
+
+export const resolveTerminologyTimeoutMs = (
+    value?: number,
+): number => boundedInteger(
+    value,
+    DEFAULT_TERMINOLOGY_TIMEOUT_MS,
+    'Terminology timeout',
+    100,
+    60_000,
+);
+
+export const resolveTerminologyResponseLimitBytes = (
+    value?: number,
+): number => boundedInteger(
+    value,
+    DEFAULT_TERMINOLOGY_MAX_RESPONSE_BYTES,
+    'Terminology response limit',
+    1_024,
+    5 * 1024 * 1024,
+);
+
+export type BoundedJsonResponse =
+    | { ok: true; payload: unknown }
+    | {
+        ok: false;
+        reason:
+            | 'unsupported-content-type'
+            | 'response-too-large'
+            | 'invalid-json';
+    };
+
+/**
+ * Reads a terminology response without allowing an unbounded JSON payload.
+ * A missing content-type is tolerated for compatibility, but an explicitly
+ * non-JSON response fails closed.
+ */
+export const readBoundedJsonResponse = async (
+    response: Response,
+    maxResponseBytes: number,
+): Promise<BoundedJsonResponse> => {
+    const contentType = response.headers.get('content-type')
+        ?.toLowerCase()
+        .trim();
+    if (contentType && !contentType.includes('json')) {
+        return { ok: false, reason: 'unsupported-content-type' };
+    }
+
+    const declaredLength = Number(
+        response.headers.get('content-length') || Number.NaN,
+    );
+    if (Number.isFinite(declaredLength)
+        && declaredLength > maxResponseBytes) {
+        return { ok: false, reason: 'response-too-large' };
+    }
+
+    const text = await response.text();
+    if (new TextEncoder().encode(text).byteLength > maxResponseBytes) {
+        return { ok: false, reason: 'response-too-large' };
+    }
+
+    try {
+        return { ok: true, payload: JSON.parse(text) as unknown };
+    } catch {
+        return { ok: false, reason: 'invalid-json' };
+    }
+};
+
 export const normalizeCodeValidationRequest = (
     request: TerminologyCodeValidationRequest,
 ): TerminologyCodeValidationRequest => ({
@@ -123,9 +211,11 @@ export const buildFhirValidateCodeParameters = (
     }
     parameters.push(parameter('code', 'valueCode', request.code));
     if (request.version) {
-        parameters.push(
-            parameter('version', 'valueString', request.version),
-        );
+        parameters.push(parameter(
+            request.valueSetUrl ? 'systemVersion' : 'version',
+            'valueString',
+            request.version,
+        ));
     }
     if (request.display) {
         parameters.push(
