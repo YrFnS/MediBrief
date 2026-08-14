@@ -78,6 +78,13 @@ const probeResourceId = value => {
     return `medibrief-probe-${normalized}`;
 };
 
+/**
+ * @param {{
+ *   probeId?: string;
+ *   resourceUuid?: string;
+ *   now?: string;
+ * }} [options]
+ */
 export const buildSyntheticProbeBundle = ({
     probeId = randomUUID(),
     resourceUuid = randomUUID(),
@@ -347,6 +354,16 @@ const inspectTransactionResponse = (payload, expectedResourceId) => {
     };
 };
 
+/**
+ * @param {{
+ *   enabled?: boolean;
+ *   fetchImpl?: typeof fetch;
+ *   now?: string;
+ *   probeId?: string;
+ *   resourceUuid?: string;
+ *   timeoutMs?: number;
+ * }} [options]
+ */
 export const runHapiPublicR4Probe = async ({
     enabled = process.env.MEDIBRIEF_ALLOW_PUBLIC_SYNTHETIC_PROBE === 'true',
     fetchImpl = globalThis.fetch,
