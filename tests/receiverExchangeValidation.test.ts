@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
     createClinicalProvenance,
     createPatientClinicalRecord,
@@ -15,6 +15,9 @@ import {
     validateIpsForReceiver,
     type ReceiverExchangeProfile,
 } from '../features/fhir';
+import type {
+    TerminologyValidationAdapter,
+} from '../features/terminology/adapters';
 
 const NOW = '2026-08-14T20:00:00.000Z';
 const PATIENT_ID = 'synthetic-receiver-patient';
@@ -96,6 +99,41 @@ describe('receiver-specific IPS validation', () => {
         expect(report.issues.some(entry =>
             entry.category === 'terminology'
             && entry.severity === 'error')).toBe(true);
+    });
+
+    it('applies the receiver unknown-system policy before any remote request', async () => {
+        const validateCode = vi.fn(async () => {
+            throw new Error('The unsupported adapter must not be invoked.');
+        });
+        const adapter: TerminologyValidationAdapter = {
+            id: 'narrow-remote-adapter',
+            name: 'Narrow remote adapter',
+            mode: 'fhir-validate-code',
+            externalRequest: true,
+            supportedSystems: [],
+            privacyBoundary: 'Synthetic test adapter.',
+            validateCode,
+        };
+        const report = await validateIpsForReceiver({
+            bundle: bundle(),
+            receiver: withProfile({
+                id: 'unknown-system-stop',
+                terminologyPolicy: {
+                    unknownSystem: 'error',
+                    indeterminateCode: 'warning',
+                    invalidCode: 'error',
+                },
+            }),
+            terminologyAdapter: adapter,
+            generatedAt: NOW,
+        });
+        expect(report.state).toBe('not-ready');
+        expect(report.networkActivity).toBe('none');
+        expect(report.summary.terminologyChecks).toBeGreaterThan(0);
+        expect(report.issues.some(entry =>
+            entry.code === 'terminology-system-not-covered'
+            && entry.severity === 'error')).toBe(true);
+        expect(validateCode).not.toHaveBeenCalled();
     });
 
     it('detects receiver profile and size mismatches', async () => {
