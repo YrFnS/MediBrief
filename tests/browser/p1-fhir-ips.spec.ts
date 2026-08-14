@@ -165,10 +165,38 @@ const validSyntheticIps = () => ({
                 onsetDateTime: '2024-01-01',
             },
         },
+        {
+            fullUrl: urn('10000000-0000-4000-8000-000000000007'),
+            resource: {
+                resourceType: 'Condition',
+                id: 'unrelated-condition',
+                meta: {
+                    profile: [
+                        'http://hl7.org/fhir/uv/ips/StructureDefinition/Condition-uv-ips',
+                    ],
+                },
+                clinicalStatus: {
+                    coding: [{
+                        system: 'http://terminology.hl7.org/CodeSystem/condition-clinical',
+                        code: 'active',
+                    }],
+                },
+                verificationStatus: {
+                    coding: [{
+                        system: 'http://terminology.hl7.org/CodeSystem/condition-ver-status',
+                        code: 'confirmed',
+                    }],
+                },
+                code: { text: 'Unrelated Bundle entry must not import' },
+                subject: {
+                    reference: urn('10000000-0000-4000-8000-000000000004'),
+                },
+            },
+        },
     ],
 });
 
-test('IPS import previews identity and creates review candidates only', async ({ page }) => {
+test('IPS import preserves one reachable candidate graph only after identity acknowledgement', async ({ page }) => {
     await createUnlockedApp(page);
 
     await page.getByRole('button', {
@@ -198,18 +226,31 @@ test('IPS import previews identity and creates review candidates only', async ({
     });
     await expect(dialog.getByText('Local IPS structural checks passed')).toBeVisible();
     await expect(dialog.getByText('Synthetic Import Patient')).toBeVisible();
-    await expect(dialog.getByText('Condition:')).toBeVisible();
-    await expect(dialog.getByText('Compare this identity', { exact: false })).toBeVisible();
+    await expect(dialog.getByText('4 of 5 Bundle entries')).toBeVisible();
+    await expect(dialog.getByText('Condition: 1')).toBeVisible();
+    await expect(dialog.getByText('Exact source evidence')).toBeVisible();
+    await expect(dialog.getByText('Patient identity comparison', {
+        exact: false,
+    })).toBeVisible();
 
     const importButton = dialog.getByRole('button', {
-        name: 'Import 1 candidate',
+        name: 'Import 1 candidate atomically',
     });
+    await expect(importButton).toBeDisabled();
+
+    await dialog.getByLabel(
+        'I compared the IPS patient with the selected local patient',
+    ).check();
     await expect(importButton).toBeEnabled();
     await importButton.click();
+
     await expect(dialog.getByRole('status')).toContainText(
-        '1 candidate record created',
+        '1 candidate record committed in one validated patient-record replacement',
     );
     await expect(dialog.getByRole('status')).toContainText(
-        'Review every candidate against its source before confirmation',
+        'exact received IPS is encrypted locally',
+    );
+    await expect(dialog.getByRole('status')).toContainText(
+        'every candidate remains unconfirmed',
     );
 });
