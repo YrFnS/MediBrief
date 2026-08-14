@@ -5,7 +5,10 @@ import {
     normalizeCodeValidationRequest,
     normalizeTerminologyEndpoint,
     objectValue,
+    readBoundedJsonResponse,
     resolveFetch,
+    resolveTerminologyResponseLimitBytes,
+    resolveTerminologyTimeoutMs,
 } from './shared';
 import type {
     RxNormValidationAdapterOptions,
@@ -25,6 +28,20 @@ export const buildRxNormPropertiesUrl = (
     return `${normalizedEndpoint}/rxcui/${encodeURIComponent(rxcui)}/properties.json`;
 };
 
+const responseFailureMessage = (
+    reason:
+        | 'unsupported-content-type'
+        | 'response-too-large'
+        | 'invalid-json',
+): string => ({
+    'unsupported-content-type':
+        'The RxNorm API returned a non-JSON content type.',
+    'response-too-large':
+        'The RxNorm API response exceeded the configured safety limit.',
+    'invalid-json':
+        'The RxNorm API response was not valid JSON.',
+}[reason]);
+
 export const createRxNormValidationAdapter = (
     options: RxNormValidationAdapterOptions = {},
 ): TerminologyValidationAdapter => {
@@ -32,7 +49,10 @@ export const createRxNormValidationAdapter = (
         options.endpoint || 'https://rxnav.nlm.nih.gov/REST',
     );
     const fetchImpl = resolveFetch(options.fetchImpl);
-    const timeoutMs = options.timeoutMs ?? 10_000;
+    const timeoutMs = resolveTerminologyTimeoutMs(options.timeoutMs);
+    const maxResponseBytes = resolveTerminologyResponseLimitBytes(
+        options.maxResponseBytes,
+    );
     const id = options.id || 'nlm-rxnorm-properties';
 
     return {
@@ -51,8 +71,9 @@ export const createRxNormValidationAdapter = (
                     adapterId: id,
                     status: 'indeterminate',
                     request,
-                    message: 'This adapter validates RxNorm identifiers only.',
-                    externalRequest: true,
+                    message:
+                        'This adapter validates RxNorm identifiers only. No network request was made.',
+                    externalRequest: false,
                 });
             }
             if (!/^[1-9]\d{0,11}$/.test(request.code)) {
@@ -62,7 +83,7 @@ export const createRxNormValidationAdapter = (
                     request,
                     message:
                         'RxCUI must be a positive numeric identifier of up to 12 digits.',
-                    externalRequest: true,
+                    externalRequest: false,
                 });
             }
 
@@ -80,6 +101,16 @@ export const createRxNormValidationAdapter = (
                         signal: controller.signal,
                     },
                 );
+                if (response.redirected) {
+                    return createTerminologyResult({
+                        adapterId: id,
+                        status: 'indeterminate',
+                        request,
+                        message:
+                            'The RxNorm API response was redirected; concept status is unknown.',
+                        externalRequest: true,
+                    });
+                }
                 if (!response.ok) {
                     return createTerminologyResult({
                         adapterId: id,
@@ -91,19 +122,20 @@ export const createRxNormValidationAdapter = (
                     });
                 }
 
-                let payload: unknown;
-                try {
-                    payload = await response.json();
-                } catch {
+                const bounded = await readBoundedJsonResponse(
+                    response,
+                    maxResponseBytes,
+                );
+                if (!bounded.ok) {
                     return createTerminologyResult({
                         adapterId: id,
                         status: 'indeterminate',
                         request,
-                        message: 'The RxNorm API response was not valid JSON.',
+                        message: responseFailureMessage(bounded.reason),
                         externalRequest: true,
                     });
                 }
-                const root = objectValue(payload);
+                const root = objectValue(bounded.payload);
                 const properties = root
                     ? objectValue(root.properties)
                     : null;
@@ -123,7 +155,18 @@ export const createRxNormValidationAdapter = (
                 const preferredDisplay = typeof properties.name === 'string'
                     ? properties.name
                     : undefined;
-                if (returnedRxcui && returnedRxcui !== request.code) {
+                if (!returnedRxcui) {
+                    return createTerminologyResult({
+                        adapterId: id,
+                        status: 'indeterminate',
+                        request,
+                        preferredDisplay,
+                        message:
+                            'The RxNorm API did not identify the returned concept; concept status is unknown.',
+                        externalRequest: true,
+                    });
+                }
+                if (returnedRxcui !== request.code) {
                     return createTerminologyResult({
                         adapterId: id,
                         status: 'indeterminate',
@@ -131,6 +174,32 @@ export const createRxNormValidationAdapter = (
                         preferredDisplay,
                         message:
                             'The RxNorm API returned a different RxCUI; concept status is unknown.',
+                        externalRequest: true,
+                    });
+                }
+                if (typeof properties.suppress === 'string'
+                    && properties.suppress !== 'N') {
+                    return createTerminologyResult({
+                        adapterId: id,
+                        status: 'indeterminate',
+                        request,
+                        preferredDisplay,
+                        message:
+                            'The RxNorm API returned an unexpected suppression status; active concept status is unknown.',
+                        externalRequest: true,
+                    });
+                }
+                if (request.version) {
+                    return createTerminologyResult({
+                        adapterId: id,
+                        status: 'indeterminate',
+                        request,
+                        preferredDisplay,
+                        message:
+                            'The RxCUI is active in the current RxNorm data set, but this endpoint cannot verify the supplied historical version.',
+                        warnings: [
+                            'Current active status must not be treated as validation of a version-specific historical coding.',
+                        ],
                         externalRequest: true,
                     });
                 }
