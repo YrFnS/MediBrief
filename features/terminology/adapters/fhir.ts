@@ -4,12 +4,29 @@ import {
     normalizeCodeValidationRequest,
     normalizeTerminologyEndpoint,
     parseFhirValidateCodeResponse,
+    readBoundedJsonResponse,
     resolveFetch,
+    resolveTerminologyResponseLimitBytes,
+    resolveTerminologyTimeoutMs,
 } from './shared';
 import type {
     FhirValidateCodeAdapterOptions,
     TerminologyValidationAdapter,
 } from './types';
+
+const responseFailureMessage = (
+    reason:
+        | 'unsupported-content-type'
+        | 'response-too-large'
+        | 'invalid-json',
+): string => ({
+    'unsupported-content-type':
+        'The terminology service returned a non-JSON content type.',
+    'response-too-large':
+        'The terminology service response exceeded the configured safety limit.',
+    'invalid-json':
+        'The terminology service response was not valid JSON.',
+}[reason]);
 
 export const createFhirValidateCodeAdapter = (
     options: FhirValidateCodeAdapterOptions,
@@ -24,7 +41,10 @@ export const createFhirValidateCodeAdapter = (
         );
     }
     const fetchImpl = resolveFetch(options.fetchImpl);
-    const timeoutMs = options.timeoutMs ?? 10_000;
+    const timeoutMs = resolveTerminologyTimeoutMs(options.timeoutMs);
+    const maxResponseBytes = resolveTerminologyResponseLimitBytes(
+        options.maxResponseBytes,
+    );
     const id = options.id || 'fhir-validate-code';
 
     return {
@@ -43,7 +63,7 @@ export const createFhirValidateCodeAdapter = (
                     status: 'invalid',
                     request,
                     message: 'A terminology system and code are required.',
-                    externalRequest: true,
+                    externalRequest: false,
                 });
             }
             if (!supportedSystems.includes(request.system)) {
@@ -52,8 +72,8 @@ export const createFhirValidateCodeAdapter = (
                     status: 'indeterminate',
                     request,
                     message:
-                        'The configured adapter does not permit this terminology system.',
-                    externalRequest: true,
+                        'The configured adapter does not permit this terminology system. No network request was made.',
+                    externalRequest: false,
                 });
             }
 
@@ -80,6 +100,16 @@ export const createFhirValidateCodeAdapter = (
                         signal: controller.signal,
                     },
                 );
+                if (response.redirected) {
+                    return createTerminologyResult({
+                        adapterId: id,
+                        status: 'indeterminate',
+                        request,
+                        message:
+                            'The terminology service response was redirected; code validity is unknown.',
+                        externalRequest: true,
+                    });
+                }
                 if (!response.ok) {
                     return createTerminologyResult({
                         adapterId: id,
@@ -91,20 +121,20 @@ export const createFhirValidateCodeAdapter = (
                     });
                 }
 
-                let payload: unknown;
-                try {
-                    payload = await response.json();
-                } catch {
+                const bounded = await readBoundedJsonResponse(
+                    response,
+                    maxResponseBytes,
+                );
+                if (!bounded.ok) {
                     return createTerminologyResult({
                         adapterId: id,
                         status: 'indeterminate',
                         request,
-                        message:
-                            'The terminology service response was not valid JSON.',
+                        message: responseFailureMessage(bounded.reason),
                         externalRequest: true,
                     });
                 }
-                const parsed = parseFhirValidateCodeResponse(payload);
+                const parsed = parseFhirValidateCodeResponse(bounded.payload);
                 if (typeof parsed.result !== 'boolean') {
                     return createTerminologyResult({
                         adapterId: id,
@@ -116,6 +146,33 @@ export const createFhirValidateCodeAdapter = (
                         externalRequest: true,
                     });
                 }
+
+                const identityWarnings = [
+                    ...(parsed.system && parsed.system !== request.system
+                        ? ['The service returned a different terminology system.']
+                        : []),
+                    ...(parsed.code && parsed.code !== request.code
+                        ? ['The service returned a different code.']
+                        : []),
+                    ...(parsed.version
+                        && request.version
+                        && parsed.version !== request.version
+                        ? ['The service returned a different code-system version.']
+                        : []),
+                ];
+                if (parsed.result && identityWarnings.length > 0) {
+                    return createTerminologyResult({
+                        adapterId: id,
+                        status: 'indeterminate',
+                        request,
+                        preferredDisplay: parsed.display,
+                        message:
+                            'The service returned a positive result for a different coded identity; validity is unknown.',
+                        warnings: identityWarnings,
+                        externalRequest: true,
+                    });
+                }
+
                 return createTerminologyResult({
                     adapterId: id,
                     status: parsed.result ? 'valid' : 'invalid',
@@ -126,14 +183,7 @@ export const createFhirValidateCodeAdapter = (
                         || (parsed.result
                             ? 'The configured terminology service accepted the code.'
                             : 'The configured terminology service rejected the code.'),
-                    warnings: [
-                        ...(parsed.system && parsed.system !== request.system
-                            ? ['The service returned a different terminology system.']
-                            : []),
-                        ...(parsed.code && parsed.code !== request.code
-                            ? ['The service returned a different code.']
-                            : []),
-                    ],
+                    warnings: identityWarnings,
                     externalRequest: true,
                 });
             } catch (error) {
