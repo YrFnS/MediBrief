@@ -58,22 +58,41 @@ jobs:
           set -euo pipefail
           npm install --no-save --no-package-lock @playwright/test@1.55.0
 
+          # Playwright installs Chromium dependencies from Ubuntu. The hosted
+          # image also contains an unrelated Google Chrome apt source whose
+          # mirror has repeatedly stalled or returned a transiently mismatched
+          # package index. Disable only that third-party source for this job.
+          for source_file in \
+            /etc/apt/sources.list.d/*.list \
+            /etc/apt/sources.list.d/*.sources; do
+            [ -f "$source_file" ] || continue
+            if grep -q 'dl.google.com/linux/chrome-stable/deb' "$source_file"; then
+              echo "Disabling unrelated Chrome apt source: $source_file"
+              sudo mv "$source_file" "$source_file.disabled"
+            fi
+          done
+
           installed=0
           for attempt in 1 2 3; do
-            if npx playwright install --with-deps chromium; then
+            # A network/package-manager stall must not consume the whole job.
+            # timeout creates a process group, so a timed-out apt subprocess is
+            # terminated with the Playwright installer before the next retry.
+            if timeout --kill-after=15s 240s \
+              npx playwright install --with-deps chromium; then
               installed=1
               break
             fi
 
             if [ "$attempt" -lt 3 ]; then
-              echo "Playwright dependency installation failed on attempt $attempt; clearing transient apt indexes and retrying." >&2
+              echo "Playwright dependency installation failed or timed out on attempt $attempt; repairing package state and retrying." >&2
+              sudo dpkg --configure -a || true
               sudo rm -rf /var/lib/apt/lists/*
               sleep $((attempt * 10))
             fi
           done
 
           if [ "$installed" -ne 1 ]; then
-            echo 'Playwright Chromium installation failed after three attempts.' >&2
+            echo 'Playwright Chromium installation failed after three bounded attempts.' >&2
             exit 1
           fi
 
