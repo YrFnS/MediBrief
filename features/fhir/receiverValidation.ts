@@ -15,6 +15,7 @@ import type {
 } from './receiverValidationTypes';
 import {
     createLocalReviewedTerminologyAdapter,
+    createTerminologyResult,
     terminologyRequestFingerprint,
     type TerminologyCodeValidationRequest,
     type TerminologyCodeValidationResult,
@@ -212,6 +213,12 @@ const terminologyIssueSeverity = (
     return result.warnings.length > 0 ? 'warning' : 'information';
 };
 
+const adapterCoversSystem = (
+    adapter: TerminologyValidationAdapter,
+    system: string,
+): boolean => adapter.supportedSystems === 'configured'
+    || adapter.supportedSystems.includes(system);
+
 export const validateIpsForReceiver = async ({
     bundle,
     receiver,
@@ -320,10 +327,19 @@ export const validateIpsForReceiver = async ({
     const terminologyRequests = collectBundleTerminologyRequests(bundle);
     const terminologyResults: TerminologyCodeValidationResult[] = [];
     for (const request of terminologyRequests) {
-        if (receiver.terminologyPolicy.allowedSystems
-            && !receiver.terminologyPolicy.allowedSystems.includes(
+        const receiverAllowsSystem = !receiver.terminologyPolicy.allowedSystems
+            || receiver.terminologyPolicy.allowedSystems.includes(
                 request.system,
-            )) {
+            );
+        if (!receiverAllowsSystem) {
+            terminologyResults.push(createTerminologyResult({
+                adapterId: terminologyAdapter.id,
+                status: 'indeterminate',
+                request,
+                message:
+                    'The terminology system is not allowed by the receiver contract. No network request was made.',
+                externalRequest: false,
+            }));
             issue(
                 issues,
                 receiver.terminologyPolicy.unknownSystem,
@@ -334,6 +350,27 @@ export const validateIpsForReceiver = async ({
             );
             continue;
         }
+
+        if (!adapterCoversSystem(terminologyAdapter, request.system)) {
+            terminologyResults.push(createTerminologyResult({
+                adapterId: terminologyAdapter.id,
+                status: 'indeterminate',
+                request,
+                message:
+                    'The selected terminology adapter does not cover this system. No network request was made.',
+                externalRequest: false,
+            }));
+            issue(
+                issues,
+                receiver.terminologyPolicy.unknownSystem,
+                'terminology',
+                'terminology-system-not-covered',
+                `coding[${request.system}|${request.code}]`,
+                'The selected terminology adapter does not cover this terminology system.',
+            );
+            continue;
+        }
+
         let validationResult: TerminologyCodeValidationResult;
         try {
             validationResult = await terminologyAdapter.validateCode(request);
@@ -417,7 +454,8 @@ export const validateIpsForReceiver = async ({
         transferAuthorized: false,
         receiverAcceptanceEstablished: false,
         clinicalValidationEstablished: false,
-        networkActivity: terminologyAdapter.externalRequest
+        networkActivity: terminologyResults.some(result =>
+            result.externalRequest)
             ? 'coded-terminology-only'
             : 'none',
         limitations: [
