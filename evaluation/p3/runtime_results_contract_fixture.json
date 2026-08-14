@@ -1,0 +1,190 @@
+{
+  "schema_version": "1",
+  "study_id": "medibrief-p3-prospective-contract-v1",
+  "evidence_class": "contract-fixture",
+  "run_id": "p3-contract-run-v1",
+  "captured_at": "2026-08-14T00:05:00Z",
+  "derived_evidence_only": true,
+  "source_documents_committed": false,
+  "case_inventory_hash": "sha256:a26b3d9182155178d2e77d57f8bfc1f03edffd33353568f8585b2950964ff10c",
+  "results": [
+    {
+      "result_id": "result-001",
+      "case_id": "p3-contract-001",
+      "configuration_id": "contract-extraction-v1",
+      "task": "document-fact-extraction",
+      "document_type": "discharge-summary",
+      "language": "en",
+      "risk_level": "high",
+      "quality_tags": [
+        "synthetic",
+        "contract-fixture"
+      ],
+      "runtime_failure": false,
+      "identity_mismatch": false,
+      "counts": {
+        "fact_tp": 2,
+        "fact_fp": 0,
+        "fact_fn": 0,
+        "context_correct": 8,
+        "context_total": 8,
+        "date_correct": 1,
+        "date_total": 1,
+        "quantity_correct": 1,
+        "quantity_total": 1
+      },
+      "critical_errors": []
+    },
+    {
+      "result_id": "result-002",
+      "case_id": "p3-contract-002",
+      "configuration_id": "contract-extraction-v1",
+      "task": "document-fact-extraction",
+      "document_type": "laboratory-report",
+      "language": "en",
+      "risk_level": "boundary",
+      "quality_tags": [
+        "synthetic",
+        "contract-fixture"
+      ],
+      "runtime_failure": false,
+      "identity_mismatch": false,
+      "counts": {
+        "fact_tp": 2,
+        "fact_fp": 0,
+        "fact_fn": 0,
+        "context_correct": 8,
+        "context_total": 8,
+        "date_correct": 1,
+        "date_total": 1,
+        "quantity_correct": 1,
+        "quantity_total": 1
+      },
+      "critical_errors": []
+    },
+    {
+      "result_id": "result-003",
+      "case_id": "p3-contract-003",
+      "configuration_id": "contract-medication-reconciliation-v1",
+      "task": "medication-reconciliation",
+      "document_type": "medication-list",
+      "language": "en",
+      "risk_level": "high",
+      "quality_tags": [
+        "synthetic",
+        "contract-fixture"
+      ],
+      "runtime_failure": false,
+      "identity_mismatch": false,
+      "counts": {
+        "true_positive": 3,
+        "false_positive": 0,
+        "false_negative": 0,
+        "attribute_correct": 9,
+        "attribute_total": 9
+      },
+      "critical_errors": []
+    },
+    {
+      "result_id": "result-004",
+      "case_id": "p3-contract-004",
+      "configuration_id": "contract-medication-reconciliation-v1",
+      "task": "medication-reconciliation",
+      "document_type": "prescription",
+      "language": "ar",
+      "risk_level": "high",
+      "quality_tags": [
+        "synthetic",
+        "contract-fixture"
+      ],
+      "runtime_failure": false,
+      "identity_mismatch": false,
+      "counts": {
+        "true_positive": 3,
+        "false_positive": 0,
+        "false_negative": 0,
+        "attribute_correct": 9,
+        "attribute_total": 9
+      },
+      "critical_errors": []
+    },
+    {
+      "result_id": "result-005",
+      "case_id": "p3-contract-005",
+      "configuration_id": "contract-extraction-v1",
+      "task": "document-fact-extraction",
+      "document_type": "imaging-report",
+      "language": "ar",
+      "risk_level": "boundary",
+      "quality_tags": [
+        "synthetic",
+        "contract-fixture"
+      ],
+      "runtime_failure": false,
+      "identity_mismatch": false,
+      "counts": {
+        "fact_tp": 2,
+        "fact_fp": 0,
+        "fact_fn": 0,
+        "context_correct": 8,
+        "context_total": 8,
+        "date_correct": 1,
+        "date_total": 1,
+        "quantity_correct": 1,
+        "quantity_total": 1
+      },
+      "critical_errors": []
+    },
+    {
+      "result_id": "result-006",
+      "case_id": "p3-contract-006",
+      "configuration_id": "contract-extraction-v1",
+      "task": "document-fact-extraction",
+      "document_type": "clinical-note",
+      "language": "mixed",
+      "risk_level": "high",
+      "quality_tags": [
+        "synthetic",
+        "contract-fixture"
+      ],
+      "runtime_failure": false,
+      "identity_mismatch": false,
+      "counts": {
+        "fact_tp": 2,
+        "fact_fp": 0,
+        "fact_fn": 0,
+        "context_correct": 8,
+        "context_total": 8,
+        "date_correct": 1,
+        "date_total": 1,
+        "quantity_correct": 1,
+        "quantity_total": 1
+      },
+      "critical_errors": []
+    },
+    {
+      "result_id": "result-007",
+      "case_id": "p3-contract-007",
+      "configuration_id": "contract-ocr-v1",
+      "task": "ocr",
+      "document_type": "poor-quality-scan",
+      "language": "mixed",
+      "risk_level": "high",
+      "quality_tags": [
+        "synthetic",
+        "contract-fixture"
+      ],
+      "runtime_failure": false,
+      "identity_mismatch": false,
+      "counts": {
+        "character_edits": 0,
+        "reference_characters": 120,
+        "word_edits": 0,
+        "reference_words": 24,
+        "page_text_correct": 2,
+        "page_text_total": 2
+      },
+      "critical_errors": []
+    }
+  ]
+}

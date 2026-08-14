@@ -1,0 +1,126 @@
+{
+  "schema_version": "1",
+  "policy_id": "medibrief-p3-contract-release-policy-v1",
+  "policy_class": "contract-fixture",
+  "decision_scope": "Validate release-gate plumbing only; this policy cannot authorize a production route or clinical use.",
+  "route_change_authorized": false,
+  "approvals": {
+    "clinical_owner": false,
+    "statistical_owner": false,
+    "engineering_owner": true
+  },
+  "coverage": {
+    "minimum_total_cases": 7,
+    "per_document_type": {
+      "discharge-summary": 1,
+      "laboratory-report": 1,
+      "medication-list": 1,
+      "prescription": 1,
+      "imaging-report": 1,
+      "clinical-note": 1,
+      "poor-quality-scan": 1
+    },
+    "per_language": {
+      "en": 1,
+      "ar": 1,
+      "mixed": 1
+    },
+    "per_task": {
+      "document-fact-extraction": 1,
+      "ocr": 1,
+      "medication-reconciliation": 1
+    }
+  },
+  "task_thresholds": {
+    "document-fact-extraction": {
+      "fact_exact_f1": {
+        "operator": ">=",
+        "value": 1.0
+      },
+      "unsupported_addition_rate": {
+        "operator": "<=",
+        "value": 0.0
+      },
+      "omission_rate": {
+        "operator": "<=",
+        "value": 0.0
+      },
+      "context_axis_accuracy": {
+        "operator": ">=",
+        "value": 1.0
+      },
+      "date_exact_accuracy": {
+        "operator": ">=",
+        "value": 1.0
+      },
+      "quantity_exact_accuracy": {
+        "operator": ">=",
+        "value": 1.0
+      },
+      "runtime_failure_rate": {
+        "operator": "<=",
+        "value": 0.0
+      }
+    },
+    "ocr": {
+      "character_error_rate": {
+        "operator": "<=",
+        "value": 0.0
+      },
+      "word_error_rate": {
+        "operator": "<=",
+        "value": 0.0
+      },
+      "page_text_accuracy": {
+        "operator": ">=",
+        "value": 1.0
+      },
+      "runtime_failure_rate": {
+        "operator": "<=",
+        "value": 0.0
+      }
+    },
+    "medication-reconciliation": {
+      "medication_exact_f1": {
+        "operator": ">=",
+        "value": 1.0
+      },
+      "unsupported_addition_rate": {
+        "operator": "<=",
+        "value": 0.0
+      },
+      "omission_rate": {
+        "operator": "<=",
+        "value": 0.0
+      },
+      "attribute_exact_accuracy": {
+        "operator": ">=",
+        "value": 1.0
+      },
+      "runtime_failure_rate": {
+        "operator": "<=",
+        "value": 0.0
+      }
+    }
+  },
+  "review": {
+    "required_risk_levels": [
+      "high",
+      "boundary"
+    ],
+    "minimum_independent_reviewers": 2,
+    "minimum_safety_agreement_rate": 1.0,
+    "maximum_unadjudicated_disagreements": 0,
+    "maximum_final_unsafe": 0,
+    "maximum_review_critical_errors": 0
+  },
+  "zero_tolerance": {
+    "critical_error_count": 0,
+    "identity_mismatch_count": 0,
+    "runtime_failure_count": 0
+  },
+  "regression": {
+    "baseline_required": false,
+    "metrics": {}
+  }
+}

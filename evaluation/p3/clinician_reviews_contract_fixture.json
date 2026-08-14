@@ -1,0 +1,164 @@
+{
+  "schema_version": "1",
+  "study_id": "medibrief-p3-prospective-contract-v1",
+  "evidence_class": "contract-fixture",
+  "derived_evidence_only": true,
+  "blinding_preserved": true,
+  "reviews": [
+    {
+      "review_id": "result-001-review-a",
+      "result_id": "result-001",
+      "reviewer_id": "synthetic-reviewer-a",
+      "role": "synthetic-clinician",
+      "credential_verified": false,
+      "independent": true,
+      "blinded_to_configuration": true,
+      "verdict": "acceptable",
+      "critical_error_ids": []
+    },
+    {
+      "review_id": "result-001-review-b",
+      "result_id": "result-001",
+      "reviewer_id": "synthetic-reviewer-b",
+      "role": "synthetic-clinician",
+      "credential_verified": false,
+      "independent": true,
+      "blinded_to_configuration": true,
+      "verdict": "acceptable",
+      "critical_error_ids": []
+    },
+    {
+      "review_id": "result-002-review-a",
+      "result_id": "result-002",
+      "reviewer_id": "synthetic-reviewer-a",
+      "role": "synthetic-clinician",
+      "credential_verified": false,
+      "independent": true,
+      "blinded_to_configuration": true,
+      "verdict": "acceptable",
+      "critical_error_ids": []
+    },
+    {
+      "review_id": "result-002-review-b",
+      "result_id": "result-002",
+      "reviewer_id": "synthetic-reviewer-b",
+      "role": "synthetic-clinician",
+      "credential_verified": false,
+      "independent": true,
+      "blinded_to_configuration": true,
+      "verdict": "acceptable",
+      "critical_error_ids": []
+    },
+    {
+      "review_id": "result-003-review-a",
+      "result_id": "result-003",
+      "reviewer_id": "synthetic-reviewer-a",
+      "role": "synthetic-clinician",
+      "credential_verified": false,
+      "independent": true,
+      "blinded_to_configuration": true,
+      "verdict": "acceptable",
+      "critical_error_ids": []
+    },
+    {
+      "review_id": "result-003-review-b",
+      "result_id": "result-003",
+      "reviewer_id": "synthetic-reviewer-b",
+      "role": "synthetic-clinician",
+      "credential_verified": false,
+      "independent": true,
+      "blinded_to_configuration": true,
+      "verdict": "acceptable",
+      "critical_error_ids": []
+    },
+    {
+      "review_id": "result-004-review-a",
+      "result_id": "result-004",
+      "reviewer_id": "synthetic-reviewer-a",
+      "role": "synthetic-clinician",
+      "credential_verified": false,
+      "independent": true,
+      "blinded_to_configuration": true,
+      "verdict": "acceptable",
+      "critical_error_ids": []
+    },
+    {
+      "review_id": "result-004-review-b",
+      "result_id": "result-004",
+      "reviewer_id": "synthetic-reviewer-b",
+      "role": "synthetic-clinician",
+      "credential_verified": false,
+      "independent": true,
+      "blinded_to_configuration": true,
+      "verdict": "acceptable",
+      "critical_error_ids": []
+    },
+    {
+      "review_id": "result-005-review-a",
+      "result_id": "result-005",
+      "reviewer_id": "synthetic-reviewer-a",
+      "role": "synthetic-clinician",
+      "credential_verified": false,
+      "independent": true,
+      "blinded_to_configuration": true,
+      "verdict": "acceptable",
+      "critical_error_ids": []
+    },
+    {
+      "review_id": "result-005-review-b",
+      "result_id": "result-005",
+      "reviewer_id": "synthetic-reviewer-b",
+      "role": "synthetic-clinician",
+      "credential_verified": false,
+      "independent": true,
+      "blinded_to_configuration": true,
+      "verdict": "acceptable",
+      "critical_error_ids": []
+    },
+    {
+      "review_id": "result-006-review-a",
+      "result_id": "result-006",
+      "reviewer_id": "synthetic-reviewer-a",
+      "role": "synthetic-clinician",
+      "credential_verified": false,
+      "independent": true,
+      "blinded_to_configuration": true,
+      "verdict": "acceptable",
+      "critical_error_ids": []
+    },
+    {
+      "review_id": "result-006-review-b",
+      "result_id": "result-006",
+      "reviewer_id": "synthetic-reviewer-b",
+      "role": "synthetic-clinician",
+      "credential_verified": false,
+      "independent": true,
+      "blinded_to_configuration": true,
+      "verdict": "acceptable",
+      "critical_error_ids": []
+    },
+    {
+      "review_id": "result-007-review-a",
+      "result_id": "result-007",
+      "reviewer_id": "synthetic-reviewer-a",
+      "role": "synthetic-clinician",
+      "credential_verified": false,
+      "independent": true,
+      "blinded_to_configuration": true,
+      "verdict": "acceptable",
+      "critical_error_ids": []
+    },
+    {
+      "review_id": "result-007-review-b",
+      "result_id": "result-007",
+      "reviewer_id": "synthetic-reviewer-b",
+      "role": "synthetic-clinician",
+      "credential_verified": false,
+      "independent": true,
+      "blinded_to_configuration": true,
+      "verdict": "acceptable",
+      "critical_error_ids": []
+    }
+  ],
+  "adjudications": []
+}
