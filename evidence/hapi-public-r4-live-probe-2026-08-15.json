@@ -1,0 +1,52 @@
+{
+  "schemaVersion": "1",
+  "evidenceClass": "synthetic-live-probe",
+  "receiverId": "hapi-public-r4-test-server",
+  "reviewedMainCommit": "0fa690d8eb52ea9b57f844ee07128c504efac653",
+  "probeTriggerCommit": "71d68667f0f1c37d22da3f896133dba4b79cae7b",
+  "workflow": {
+    "name": "P1.5 One-Time HAPI Public Synthetic Probe",
+    "runId": 31847229065,
+    "jobId": 94916024978
+  },
+  "artifact": {
+    "id": 9236312941,
+    "name": "p1-5-hapi-public-r4-live-probe-2026-08-15",
+    "digest": "sha256:e74f5843c337125af98e1cc492b9903012a9f0cf3257144a9cd0d4eb63290c89",
+    "expiresAt": "2026-08-28T22:36:03Z"
+  },
+  "generatedAt": "2026-08-14T22:36:01.916Z",
+  "endpoint": "https://hapi.fhir.org/baseR4",
+  "capability": {
+    "fhirVersion": "4.0.1",
+    "supportsJson": true,
+    "transactionSupported": true,
+    "basicUpdateSupported": true,
+    "basicDeleteSupported": true,
+    "documentConsumerProfiles": [],
+    "ipsConsumerProfileAdvertised": false
+  },
+  "syntheticTransaction": {
+    "requestMethod": "POST",
+    "entryCount": 1,
+    "resourceTypes": [
+      "Basic"
+    ],
+    "entryMethod": "PUT",
+    "entryUrl": "Basic/medibrief-probe-ab047f13-bf2f-4c37-93f5-d26d81178442",
+    "responseStatus": "201 Created",
+    "responseLocation": "Basic/medibrief-probe-ab047f13-bf2f-4c37-93f5-d26d81178442/_history/1",
+    "cleanupStatus": 200
+  },
+  "patientDataTransmitted": false,
+  "ipsDocumentTransmitted": false,
+  "transferAuthorized": false,
+  "receiverAcceptanceEstablished": false,
+  "clinicalValidationEstablished": false,
+  "limitations": [
+    "This evidence demonstrates only current public-test endpoint discovery, transaction handling, and cleanup for one nonclinical Basic resource.",
+    "It does not test patient identity, consent, authentication, IPS ingestion, clinical rendering, durability, or production readiness.",
+    "The public endpoint did not advertise an IPS consumer profile; receiver compatibility remains indeterminate.",
+    "No patient record, imported document, local clinical fact, IPS Bundle, or free-text source excerpt was included in the probe."
+  ]
+}

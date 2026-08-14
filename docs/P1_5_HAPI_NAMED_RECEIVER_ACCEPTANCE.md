@@ -2,8 +2,14 @@
 
 ## Status
 
-Implementation complete on the P1.5 feature branch. Merge and post-merge
-validation remain required.
+Complete and merged through pull request #11 at main commit
+`0fa690d8eb52ea9b57f844ee07128c504efac653`.
+
+The exact merge commit passed post-merge P1.5, clinical, official FHIR/IPS,
+terminology/multilingual, P1.4, and P3 validation. A live synthetic-only probe
+then completed successfully against the HAPI FHIR Public R4 Test Server. The
+probe created one nonclinical `Basic` resource in a transaction and confirmed
+its deletion. No patient record or IPS document was transmitted.
 
 ## Objective
 
@@ -24,9 +30,10 @@ clinical receiver.
 - FHIR version: `4.0.1`.
 - Reviewed evidence snapshot: `hapi-public-r4-2026-08-15`.
 - Contract file: `evidence/hapi-public-r4-receiver-evidence.json`.
+- Live probe file: `evidence/hapi-public-r4-live-probe-2026-08-15.json`.
 - Public endpoint authentication: none observed; this is not a production
   security model.
-- IPS consumer profile: not advertised in the reviewed evidence.
+- IPS consumer profile: not advertised in either the reviewed or live evidence.
 - Receiver compatibility conclusion: `indeterminate`.
 
 ## P1.5.1 Pinned receiver profile
@@ -50,6 +57,8 @@ clinical receiver.
 - [x] Require fresh live capability discovery before any synthetic write.
 - [x] Fail closed on FHIR-version, JSON, transaction, Basic-update, or
   Basic-delete capability drift.
+- [x] Bound response headers and streamed response bodies within the configured
+  byte and time limits.
 - [x] Do not infer receiver identity, durability, clinical rendering, consent,
   or authorization from a CapabilityStatement.
 
@@ -72,21 +81,48 @@ clinical receiver.
 - [x] Return a PHI-free report with all authorization and clinical claims set to
   `false`.
 
-## P1.5.4 Automation
+## P1.5.4 Automation and merge validation
 
 - [x] Add unit tests for the pinned receiver and evidence snapshot.
 - [x] Prove local validation remains `indeterminate` and network-free.
 - [x] Prove disabled probing makes no network request.
 - [x] Prove capability drift blocks the write.
+- [x] Prove invalid timeout configuration blocks network use.
+- [x] Prove oversized capability evidence blocks the write.
+- [x] Prove oversized or malformed transaction responses still trigger cleanup.
 - [x] Prove the successful mocked flow performs discovery, one Basic write, and
   cleanup only.
 - [x] Add a permanent P1.5 GitHub Actions workflow.
-- [x] Keep the live public probe behind explicit `workflow_dispatch` input.
-- [ ] Pass branch validation.
-- [ ] Pass the existing MediBrief clinical, IPS, terminology, P3, and browser
+- [x] Keep the normal live public probe behind explicit `workflow_dispatch`
+  input.
+- [x] Pass P1.5 branch validation.
+- [x] Pass the existing MediBrief clinical, IPS, terminology, P3, and browser
   regressions on the pull-request merge reference.
-- [ ] Review and merge through a pull request.
-- [ ] Pass post-merge P1.5 validation on `main`.
+- [x] Review and merge through pull request #11.
+- [x] Pass post-merge P1.5 validation on `main`.
+
+## P1.5.5 Live synthetic evidence
+
+- [x] Pin the probe implementation to reviewed main commit
+  `0fa690d8eb52ea9b57f844ee07128c504efac653`.
+- [x] Confirm the live endpoint declares FHIR `4.0.1`, JSON, transaction,
+  `Basic` update, and `Basic` delete support.
+- [x] Confirm the live endpoint does not advertise an IPS consumer profile.
+- [x] Receive `201 Created` for the single synthetic `Basic` transaction.
+- [x] Receive cleanup status `200` for deletion of the probe resource.
+- [x] Retain the PHI-free report in the repository and as a digest-addressed
+  GitHub Actions artifact.
+- [x] Remove the one-time trigger workflow after evidence capture; it is not
+  present on `main`.
+
+Live evidence identifiers:
+
+- Workflow run: `31847229065`.
+- Job: `94916024978`.
+- Artifact: `9236312941`.
+- Artifact digest:
+  `sha256:e74f5843c337125af98e1cc492b9903012a9f0cf3257144a9cd0d4eb63290c89`.
+- Probe generated at: `2026-08-14T22:36:01.916Z`.
 
 ## Explicitly not implemented
 
@@ -98,6 +134,7 @@ clinical receiver.
 - Retry queues, idempotent clinical delivery, delivery receipts, or
   reconciliation with a receiving EHR.
 - Source signatures, provenance verification, or nonrepudiation.
+- Receiver-side IPS rendering or clinical usability validation.
 - Production receiver configuration.
 
 ## Safety and evidence boundary
@@ -107,9 +144,9 @@ matches the computable local contract under the recorded evidence. Because the
 public server does not advertise an IPS consumer profile, the result remains
 `indeterminate`.
 
-A passing live probe means only that the public test endpoint currently exposes
-FHIR R4 discovery, accepts one nonclinical Basic transaction, and allowed the
-probe resource to be removed. It does not establish IPS ingestion, clinical
-rendering, durable storage, receiver identity, consent, disclosure permission,
-patient matching, clinical truth, regulatory clearance, or production
-readiness.
+The successful live probe establishes only that the public test endpoint exposed
+FHIR R4 discovery, accepted one nonclinical `Basic` transaction, and allowed the
+probe resource to be removed at the recorded time. It does not establish IPS
+ingestion, clinical rendering, durable storage, receiver identity, consent,
+disclosure permission, patient matching, clinical truth, regulatory clearance,
+or production readiness.
