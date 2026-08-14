@@ -1,0 +1,84 @@
+name: P1.3 Atomic Source-Preserving IPS Import
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+  push:
+    branches:
+      - main
+      - 'agent/p1-3-atomic-source-preserving-ips-import'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p1-3-atomic-ips-import-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-p1-3:
+    name: Atomic graph, encrypted source, and identity-review contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install application dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Type-check application
+        run: npm run typecheck
+
+      - name: Type-check Chromium acceptance contracts
+        run: npx tsc --noEmit -p tsconfig.playwright.json
+
+      - name: Verify the user import path uses one transaction boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          component='features/fhir/components/IpsInteroperabilityCenter.tsx'
+          grep -q 'prepareAtomicIpsImport' "$component"
+          grep -q 'commitAtomicIpsImport' "$component"
+          grep -q 'replacePatientRecord' "$component"
+          if grep -q 'clinicalActions\.addResource' "$component"; then
+            echo 'The IPS user path must not return to per-candidate addResource writes.' >&2
+            exit 1
+          fi
+
+      - name: Test atomic source-preserving import contracts
+        run: npx vitest run tests/atomicIpsImport.test.ts
+
+      - name: Re-run FHIR, backup, and source-document regressions
+        run: >-
+          npx vitest run
+          tests/fhirIpsInterop.test.ts
+          tests/backupRoundTrip.test.ts
+          tests/backupSchemas.test.ts
+          tests/sourceDocuments.test.ts
+          tests/clinicalRecordStore.test.ts
+
+      - name: Build production application
+        run: npm run build:app
+
+      - name: Upload PHI-free P1.3 acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p1-3-atomic-ips-import-contract-evidence
+          path: docs/P1_3_ATOMIC_IPS_IMPORT_ACCEPTANCE.md
+          if-no-files-found: error
+          retention-days: 14
