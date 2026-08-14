@@ -1,0 +1,68 @@
+name: P1.4 Receiver and Terminology Validation
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+  push:
+    branches:
+      - main
+      - 'agent/p1-4-receiver-validation-terminology-adapters'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p1-4-receiver-validation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-p1-4:
+    name: Receiver contracts and coded-only terminology adapters
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install application dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Type-check application
+        run: npm run typecheck
+
+      - name: Test receiver compatibility contracts
+        run: npx vitest run tests/receiverExchangeValidation.test.ts
+
+      - name: Test terminology adapter privacy and failure modes
+        run: npx vitest run tests/terminologyAdapters.test.ts
+
+      - name: Re-run IPS and terminology regressions
+        run: >-
+          npx vitest run
+          tests/fhirIpsInterop.test.ts
+          tests/terminologyGovernance.test.ts
+
+      - name: Build production application
+        run: npm run build:app
+
+      - name: Upload PHI-free P1.4 acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p1-4-receiver-validation-contract-evidence
+          path: docs/P1_4_RECEIVER_VALIDATION_ACCEPTANCE.md
+          if-no-files-found: error
+          retention-days: 14
