@@ -310,7 +310,31 @@ const IpsInteroperabilityCenter: React.FC = () => {
             await encryptedSourceStorage.saveSource(importPreview.source);
             sourceStored = true;
             clinicalActions.replacePatientRecord(staged.record);
+        } catch (commitError) {
+            if (sourceStored) {
+                try {
+                    await encryptedSourceStorage.deleteSource(
+                        importPreview.source.id,
+                    );
+                } catch (cleanupError) {
+                    console.error(
+                        'Unable to remove unreferenced encrypted IPS source:',
+                        cleanupError,
+                    );
+                }
+            }
+            console.error('Atomic IPS import failed:', commitError);
+            setError(
+                commitError instanceof Error
+                    ? commitError.message
+                    : 'The atomic IPS import could not be committed. No candidate graph was intentionally retained.',
+            );
+            setIsCommitting(false);
+            return;
+        }
 
+        let auditRecorded = true;
+        try {
             auditActions.logEvent(
                 'CLINICAL_RESOURCE_CREATED',
                 activePatientId,
@@ -332,34 +356,20 @@ const IpsInteroperabilityCenter: React.FC = () => {
                     patientProfileOverwritten: false,
                 },
             );
-
-            setImportPreview(null);
-            setIdentityAcknowledged(false);
-            setStatus(
-                `${staged.createdCandidates} candidate record${staged.createdCandidates === 1 ? '' : 's'} committed in one validated patient-record replacement${staged.duplicateCandidates ? ` · ${staged.duplicateCandidates} equivalent candidate${staged.duplicateCandidates === 1 ? '' : 's'} linked to existing evidence` : ''}. The exact received IPS is encrypted locally and every candidate remains unconfirmed until source review.`,
+        } catch (auditError) {
+            auditRecorded = false;
+            console.error(
+                'IPS import was committed, but its audit event could not be recorded:',
+                auditError,
             );
-        } catch (commitError) {
-            if (sourceStored) {
-                try {
-                    await encryptedSourceStorage.deleteSource(
-                        importPreview.source.id,
-                    );
-                } catch (cleanupError) {
-                    console.error(
-                        'Unable to remove unreferenced encrypted IPS source:',
-                        cleanupError,
-                    );
-                }
-            }
-            console.error('Atomic IPS import failed:', commitError);
-            setError(
-                commitError instanceof Error
-                    ? commitError.message
-                    : 'The atomic IPS import could not be committed. No candidate graph was intentionally retained.',
-            );
-        } finally {
-            setIsCommitting(false);
         }
+
+        setImportPreview(null);
+        setIdentityAcknowledged(false);
+        setStatus(
+            `${staged.createdCandidates} candidate record${staged.createdCandidates === 1 ? '' : 's'} committed in one validated patient-record replacement${staged.duplicateCandidates ? ` · ${staged.duplicateCandidates} equivalent candidate${staged.duplicateCandidates === 1 ? '' : 's'} linked to existing evidence` : ''}. The exact received IPS is encrypted locally and every candidate remains unconfirmed until source review.${auditRecorded ? '' : ' The clinical import succeeded, but its audit event could not be recorded.'}`,
+        );
+        setIsCommitting(false);
     };
 
     return (
