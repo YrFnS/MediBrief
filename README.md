@@ -1,153 +1,154 @@
+# MediBrief
 
-# 🩺 MediBrief - Clinical Intelligence Layer (v5.1)
+MediBrief is a **local personal health record and source-traceable medical-document review assistant**. It helps a user organize records, preserve provenance and uncertainty, review extracted candidates, and create deterministic summaries from locally confirmed information.
 
-**MediBrief** is a medical-grade intelligence layer designed to act as a proactive safety partner for healthcare professionals. Unlike standard chatbots, it functions as a **Clinical Decision Support System (CDSS)**, synthesizing raw patient data into structured, actionable artifacts while enforcing strict safety protocols.
+MediBrief is **not** a certified medical device, electronic prescribing system, diagnostic workstation, emergency-triage system, or autonomous clinical decision maker.
 
-It uses **browser-local OpenRouter BYOK** for optional AI requests: the user enters a key into the encrypted local vault, explicitly selects a model from OpenRouter's live public catalog (or enters an ID manually), and the browser sends requests directly to OpenRouter. MediBrief and Vercel hold no AI key or default model. Real-time voice and ambient transcription are disabled in this deployment.
+## Current product boundary
 
----
+MediBrief may:
 
-## 🏗️ System Architecture
+- keep a structured local patient record in an encrypted browser vault;
+- preserve source documents, excerpts, dates, uncertainty, assertion context, and amendments;
+- separate extracted candidates from confirmed, rejected, and entered-in-error records;
+- create deterministic summaries and an emergency information view from confirmed local records;
+- support medication-record reconciliation and documentation-quality review;
+- provide limited educational cloud assistance after explicit per-tab acknowledgement.
 
-MediBrief v5.1 utilizes a **Feature-Based Architecture** with segregated state management for high performance and safety.
+MediBrief does not:
 
-```mermaid
-graph TD
-    subgraph "Presentation Layer (React)"
-        UI[Main Layout] --> Gate[Security Gate]
-        Gate --> Roster[Sidebar Roster]
-        Gate --> HUD[Safety HUD]
-        Gate --> Workspace{Active Workspace}
-        Workspace --> Chat[Chat Interface]
-        Workspace --> Scribe[Ambient Scribe]
-        Workspace --> CDSS[CDSS Overlay]
-    end
+- diagnose, prescribe, recommend dose changes, or perform emergency triage;
+- declare a medication or regimen safe for a patient;
+- place orders, transmit prescriptions, book external appointments, or record proposals as completed care;
+- provide a diagnostic DICOM/PACS viewer;
+- claim standards-conformant FHIR or International Patient Summary exchange;
+- treat automated tests or synthetic fixtures as clinical certification.
 
-    subgraph "Secure State Management (Zustand + Encryption)"
-        Crypto[Encryption Service (AES-GCM)]
-        PS[Patient Store] -->|Encrypted| IDB[(IndexedDB)]
-        CS[Chat Store] -->|Encrypted| IDB
-        ClinS[Clinical Store] -->|Encrypted| IDB
-        AS[Audit Store] -->|Encrypted| IDB
-    end
+The in-app **Safety & capabilities** panel is the authoritative user-facing status matrix.
 
-    subgraph "Intelligence Layer"
-        Orchestrator[Chat Orchestrator] --> OpenRouter[OpenRouter API via browser BYOK]
-        Orchestrator --> Safety[Safety Service]
-        Safety --> OpenFDA[openFDA API]
-        Safety --> Rules[Rules Engine]
-        Rules --> CDSS
-    end
+## Safety architecture
 
-    subgraph "Ingestion Pipeline"
-        Upload[File Upload] --> Extractor[Entity Extractor]
-        Extractor --> ClinS
-        Scribe -->|Manual Review| Chat
-    end
+### Confirmed facts are different from extracted candidates
 
-    Gate -.-> Crypto
-    Chat --> Orchestrator
-    Chat --> AS
+Clinical resources use explicit verification states:
+
+- `candidate`
+- `confirmed`
+- `rejected`
+- `entered-in-error`
+
+The record also preserves negation, uncertainty, temporality, experiencer, original values, normalized values, unknown dates, source-document references, extraction metadata, and amendment history. Confirmation records a local human decision; it does not independently prove that the source is correct.
+
+### Deterministic local summaries
+
+Patient summaries can be built from confirmed, patient-applicable local evidence without calling a cloud model. Missing information remains missing. Upload, storage, extraction, and review timestamps are not silently substituted for unknown clinical dates.
+
+### Clinical rules fail closed
+
+Legacy threshold rules that could create treatment-style conclusions are disabled. The active validated rule registry is limited to reviewed low-risk workflow and data-quality advisories. Orders are not generated; review actions create local proposal/reminder tasks only.
+
+### Cloud processing is off by default
+
+Accepting the general disclaimer does not enable cloud AI. A user must separately enable cloud processing for the current browser tab.
+
+Every OpenRouter chat request is intercepted immediately before transmission and rewritten to request:
+
+- zero-data-retention endpoints;
+- denial of provider data collection;
+- no provider fallback;
+- providers that support the requested parameters.
+
+General cloud assistance may run after acknowledgement. Patient-record and medical document/image requests require an exact task-specific entry in the reviewed model/provider registry. The production registry is intentionally empty until a review package exists, so these requests fail closed and no patient evidence is sent.
+
+See `docs/APPROVED_MODEL_REGISTRY.md`.
+
+## Capability status
+
+| Capability | Status | Important boundary |
+|---|---|---|
+| Local structured personal health record | Available | May be incomplete compared with external clinical records |
+| Candidate/source review and provenance | Available | Human confirmation is not independent source verification |
+| Deterministic summaries and emergency view | Available | No diagnosis or triage |
+| Medication-record reconciliation | Available | No patient-specific medication-safety verdict |
+| OpenMed extraction | Experimental | OCR/entity candidates require human review |
+| General cloud educational assistance | Experimental | Explicit per-tab acknowledgement required |
+| Basic image preview | Experimental | Not diagnostic imaging or PACS |
+| Diagnosis, treatment, triage, dose checking | Disabled | Requires formal intended use and clinical validation |
+| Autonomous orders and completed-care actions | Disabled | Local tasks remain proposals/reminders |
+| Ambient audio | Disabled | Production permissions policy disables microphone access |
+| FHIR R4 / IPS exchange | Planned | Current exports are MediBrief-specific |
+| DICOMweb | Planned | Current image preview is non-diagnostic |
+| Prospective clinical validation | Planned | Engineering CI is not clinical evidence |
+
+## Local vault
+
+New vaults require a passphrase of at least 12 characters and reject numeric-only secrets. PBKDF2 derives a non-extractable AES-GCM key that remains in memory while unlocked. Local retry delays begin after repeated failures.
+
+Existing legacy PIN vaults remain unlockable to avoid destructive migration. The UI clearly identifies them and recommends creating a validated backup before moving the record into a new strong-passphrase vault.
+
+The local retry delay is a browser-side control. It does not protect a compromised device or replace operating-system account security, full-disk encryption, backups, or physical access controls.
+
+## Production web boundary
+
+The production shell bundles its JavaScript, CSS, typography, and icon assets locally. It does not depend on Tailwind CDN, external font hosts, Iconify, or ESM import maps at runtime.
+
+Vercel headers define a restrictive Content Security Policy and disable camera, microphone, geolocation, payment, USB, serial, Bluetooth, and interest-cohort permissions. The service worker caches only same-origin application-shell assets. Patient records remain in the encrypted IndexedDB vault and API responses are not cached by the service worker.
+
+A custom OpenMed endpoint must be explicitly allowed in the deployment CSP before the browser can connect to it. The default localhost endpoints are allowed for local bridge use.
+
+## Main record areas
+
+- patient roster and patient profile;
+- conditions and allergies;
+- medications and medication-record reconciliation;
+- observations, laboratory results, diagnostic reports, and trends;
+- visits, procedures, immunizations, appointments, tasks, care plans, and notes;
+- source documents and candidate review;
+- search, history, corrections, backups, and complete confirmed-record export;
+- deterministic emergency summary;
+- low-risk rules and audit review.
+
+## Technology
+
+- React 18 and TypeScript
+- Vite
+- Zustand
+- IndexedDB through `idb-keyval`
+- Web Crypto API: PBKDF2 and AES-GCM
+- Zod validation
+- Vitest
+- OpenMed local bridge support
+- Optional browser-to-OpenRouter BYOK transport under the cloud policy guard
+
+## Development
+
+Requirements:
+
+- Node.js 18 or newer
+- Python 3.12 for the OpenMed bridge validation workflow
+
+Install and run:
+
+```bash
+npm install
+npm run dev
 ```
 
----
+Run the complete validation suite:
 
-## 🛡️ The "Zero-Trust" Safety Layer
-
-MediBrief enforces a strict **"Truth Above All"** protocol using a multi-stage verification pipeline:
-
-1.  **Ingestion Scanning**:
-    *   Files are scanned by `useEntityExtractor` upon upload.
-    *   **Allergies**, **Code Status**, and **Diagnoses** are extracted and pinned to the **Heads-Up Display (HUD)**.
-
-2.  **Pharmacology Guardrails**:
-    *   **Human-in-the-Loop**: When medications are detected in text, the user must *verify* the extraction before safety checks run.
-    *   **Dual Verification**:
-        1.  **Deterministic**: Checks against hard-coded critical limits (e.g., Acetaminophen > 4000mg).
-        2.  **External (openFDA)**: Queries the FDA database for **Boxed Warnings** and label contradictions.
-
-3.  **Strict Source Filtering**:
-    *   **Allowed Domains**: System instructions strictly limit external verification to `nih.gov`, `cdc.gov`, `pubmed.ncbi.nlm.nih.gov`, and other official medical authorities.
-    *   **Epistemic Humility**: The model is explicitly trained to admit ignorance rather than hallucinate.
-
-4.  **Schema Validation (Zod)**:
-    *   All AI outputs (Briefings, Lab Reports) are validated against strict `zod` schemas. Malformed JSON or out-of-bound values are rejected.
-
----
-
-## 🚀 Key Features
-
-### 1. Zero-Knowledge Security (New in v5.1)
-*   **Client-Side Encryption**: Data is encrypted using **AES-GCM** before ever touching IndexedDB.
-*   **Session PIN**: A 4-digit PIN derives the encryption key via **PBKDF2**. The raw key never leaves memory and is not persisted.
-*   **Auto-Lock**: The interface blurs after 2 minutes of inactivity and locks completely after 15 minutes.
-
-### 2. Accountability & Audit Trails (New in v5.1)
-*   **Immutable Logs**: Every "AI Action" (Alert Generation, Briefing Creation) and "User Action" (Dosage Check, Alert Dismissal) is logged to an encrypted Audit Store.
-*   **Traceability**: Ensure clinical decisions can be traced back to the specific information available at the time.
-
-### 3. Clinical Decision Support (CDSS)
-*   **Logic Engine**: A dedicated rules engine (`rulesEngine.ts`) monitors the **FHIR Data Store**.
-*   **RAG Retrieval**: Retrieves relevant hospital protocols (e.g., Sepsis-3, KDIGO AKI) based on patient data tokens.
-*   **Intervention Cards**: High-visibility alerts (Critical/Warning/Info) that overlay the interface when protocols are violated.
-
-### 4. SOAP Note Workspace
-*   **Manual Review**: SOAP sections remain editable and can be explicitly saved to the local structured record.
-*   **Deployment Boundary**: Ambient transcription is disabled because browser-only OpenRouter chat completions do not provide the required real-time audio transport.
-
-### 5. Native Multimodal Ingestion
-*   **PACS Viewer**: Specialized image viewer with **Zoom**, **Contrast**, and **Invert (Bone Window)** controls for X-Rays/CTs.
-*   **Lab Parsing**: Converts PDF lab reports into structured **FHIR Observations**, enabling automatic trend graphing.
-
----
-
-## 📂 Project Structure
-
-The codebase follows a strict **Feature-Based** directory structure:
-
-```
-src/
-├── features/
-│   ├── analytics/       # TrendGraph and data visualization
-│   ├── audit/           # Audit logging and storage types
-│   ├── cdss/            # Rules engine, Alerts, Protocols
-│   ├── chat/            # Message components, Orchestrator hooks
-│   ├── clinical/        # FHIR types, Store definition
-│   ├── fhir/            # TypeScript definitions for FHIR R4
-│   ├── hud/             # Heads-Up Display components
-│   ├── layout/          # Main application shell & biometric bg
-│   ├── patient/         # Patient metadata store & Roster UI
-│   ├── safety/          # Dosage verifier, OpenFDA service
-│   ├── scribe/          # Live Scribe interface & session logic
-│   ├── security/        # EncryptionService, SecurityGate, Auto-Lock
-│   └── ui/              # Global UI state (loading, modes)
-├── components/          # Shared atomic components (Icons, Toast)
-├── services/            # OpenRouter BYOK, BlobStorage, and Encryption wrappers
-├── hooks/               # Utility hooks (Audio, DragAndDrop)
-└── workers/             # Audio processing workers (PCM)
+```bash
+npm run validate
+python -m pytest -q openmed_bridge/tests
 ```
 
----
+The GitHub workflow additionally evaluates the synthetic extraction corpora and runs TypeScript checking, Vitest, and the production build.
 
-## 🛠️ Technical Stack
+## Governance documents
 
-*   **Frontend**: React 18, Tailwind CSS (Medical Theme).
-*   **State**: `zustand` (Split into 5 specialized stores).
-*   **Storage**: `idb-keyval` (IndexedDB wrapper).
-*   **Security**: Web Crypto API (PBKDF2 + AES-GCM).
-*   **Validation**: `zod`.
-*   **AI**: OpenRouter public model catalog and chat-completions HTTP APIs (browser BYOK).
-*   **Audio**: Web Audio API + AudioWorklet (Low latency PCM).
-*   **Data Standard**: FHIR R4 (Partial implementation).
+- `docs/KNOWN_LIMITATIONS.md`
+- `docs/CLINICAL_HAZARD_REGISTER.md`
+- `docs/CLINICAL_CHANGE_CONTROL.md`
+- `docs/APPROVED_MODEL_REGISTRY.md`
+- `docs/P0_SAFETY_BOUNDARY_ACCEPTANCE.md`
 
----
-
-## 🚀 Getting Started
-
-1.  **Prerequisites**: Node.js 18+.
-2.  **Install**: `npm install` (no AI environment variables are used).
-3.  **Run**: `npm run dev`.
-4.  **Initialize**: On first launch, set a 4-digit PIN to initialize the encrypted local vault.
-5.  **Optional AI**: Open Settings, enter your own OpenRouter key, refresh/search the live catalog, and explicitly select a model. The key is stored only in the encrypted browser vault and sent directly to OpenRouter as a Bearer header.
-
-**Disclaimer:** *MediBrief is a demonstration of Clinical AI architecture. It is not a certified medical device. All outputs must be verified by a licensed healthcare professional.*
+Older phase documents are implementation history. When an older document conflicts with the active code, this README, the governance documents above, and the in-app capability matrix take precedence.

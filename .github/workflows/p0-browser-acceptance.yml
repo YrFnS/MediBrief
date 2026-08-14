@@ -1,0 +1,99 @@
+name: P0 Browser Acceptance
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p0-browser-acceptance-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  browser-acceptance:
+    name: Chromium safety-boundary acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install application dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Build production application
+        run: npm run build:app
+
+      - name: Install Playwright test runtime
+        run: |
+          npm install --no-save --no-package-lock @playwright/test@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Type-check P0 browser acceptance
+        run: npx tsc --noEmit -p tsconfig.playwright.json
+
+      - name: Run P0 browser acceptance
+        run: npx playwright test --config=playwright.acceptance.config.ts
+
+      - name: Verify public Netlify preview headers and shell
+        if: github.event_name == 'pull_request'
+        env:
+          PREVIEW_URL: https://deploy-preview-${{ github.event.pull_request.number }}--clinixsummary.netlify.app
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          headers=''
+          body=''
+          for attempt in $(seq 1 30); do
+            headers="$(curl -fsSI "$PREVIEW_URL" || true)"
+            body="$(curl -fsS "$PREVIEW_URL" || true)"
+            if printf '%s\n' "$headers" | grep -qi '^content-security-policy:' \
+              && printf '%s' "$body" | grep -q 'MediBrief'; then
+              break
+            fi
+            sleep 10
+          done
+
+          printf '%s\n' "$headers"
+          printf '%s\n' "$headers" | grep -qi "^content-security-policy:.*script-src 'self'"
+          printf '%s\n' "$headers" | grep -qi '^x-frame-options: *DENY'
+          printf '%s\n' "$headers" | grep -qi '^x-content-type-options: *nosniff'
+          printf '%s\n' "$headers" | grep -qi '^referrer-policy: *no-referrer'
+          printf '%s\n' "$headers" | grep -qi '^permissions-policy:.*camera=().*microphone=()'
+
+          if printf '%s' "$body" | grep -Eqi \
+            'cdn\.tailwindcss\.com|fonts\.googleapis\.com|api\.iconify\.design|<script[^>]+src="https?://'; then
+            echo 'The deployed shell still contains a disallowed runtime dependency.' >&2
+            exit 1
+          fi
+
+          sw_headers="$(curl -fsSI "$PREVIEW_URL/sw.js")"
+          printf '%s\n' "$sw_headers" | grep -qi '^service-worker-allowed: */'
+          printf '%s\n' "$sw_headers" | grep -qi '^cache-control:.*max-age=0.*must-revalidate'
+
+      - name: Upload browser diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p0-browser-acceptance-diagnostics
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+          retention-days: 7

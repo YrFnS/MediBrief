@@ -1,95 +1,85 @@
-# 🗺️ MediBrief v4.2 - Clinical Operating System Roadmap
+# MediBrief Roadmap
 
-**Current Status:** v4.2 (Feature Complete)
-**Target Status:** v5.0 (Production Hardening)
+## Product direction
 
-This roadmap outlines the transformation of MediBrief from a linear chat interface into a stateful, multi-patient management system.
+MediBrief should become a private, longitudinal, source-faithful personal health record that makes it easy to see:
 
----
+- where each fact came from;
+- whether it is a candidate or confirmed record;
+- what remains uncertain or unknown;
+- what changed and why;
+- what requires human review;
+- what can and cannot safely be sent to an external service.
 
-## 📜 CODING STANDARDS & ARCHITECTURE RULES
-**ALL UPDATES MUST ADHERE TO THE FOLLOWING STRICT PROTOCOLS:**
+The roadmap does not treat additional AI output as progress unless the underlying record, interoperability, validation, and governance boundaries improve with it.
 
-### 1. Code Quality
-*   **500-Line Limit:** No file may exceed 500 lines.
-    *   *Mitigation:* Split logic into custom hooks, utility modules, or sub-components immediately upon approaching 400 lines.
-*   **Strict Typing:** `any` is prohibited unless interacting with untyped external libraries.
+## P0 — Safety boundary
 
-### 2. Feature-Based Architecture
-We are moving away from horizontal grouping (e.g., `components/`, `hooks/`) to vertical feature grouping.
-*   ✅ `features/patient-management/` (Store, Context, Logic)
-*   ✅ `features/layout/` (Main shell)
-*   ✅ `features/patient-roster/` (Sidebar UI)
-*   ✅ `features/hud/` (Active Safety Monitor)
-*   ✅ `features/fhir/` (Standardized Data)
-*   ✅ `features/analytics/` (Trending)
-*   ✅ `features/scribe/` (Ambient Listening)
-*   ✅ `features/cdss/` (Rules Engine & Alerts)
+**Status: Complete**
 
----
+- truthful product language and capability matrix;
+- session-scoped cloud acknowledgement;
+- fail-closed reviewed clinical model registry;
+- OpenRouter ZDR/no-collection routing;
+- strong new-vault passphrases and local retry delays;
+- legacy-vault warning without destructive migration;
+- locally bundled production shell, CSP, and offline app shell;
+- hazard, limitations, change-control, and model-registry documents.
 
-## 📅 PHASE 1: Architectural Refactor (The Foundation)
-**Goal:** Restructure the flat codebase to support complex state management without bloat.
-- [x] **1.1 Directory Restructure**: Created `features/` structure.
-- [x] **1.2 Global State Refactor**: Implemented `usePatientStore` to handle dictionary of patient contexts.
-- [x] **1.3 Layout Extraction**: Moved monolithic `App.tsx` into `features/layout/MainLayout.tsx`.
+## P1 — Interoperable record foundation
 
----
+**Status: Next**
 
-## 📅 PHASE 2: Multi-Patient Roster
-**Goal:** Allow clinicians to manage multiple patients simultaneously without context switching errors.
-- [x] **2.1 Data Model**: Defined `PatientContext` and `PatientStatus`.
-- [x] **2.2 UI Components**: Built `SidebarRoster`, `PatientCard`, and `AddPatientDialog`.
-- [x] **2.3 Behavior**: Integrated with `MainLayout` and connected to `usePatientStore` actions.
+1. Define supported FHIR R4 profiles and implementation-guide versions.
+2. Build validated FHIR import with quarantine for invalid or unsupported resources.
+3. Generate a conformant International Patient Summary document bundle.
+4. Preserve MediBrief provenance and original source evidence beside normalized resources.
+5. Add terminology mappings for laboratory observations, units, medications, conditions, procedures, and allergies.
+6. Add validation reports that explain every rejected, downgraded, or partially mapped field.
+7. Create encrypted, consent-controlled sharing with expiry and revocation semantics.
+8. Add integration tests against external FHIR validators.
 
----
+## P2 — Medical-document validation
 
-## 📅 PHASE 3: Active Monitoring HUD
-**Goal:** Persistent visibility of critical safety data, regardless of scroll position.
-- [x] **3.1 Extraction Logic**: Implemented `extractEntitiesFromUpload` service and `useEntityExtractor` hook to run background safety scans on files.
-- [x] **3.2 UI Components**: Built `HeadsUpDisplay` with dynamic safety badges (Allergies, Code Status).
-- [x] **3.3 Integration**: Connected extraction trigger to `useChatOrchestrator` and HUD to `MainLayout`.
+**Status: Planned after P1 contracts are stable**
 
----
+1. Build representative English, Arabic, and bilingual datasets.
+2. Separate evaluation by discharge summary, laboratory report, medication list, prescription, imaging report, clinical note, and poor-quality scan.
+3. Measure exact and relaxed extraction accuracy, omission rate, unsupported-addition rate, negation, uncertainty, temporality, family-history attribution, dates, and units.
+4. Add blinded clinician review for high-risk and boundary cases.
+5. Define release thresholds and stop-ship thresholds for each task.
+6. Add model/version regression gates and retained evaluation artifacts.
+7. Validate medication-record reconciliation before any medication-safety advice is considered.
 
-## 📅 PHASE 4: FHIR Interoperability Layer
-**Goal:** Structure internal data to mimic hospital standards, enabling advanced graphing and export.
-- [x] **4.1 Type Definitions**: Defined `FHIRObservation` and `ClinicalDataStore`.
-- [x] **4.2 Data Transformation**: Implemented auto-ingestion in `useChatOrchestrator` to convert `lab-report` outputs into stored FHIR observations.
-- [x] **4.3 Trend Graphing**: Integrated `recharts` and created `TrendGraph.tsx`. Updated `LabReport.tsx` to display historical trends when available.
+## P3 — Product simplification and accessibility
 
----
+**Status: Planned**
 
-## 📅 PHASE 5: Ambient Scribe Mode
-**Goal:** Passive documentation of doctor-patient encounters.
-- [x] **5.1 Architecture (`features/scribe/`)**: Implemented `useScribeSession` using Gemini Live API with a dedicated tool (`updateSoapNote`) for real-time extraction.
-- [x] **5.2 UI Experience**: Created `ScribeInterface` with audio visualizer and live-updating SOAP fields.
-- [x] **5.3 Integration**: Added `Scribe` to `ChatMode` and updated `MainLayout` to swap interfaces based on mode.
+Group the record around user jobs rather than exposing every resource type as a first-level destination:
 
----
+- Today
+- Health record
+- Medications
+- Results
+- Care
+- Documents
+- Share and manage
 
-## 📅 PHASE 6: Clinical Decision Support (CDSS) Cards
-**Goal:** Proactive, logic-driven alerts based on data patterns.
-- [x] **6.1 Logic Engine**: Implemented `rulesEngine.ts` with Sepsis, Electrolyte, and BP protocols evaluating FHIR observations.
-- [x] **6.2 UI Components**: Created `InterventionCard.tsx` and `CDSSContainer.tsx` to overlay alerts on the main chat interface.
-- [x] **6.3 Integration**: Connected to `MainLayout` via `useCDSS` hook.
+Add task-oriented onboarding, mobile navigation, keyboard and screen-reader verification, empty-state education, review queues, and usability studies with representative users.
 
----
+## P4 — Carefully bounded clinical assistance
 
-## 📅 PHASE 7: Production Hardening & PWA
-**Goal:** Ensure the app is robust, performant, and accessible for real-world usage.
+**Status: Gated**
 
-### 7.1 Resilience
-*   Implement React Error Boundaries to prevent full app crashes on render errors.
-*   Add toast notifications for non-critical errors.
+A clinical function may only enter this phase after it has:
 
-### 7.2 Persistence
-*   Migrate from `sessionStorage` to `localStorage` (or `IndexedDB` for images) to persist patient data across browser sessions.
-*   Implement data export/import for full patient contexts.
+- a precise intended use and intended population;
+- named clinical and engineering owners;
+- required inputs and explicit exclusions;
+- evidence and version metadata;
+- a reviewed model/provider or deterministic rule package;
+- representative positive, negative, missing-data, and adversarial tests;
+- human factors review;
+- monitoring, rollback, incident, and retirement procedures.
 
-### 7.3 Accessibility (A11y)
-*   Ensure full keyboard navigation support for the Roster and CDSS cards.
-*   Verify screen reader compatibility for dynamic updates (Live transcripts).
-
-### 7.4 Progressive Web App (PWA)
-*   Add `manifest.json` and Service Worker for offline capability (viewing cached data).
+Patient-specific medication safety, diagnosis, treatment, emergency triage, autonomous actions, and diagnostic imaging remain disabled until their individual packages satisfy these conditions.
