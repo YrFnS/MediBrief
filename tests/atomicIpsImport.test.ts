@@ -148,6 +148,7 @@ const sourceRecord = (): PatientClinicalRecord => {
         specimenId: 'specimen-serum',
         diagnosticReportId: 'report-metabolic',
         issuedAt: '2026-08-10T10:30:00.000Z',
+        performer: ['Synthetic Laboratory'],
     });
 
     record.resources.diagnosticReports.push({
