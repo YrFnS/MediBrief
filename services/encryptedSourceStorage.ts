@@ -74,6 +74,9 @@ export const sha256Hex = async (value: string): Promise<string> => {
 export const isEncryptedSourceStorageId = (value: string): boolean =>
     value.startsWith(ENCRYPTED_SOURCE_STORAGE_PREFIX);
 
+const opaqueStorageKey = async (logicalId: string): Promise<string> =>
+    `${ENCRYPTED_SOURCE_STORAGE_PREFIX}key:${await sha256Hex(logicalId)}`;
+
 const isObject = (value: unknown): value is Record<string, unknown> =>
     typeof value === 'object' && value !== null && !Array.isArray(value);
 
@@ -208,7 +211,7 @@ export const encryptedSourceStorage = {
             storedAt: input.storedAt,
         };
         await put({
-            id: input.id,
+            id: await opaqueStorageKey(input.id),
             encryptedPayload: await encryptionService.encrypt(
                 JSON.stringify(envelope),
             ),
@@ -218,7 +221,8 @@ export const encryptedSourceStorage = {
     getSource: async (
         id: string,
     ): Promise<DecryptedSourceDocument | undefined> => {
-        const stored = await get(id);
+        const opaqueKey = await opaqueStorageKey(id);
+        const stored = await get(opaqueKey) || await get(id);
         if (!stored) return undefined;
         if (!encryptionService.hasKey()) {
             throw new Error('The local vault is locked.');
@@ -245,7 +249,7 @@ export const encryptedSourceStorage = {
         }
 
         return {
-            id: stored.id,
+            id,
             text: envelope.text,
             fileName: envelope.fileName,
             mimeType: envelope.mimeType,
@@ -255,5 +259,9 @@ export const encryptedSourceStorage = {
         };
     },
 
-    deleteSource: remove,
+    deleteSource: async (id: string): Promise<void> => {
+        const opaqueKey = await opaqueStorageKey(id);
+        await remove(opaqueKey);
+        if (opaqueKey !== id) await remove(id);
+    },
 };
