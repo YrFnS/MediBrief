@@ -1,0 +1,115 @@
+name: P1.5 HAPI Named Receiver Validation
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/p1-5-hapi-named-receiver.yml'
+      - 'docs/P1_5_HAPI_NAMED_RECEIVER_ACCEPTANCE.md'
+      - 'evidence/hapi-public-r4-receiver-evidence.json'
+      - 'features/fhir/**'
+      - 'scripts/hapi-public-r4-probe.mjs'
+      - 'tests/hapiPublicR4Receiver.test.ts'
+      - 'tests/receiverExchangeValidation.test.ts'
+      - 'package.json'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/p1-5-hapi-named-receiver.yml'
+      - 'docs/P1_5_HAPI_NAMED_RECEIVER_ACCEPTANCE.md'
+      - 'evidence/hapi-public-r4-receiver-evidence.json'
+      - 'features/fhir/**'
+      - 'scripts/hapi-public-r4-probe.mjs'
+      - 'tests/hapiPublicR4Receiver.test.ts'
+      - 'tests/receiverExchangeValidation.test.ts'
+      - 'package.json'
+  workflow_dispatch:
+    inputs:
+      run_live_probe:
+        description: 'Run the public synthetic Basic transaction probe'
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p1-5-hapi-named-receiver-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract-validation:
+    name: HAPI receiver contract and nonclinical probe boundary
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install application dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Type-check application and probe module
+        run: |
+          npm run typecheck
+          node --check scripts/hapi-public-r4-probe.mjs
+
+      - name: Test named receiver and synthetic-only boundary
+        run: npm run test:p1-5 -- --reporter=json --outputFile=p1-5-test-report.json
+
+      - name: Build production application
+        run: npm run build:app
+
+      - name: Verify reviewed evidence is retained
+        run: |
+          test -s evidence/hapi-public-r4-receiver-evidence.json
+          test -s docs/P1_5_HAPI_NAMED_RECEIVER_ACCEPTANCE.md
+          node -e "const fs=require('node:fs'); const e=JSON.parse(fs.readFileSync('evidence/hapi-public-r4-receiver-evidence.json','utf8')); if(e.syntheticProbeBoundary.patientDataTransmitted!==false||e.syntheticProbeBoundary.ipsDocumentTransmitted!==false||e.syntheticProbeBoundary.enabledByDefault!==false){process.exit(1)}"
+
+      - name: Upload PHI-free P1.5 evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: p1-5-hapi-named-receiver-evidence
+          path: |
+            docs/P1_5_HAPI_NAMED_RECEIVER_ACCEPTANCE.md
+            evidence/hapi-public-r4-receiver-evidence.json
+            p1-5-test-report.json
+          if-no-files-found: error
+          retention-days: 14
+
+  live-public-synthetic-probe:
+    name: Manual HAPI public Basic transaction probe
+    if: github.event_name == 'workflow_dispatch' && inputs.run_live_probe == true
+    needs: contract-validation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Run explicit nonclinical public probe
+        env:
+          MEDIBRIEF_ALLOW_PUBLIC_SYNTHETIC_PROBE: 'true'
+        run: node scripts/hapi-public-r4-probe.mjs > hapi-public-r4-probe-report.json
+
+      - name: Verify probe report remains non-authorizing
+        run: |
+          node -e "const fs=require('node:fs'); const r=JSON.parse(fs.readFileSync('hapi-public-r4-probe-report.json','utf8')); if(r.patientDataTransmitted!==false||r.ipsDocumentTransmitted!==false||r.transferAuthorized!==false||r.receiverAcceptanceEstablished!==false||r.clinicalValidationEstablished!==false){process.exit(1)}"
+
+      - name: Upload PHI-free live probe report
+        uses: actions/upload-artifact@v4
+        with:
+          name: p1-5-hapi-public-r4-live-probe
+          path: hapi-public-r4-probe-report.json
+          if-no-files-found: error
+          retention-days: 14
