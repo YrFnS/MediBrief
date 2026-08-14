@@ -30,6 +30,8 @@ changes. P1.4 therefore does not claim or depend on those missing changes.
 - [x] Support optional Bundle byte and entry limits.
 - [x] Support receiver terminology dispositions for unknown, invalid, and
   indeterminate code evidence.
+- [x] Apply the receiver unknown-system policy before invoking a terminology
+  adapter.
 - [x] Keep receiver acceptance and transfer authorization outside the profile.
 
 ## P1.4.2 CapabilityStatement intake
@@ -55,6 +57,8 @@ changes. P1.4 therefore does not claim or depend on those missing changes.
 - [x] Enforce configured Bundle byte and entry limits.
 - [x] Return only `ready`, `ready-with-warnings`, `indeterminate`, or
   `not-ready`.
+- [x] Base reported network activity on actual adapter results rather than the
+  adapter’s theoretical remote capability.
 - [x] Set `transferAuthorized=false` in every report.
 - [x] Set `receiverAcceptanceEstablished=false` in every report.
 - [x] Set `clinicalValidationEstablished=false` in every report.
@@ -70,14 +74,25 @@ changes. P1.4 therefore does not claim or depend on those missing changes.
   active content cannot be established locally.
 - [x] Add a configured FHIR `CodeSystem/$validate-code` and
   `ValueSet/$validate-code` adapter.
+- [x] Use FHIR R4 `version` for CodeSystem validation and `systemVersion` for
+  the code-system version inside ValueSet validation.
 - [x] Require HTTPS except for localhost development endpoints.
 - [x] Reject endpoint credentials, query strings, and fragments.
 - [x] Omit browser credentials and referrer information.
-- [x] Reject redirects.
+- [x] Reject redirects and redirected responses.
+- [x] Bound timeout and response-body size configuration.
+- [x] Require JSON-compatible responses and fail closed on oversized or
+  malformed payloads.
+- [x] Treat a positive FHIR response with a different system, code, or supplied
+  version as indeterminate rather than valid.
 - [x] Fail closed to `indeterminate` on timeout, network failure, non-success
-  status, malformed JSON, or a response without a boolean result.
+  status, malformed JSON, oversized responses, or a response without a boolean
+  result.
 - [x] Add an NLM RxNorm properties adapter that sends only a numeric RxCUI in
   the URL path.
+- [x] Require the returned RxCUI to match and keep version-specific historical
+  validation indeterminate when only current active-content evidence is
+  available.
 - [x] Do not add medication-name search or fuzzy concept selection.
 - [x] Include the requested NLM attribution boundary.
 
@@ -100,17 +115,25 @@ changes. P1.4 therefore does not claim or depend on those missing changes.
 - [x] Add unit tests proving terminology requests omit unexpected patient and
   source fields.
 - [x] Add endpoint-hardening and network-failure tests.
-- [x] Add RxNorm identifier-only request tests.
+- [x] Add FHIR operation-version, response-identity, content-type, and
+  response-size failure tests.
+- [x] Add RxNorm identifier-only, current-active, historical-version, and
+  response-size tests.
 - [x] Add Chromium acceptance for local validation and CapabilityStatement
   intake.
 - [x] Add a permanent P1.4 GitHub Actions workflow.
-- [ ] Pass P1.4 branch validation.
-- [ ] Pass full MediBrief clinical regression.
-- [ ] Pass official FHIR R4 / IPS 2.0.1 validation on the pull-request merge
-  reference.
-- [ ] Pass Chromium safety-boundary acceptance on the pull-request merge
-  reference.
-- [ ] Review and merge through a pull request.
+- [x] Add bounded retry handling for transient Playwright system-package mirror
+  synchronization failures without skipping browser dependencies.
+- [x] Pass focused P1.4 type-check, tests, regressions, and production build on
+  the hardened branch implementation.
+- [x] Pass the full MediBrief clinical regression on the hardened branch
+  implementation.
+- [x] Pass official FHIR R4 / IPS 2.0.1 validation on the hardened branch
+  implementation.
+- [x] Pass P2 terminology/multilingual and P3 prospective-foundation
+  regressions on the hardened branch implementation.
+- [ ] Pass Chromium safety-boundary acceptance on the final pull-request head.
+- [ ] Review and merge through pull request #10.
 - [ ] Pass post-merge validation on `main`.
 
 ## Deliberately deferred
