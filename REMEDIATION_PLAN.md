@@ -1,72 +1,47 @@
-# 🏥 MediBrief Remediation Plan
+# MediBrief Remediation and Governance Status
 
-**Primary Objective:** Address critical safety, security, and architectural flaws identified in the clinical audit to transition the application from a UI prototype to a robust, medical-grade Clinical Decision Support System (CDSS).
+This document replaces earlier statements that MediBrief was broadly “medical-grade,” “feature complete,” or ready for clinical deployment.
 
----
+## Authoritative current status
 
-## 📜 Core Implementation Rules
+MediBrief is a local personal health record and source-traceable review assistant. Its strongest active controls are provenance, candidate review, uncertainty preservation, deterministic summaries, low-risk workflow/data-quality advisories, and fail-closed patient-specific cloud processing.
 
-To ensure high code quality, maintainability, and safety, all remediation work **MUST** adhere to the following strict rules:
+It is not a certified medical device and is not ready for unsupervised or clinical deployment.
 
-### 1. The 500-Line Limit (Strict Enforcement)
-*   **No file may exceed 500 lines.**
-*   If a file approaches this limit, it must be refactored into:
-    *   **Sub-components:** Break down large UIs into smaller, readable pieces.
-    *   **Custom Hooks:** Move client-side state and `useEffect` logic out of the component.
-    *   **Services/Utils:** Move complex data formatting or business logic into pure `.ts` files.
+## Completed remediation
 
-### 2. Single Responsibility Principle (SRP)
-*   **Each file does ONE thing well.**
-*   A UI component renders UI.
-*   A Service function handles business logic or API calls.
-*   A Store manages state.
-*   *Never mix UI rendering and complex clinical logic (like dosage calculations) in the same file.*
+- versioned structured clinical record with source and amendment history;
+- explicit candidate, confirmed, rejected, and entered-in-error states;
+- assertion context for polarity, certainty, temporality, and experiencer;
+- encrypted local IndexedDB persistence;
+- local audit events and review history;
+- deterministic confirmed-record summaries;
+- grounded patient-answer citation membership checks;
+- retirement of unsafe legacy clinical threshold conclusions;
+- reviewed low-risk data-quality/workflow rule framework;
+- medication-record reconciliation without regimen-safety claims;
+- P0 safety-boundary UI, cloud policy, strong new-vault policy, CSP, and governance documents.
 
-### 3. Strict Typing & Validation (The "No Trust" Rule)
-*   **Zero `any` Types:** TypeScript must be strictly enforced.
-*   **Zod for Everything:** Use Zod to validate all incoming data, including LLM outputs, API payloads, and form submissions.
+## Active limitations
 
----
+- local audit data is not cryptographically tamper-evident;
+- legacy PIN vaults are not automatically re-encrypted;
+- cloud acknowledgement does not establish legal or institutional permission to disclose health data;
+- the reviewed patient-specific cloud-model registry is empty;
+- OpenMed extraction remains experimental;
+- terminology normalization is incomplete;
+- exports are MediBrief-specific rather than validated FHIR/IPS exchange;
+- image preview is non-diagnostic;
+- no prospective clinical validation has been completed.
 
-## 🚨 Phase 1: Cryptographic Hardening
-**Risk Level:** CRITICAL (Security)
-**Target:** `services/encryptionService.ts`, `features/security/SecurityGate.tsx`
+## Stop-ship boundaries
 
-*   [ ] **Deprecate 4-Digit PIN:** Replace the 4-digit PIN requirement with a strong passphrase policy (minimum 12 characters, alphanumeric + symbols) to expand the PBKDF2 keyspace and prevent trivial brute-forcing.
-*   [ ] **Implement Key Stretching/Salting Improvements:** Ensure the salt is cryptographically secure and unique per user/device.
-*   [ ] **Rate Limiting / Lockout:** Implement an exponential backoff or lockout mechanism in `SecurityGate` after consecutive failed decryption attempts to thwart automated brute-force scripts.
+A release must not describe or enable any of the following without an approved change package:
 
-## 🧠 Phase 2: Robust Clinical Data Extraction
-**Risk Level:** HIGH (Safety)
-**Target:** `features/cdss/rulesEngine.ts`, `features/fhir/types.ts`
+- patient-specific dose, interaction, contraindication, renal/hepatic, pregnancy, or allergy safety conclusions;
+- diagnosis, treatment recommendations, emergency triage, or protocol-state conclusions;
+- autonomous ordering, prescribing, referral, booking, or completed-care recording;
+- diagnostic interpretation of medical images;
+- FHIR, IPS, DICOM, PACS, regulatory, compliance, or clinical-validation claims not demonstrated by retained evidence.
 
-*   [ ] **Remove Brittle Regex/Includes:** Replace `String.includes()` matching (e.g., matching "potassium" to a pain score of 8) with strict, context-aware extraction.
-*   [ ] **LLM-Assisted Structuring:** Route unstructured clinical notes through a strict Zod-schema LLM extraction pipeline to accurately map values to specific FHIR LOINC codes before feeding them into the deterministic rules engine.
-*   [ ] **Unit & Context Validation:** Ensure the rules engine validates the semantic context (e.g., "Is this a lab value or a pain score?") and standardizes units before comparison.
-
-## 💊 Phase 3: Comprehensive Pharmacology Guardrails
-**Risk Level:** HIGH (Safety)
-**Target:** `features/safety/dosageVerifier.ts`, `features/safety/openFdaService.ts`
-
-*   [ ] **Expand Critical Limits Database:** Replace the hardcoded 4-drug dictionary with a comprehensive, externally maintained JSON dictionary of critical limits for high-risk medications (e.g., Opioids, Anticoagulants, Insulin).
-*   [ ] **Smart openFDA Querying:** Implement a sanitization function to strip dosages, routes, and units from drug names (e.g., convert "Tylenol 500mg PO" to "Tylenol") before querying the openFDA API to prevent 404 errors on exact matches.
-*   [ ] **True Pediatric Calculations:** Implement actual mg/kg dosage calculations for pediatric and low-weight patients instead of just rendering a generic warning string. Compare the calculated dose against the extracted dose.
-
-## 📝 Phase 4: Context Substitution Reliability
-**Risk Level:** MEDIUM (Accuracy)
-**Target:** `services/geminiService.ts`
-
-*   [x] **Fix `extractImageInsights` Fallback:** Remove the arbitrary 300-character slice fallback. 
-*   [x] **Structured Summarization:** If JSON parsing fails, use a lightweight, dedicated LLM call to summarize the clinical findings of the previous turn, ensuring the actual medical insight is preserved for the context window.
-*   [x] **Validation:** Ensure the injected context always contains actionable clinical data rather than conversational preamble.
-
-## 🛡️ Phase 5: Programmatic Source Verification
-**Risk Level:** MEDIUM (Liability)
-**Target:** `features/chat/components/Message.tsx`, `services/geminiService.ts`
-
-*   [x] **Enforce Source Allowlist:** Do not rely solely on the LLM's system prompt to filter sources. Implement a programmatic interceptor that parses the `groundingMetadata`.
-*   [x] **Strict Filtering:** Automatically strip or prominently flag any grounding sources that do not match a strict regex of allowed domains (`.gov`, `.edu`, `.org`, `mayoclinic.org`, etc.).
-*   [x] **UI Transparency:** Clearly indicate in the UI when a source was rejected due to low credibility.
-
----
-**Status:** 🟢 **IMPLEMENTED (Phases 1-5)**
+See `docs/CLINICAL_CHANGE_CONTROL.md` for the required package.

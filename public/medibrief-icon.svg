@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">MediBrief</title>
+  <desc id="desc">A blue shield containing a white medical record cross.</desc>
+  <rect width="512" height="512" rx="112" fill="#f8fafc"/>
+  <path d="M256 66 411 126v114c0 99-61 167-155 206C162 407 101 339 101 240V126L256 66Z" fill="#0284c7"/>
+  <rect x="226" y="151" width="60" height="210" rx="20" fill="#fff"/>
+  <rect x="151" y="226" width="210" height="60" rx="20" fill="#fff"/>
+  <circle cx="256" cy="256" r="157" fill="none" stroke="#0c4a6e" stroke-width="12" opacity=".32"/>
+</svg>

@@ -7,12 +7,13 @@ const source = (relativePath: string): string =>
 describe('Phase 2 accessibility contracts', () => {
     it('allows browser zoom and provides visible focus and reduced-motion behavior', () => {
         const html = source('../index.html');
+        const styles = source('../styles.css');
 
         expect(html).toContain('width=device-width, initial-scale=1.0');
         expect(html).not.toContain('user-scalable=no');
         expect(html).not.toContain('maximum-scale=1.0');
-        expect(html).toContain(':focus-visible');
-        expect(html).toContain('@media (prefers-reduced-motion: reduce)');
+        expect(styles).toContain(':focus-visible');
+        expect(styles).toContain('@media (prefers-reduced-motion: reduce)');
     });
 
     it('provides a skip link and a labelled patient-record content landmark', () => {

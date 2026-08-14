@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": [
+      "node",
+      "@playwright/test"
+    ],
+    "noEmit": true
+  },
+  "include": [
+    "playwright.acceptance.config.ts",
+    "tests/browser/**/*.ts"
+  ],
+  "exclude": []
+}

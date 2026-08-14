@@ -1,5 +1,5 @@
 {
-  "name": "medibrief---clinical-intelligence-layer",
+  "name": "medibrief---local-personal-health-record",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -27,11 +27,15 @@
     "zustand": "^5.0.10"
   },
   "devDependencies": {
+    "@tailwindcss/typography": "^0.5.16",
     "@types/node": "^22.14.0",
     "@types/react": "^18.3.31",
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "^5.0.0",
+    "autoprefixer": "^10.4.20",
     "fake-indexeddb": "^6.0.1",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
     "typescript": "~5.8.2",
     "vite": "^6.2.0",
     "vitest": "^3.2.4"

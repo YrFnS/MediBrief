@@ -27,5 +27,11 @@
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
-  }
+  },
+  "exclude": [
+    "playwright.acceptance.config.ts",
+    "tests/browser/**",
+    "playwright-report/**",
+    "test-results/**"
+  ]
 }
