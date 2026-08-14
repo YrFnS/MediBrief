@@ -1,5 +1,12 @@
 export * from './components';
 export * from './atomicIpsImport';
+export * from './exchangeGovernance';
+export {
+    evaluateExchangeGovernance,
+    isReceiverSpecificExchangeProfile,
+    NON_RECEIVER_SPECIFIC_EXCHANGE_PROFILE_IDS,
+} from './exchangeGovernancePolicy';
+export * from './exchangeGovernanceTypes';
 export * from './ipsConstants';
 export * from './ipsExport';
 export * from './ipsImport';

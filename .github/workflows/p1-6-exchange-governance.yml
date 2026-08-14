@@ -1,0 +1,144 @@
+name: P1.6 Local Exchange Governance Validation
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/p1-6-exchange-governance.yml'
+      - 'docs/P1_6_EXCHANGE_GOVERNANCE_ACCEPTANCE.md'
+      - 'features/fhir/exchangeGovernance.ts'
+      - 'features/fhir/exchangeGovernancePolicy.ts'
+      - 'features/fhir/exchangeGovernanceTypes.ts'
+      - 'features/fhir/index.ts'
+      - 'tests/exchangeGovernance.test.ts'
+      - 'tests/receiverExchangeValidation.test.ts'
+      - 'package.json'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/p1-6-exchange-governance.yml'
+      - 'docs/P1_6_EXCHANGE_GOVERNANCE_ACCEPTANCE.md'
+      - 'features/fhir/exchangeGovernance.ts'
+      - 'features/fhir/exchangeGovernancePolicy.ts'
+      - 'features/fhir/exchangeGovernanceTypes.ts'
+      - 'features/fhir/index.ts'
+      - 'tests/exchangeGovernance.test.ts'
+      - 'tests/receiverExchangeValidation.test.ts'
+      - 'package.json'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p1-6-exchange-governance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  governance-validation:
+    name: Recipient trust, disclosure authorization, audit, and receipt contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install application dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Type-check application
+        run: npm run typecheck
+
+      - name: Test fail-closed exchange governance
+        run: npm run test:p1-6 -- --reporter=json --outputFile=p1-6-test-report.json
+
+      - name: Prove the governance evaluator has no transport surface
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const sources = [
+            'features/fhir/exchangeGovernance.ts',
+            'features/fhir/exchangeGovernancePolicy.ts',
+          ].map(path => ({
+            path,
+            source: fs.readFileSync(path, 'utf8'),
+          }));
+          const forbidden = [
+            'fetch(',
+            'XMLHttpRequest',
+            'WebSocket',
+            'sendBeacon',
+            'Authorization:',
+            'access_token',
+            'client_assertion',
+          ];
+          for (const { path, source } of sources) {
+            const found = forbidden.filter(value => source.includes(value));
+            if (found.length > 0) {
+              console.error(
+                `Transport surface detected in ${path}: ${found.join(', ')}`,
+              );
+              process.exit(1);
+            }
+          }
+
+          const core = sources[0].source;
+          for (const required of [
+            'transportAdapterAvailable: false',
+            'transportAuthorized: false',
+            'transmissionAttempted: false',
+            "networkActivity: 'none'",
+          ]) {
+            if (!core.includes(required)) {
+              console.error(`Missing fail-closed boundary: ${required}`);
+              process.exit(1);
+            }
+          }
+
+          const policy = sources[1].source;
+          for (const required of [
+            'generic-ips-2.0.1-consumer',
+            'reviewed-coding-ips-2.0.1-consumer',
+            'hapi-public-r4-test-server',
+            "state: 'blocked' as const",
+            "outcome: 'fail'",
+          ]) {
+            if (!policy.includes(required)) {
+              console.error(`Missing receiver-specific policy boundary: ${required}`);
+              process.exit(1);
+            }
+          }
+
+          const index = fs.readFileSync('features/fhir/index.ts', 'utf8');
+          if (!index.includes("from './exchangeGovernancePolicy'")) {
+            console.error(
+              'The public FHIR API does not export the receiver-specific policy gate.',
+            );
+            process.exit(1);
+          }
+          NODE
+
+      - name: Verify the acceptance contract is retained
+        run: |
+          test -s docs/P1_6_EXCHANGE_GOVERNANCE_ACCEPTANCE.md
+          grep -q 'transportAuthorized = false' docs/P1_6_EXCHANGE_GOVERNANCE_ACCEPTANCE.md
+          grep -q 'transmissionAttempted = false' docs/P1_6_EXCHANGE_GOVERNANCE_ACCEPTANCE.md
+          grep -q 'Require an explicit receiver-specific production profile' docs/P1_6_EXCHANGE_GOVERNANCE_ACCEPTANCE.md
+          grep -q 'generic IPS baseline' docs/P1_6_EXCHANGE_GOVERNANCE_ACCEPTANCE.md
+          grep -q 'A transport adapter, HTTP client, queue, worker, retry executor, callback, or' docs/P1_6_EXCHANGE_GOVERNANCE_ACCEPTANCE.md
+
+      - name: Build production application
+        run: npm run build:app
+
+      - name: Upload PHI-free P1.6 evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: p1-6-local-exchange-governance-evidence
+          path: |
+            docs/P1_6_EXCHANGE_GOVERNANCE_ACCEPTANCE.md
+            p1-6-test-report.json
+          if-no-files-found: error
+          retention-days: 14
