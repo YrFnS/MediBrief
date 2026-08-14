@@ -253,4 +253,36 @@ test('IPS import preserves one reachable candidate graph only after identity ack
     await expect(dialog.getByRole('status')).toContainText(
         'every candidate remains unconfirmed',
     );
+
+    const sourceRows = await page.evaluate(async () =>
+        new Promise<Array<Record<string, unknown>>>((resolve, reject) => {
+            const openRequest = indexedDB.open(
+                'MediBrief_EncryptedSourceStore',
+                1,
+            );
+            openRequest.onerror = () => reject(openRequest.error);
+            openRequest.onsuccess = () => {
+                const db = openRequest.result;
+                const transaction = db.transaction('sources', 'readonly');
+                const request = transaction.objectStore('sources').getAll();
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => resolve(
+                    request.result as Array<Record<string, unknown>>,
+                );
+            };
+        }));
+
+    expect(sourceRows).toHaveLength(1);
+    expect(Object.keys(sourceRows[0]).sort()).toEqual([
+        'encryptedPayload',
+        'id',
+    ]);
+    expect(sourceRows[0].id).toMatch(
+        /^medibrief-encrypted-source:key:[a-f0-9]{64}$/,
+    );
+    const serializedRow = JSON.stringify(sourceRows[0]);
+    expect(serializedRow).not.toContain('synthetic-valid-ips.json');
+    expect(serializedRow).not.toContain('Synthetic Import Patient');
+    expect(serializedRow).not.toContain('Essential hypertension');
+    expect(serializedRow).not.toContain('sha256');
 });
