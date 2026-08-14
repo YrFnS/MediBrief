@@ -7,6 +7,10 @@ import {
 } from '../../../components/icons';
 import { blobStorage } from '../../../services/blobStorageService';
 import {
+    encryptedSourceStorage,
+    isEncryptedSourceStorageId,
+} from '../../../services/encryptedSourceStorage';
+import {
     getSourcePreviewKind,
     resolveDocumentSource,
     sourceFileUnavailableMessage,
@@ -40,7 +44,6 @@ const DocumentSourcePreview: React.FC<DocumentSourcePreviewProps> = ({
         [record, source],
     );
     const {
-        documentRecord,
         storageId,
         fileName,
     } = resolvedSource;
@@ -68,24 +71,53 @@ const DocumentSourcePreview: React.FC<DocumentSourcePreviewProps> = ({
             setObjectUrl(null);
 
             try {
-                const stored = await blobStorage.getFile(storageId);
-                if (cancelled) return;
-                if (!stored) {
-                    setError(sourceFileUnavailableMessage(storageId));
-                    return;
+                let blob: Blob | null = null;
+                let resolvedMimeType = resolvedSource.mimeType
+                    || 'application/octet-stream';
+
+                if (isEncryptedSourceStorageId(storageId)) {
+                    const stored = await encryptedSourceStorage.getSource(
+                        storageId,
+                    );
+                    if (!stored) {
+                        if (!cancelled) {
+                            setError(sourceFileUnavailableMessage(storageId));
+                        }
+                        return;
+                    }
+                    resolvedMimeType = stored.mimeType
+                        || resolvedMimeType;
+                    blob = new Blob([stored.text], {
+                        type: resolvedMimeType,
+                    });
+                } else {
+                    const stored = await blobStorage.getFile(storageId);
+                    if (!stored) {
+                        if (!cancelled) {
+                            setError(sourceFileUnavailableMessage(storageId));
+                        }
+                        return;
+                    }
+                    resolvedMimeType = stored.mimeType
+                        || resolvedMimeType;
+                    blob = base64ToBlob(
+                        stored.data,
+                        resolvedMimeType,
+                    );
                 }
 
-                const resolvedMimeType = stored.mimeType
-                    || resolvedSource.mimeType
-                    || 'application/octet-stream';
-                const blob = base64ToBlob(stored.data, resolvedMimeType);
+                if (cancelled || !blob) return;
                 nextUrl = URL.createObjectURL(blob);
                 setMimeType(resolvedMimeType);
                 setObjectUrl(nextUrl);
             } catch (loadError) {
                 console.error('Unable to load source document:', loadError);
                 if (!cancelled) {
-                    setError('The source document could not be loaded from local storage.');
+                    setError(
+                        loadError instanceof Error
+                            ? loadError.message
+                            : 'The source document could not be loaded from local storage.',
+                    );
                 }
             } finally {
                 if (!cancelled) setIsLoading(false);
@@ -122,6 +154,9 @@ const DocumentSourcePreview: React.FC<DocumentSourcePreviewProps> = ({
                             {source.pageNumber && <span>Page {source.pageNumber}</span>}
                             {source.section && <span>Section: {source.section}</span>}
                             <span>{mimeType}</span>
+                            {isEncryptedSourceStorageId(storageId) && (
+                                <span>Integrity verified after decryption</span>
+                            )}
                         </div>
                     </div>
 
