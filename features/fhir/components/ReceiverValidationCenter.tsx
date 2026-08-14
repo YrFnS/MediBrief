@@ -143,7 +143,7 @@ const ReceiverValidationCenter: React.FC = () => {
             <button
                 type="button"
                 onClick={() => setIsOpen(true)}
-                className="fixed left-3 top-36 z-[55] inline-flex min-h-11 items-center gap-2 rounded-full border border-slate-200 bg-white/95 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-700 shadow-xl backdrop-blur-md transition-colors hover:border-indigo-300 hover:text-indigo-700 dark:border-slate-700 dark:bg-slate-950/95 dark:text-slate-200 dark:hover:border-indigo-700 dark:hover:text-indigo-300"
+                className="fixed left-3 top-48 z-[55] inline-flex min-h-11 items-center gap-2 rounded-full border border-slate-200 bg-white/95 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-700 shadow-xl backdrop-blur-md transition-colors hover:border-indigo-300 hover:text-indigo-700 dark:border-slate-700 dark:bg-slate-950/95 dark:text-slate-200 dark:hover:border-indigo-700 dark:hover:text-indigo-300"
                 aria-label="Open receiver-specific exchange validation"
             >
                 <ShieldCheckIcon className="h-4 w-4" />
