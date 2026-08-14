@@ -43,6 +43,9 @@ jobs:
       - name: Type-check application
         run: npm run typecheck
 
+      - name: Install pinned Playwright contract types
+        run: npm install --no-save --no-package-lock @playwright/test@1.55.0
+
       - name: Type-check Chromium acceptance contracts
         run: npx tsc --noEmit -p tsconfig.playwright.json
 
