@@ -53,9 +53,29 @@ jobs:
           grep -q 'MediBrief' dist/index.html
 
       - name: Install Playwright test runtime
+        shell: bash
         run: |
+          set -euo pipefail
           npm install --no-save --no-package-lock @playwright/test@1.55.0
-          npx playwright install --with-deps chromium
+
+          installed=0
+          for attempt in 1 2 3; do
+            if npx playwright install --with-deps chromium; then
+              installed=1
+              break
+            fi
+
+            if [ "$attempt" -lt 3 ]; then
+              echo "Playwright dependency installation failed on attempt $attempt; clearing transient apt indexes and retrying." >&2
+              sudo rm -rf /var/lib/apt/lists/*
+              sleep $((attempt * 10))
+            fi
+          done
+
+          if [ "$installed" -ne 1 ]; then
+            echo 'Playwright Chromium installation failed after three attempts.' >&2
+            exit 1
+          fi
 
       - name: Type-check P0 browser acceptance
         run: npx tsc --noEmit -p tsconfig.playwright.json
