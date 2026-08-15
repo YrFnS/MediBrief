@@ -8,6 +8,7 @@ const TOOL_LAUNCHERS = [
     'Open FHIR and International Patient Summary tools',
     'Open terminology review center',
     'Open receiver-specific exchange validation',
+    'Open validated rules, evidence, and Phase 5 audit review',
     'Open safety boundaries and capability status',
 ] as const;
 
@@ -141,18 +142,6 @@ const expectNonOverlappingToolRail = async (page: Page): Promise<void> => {
             `${previous.name} overlaps ${current.name}`,
         ).toBeLessThanOrEqual(current.x + 1);
     }
-
-    const rulesButton = page.getByRole('button', {
-        name: 'Open validated rules, evidence, and Phase 5 audit review',
-    });
-    if (await rulesButton.isVisible()) {
-        const rulesBox = await rulesButton.boundingBox();
-        expect(rulesBox).not.toBeNull();
-        expect(
-            rulesBox!.y + rulesBox!.height,
-            'Rules & audit should remain above the record-tool rail',
-        ).toBeLessThanOrEqual(Math.min(...boxes.map(box => box.y)));
-    }
 };
 
 test('desktop navigation, section discovery, dialogs, and runtime remain stable', async ({
@@ -202,7 +191,7 @@ test('desktop navigation, section discovery, dialogs, and runtime remain stable'
         await tab.click();
         await expect(tab).toHaveAttribute('aria-selected', 'true');
         await expect(page).toHaveTitle(destination.title);
-        await expect(page.getByRole('tabpanel')).toBeVisible();
+        await expect(page.locator('#patient-record-content')).toBeVisible();
         await expectHealthyDocument(page);
         await capture(page, `desktop-${destination.label}`);
     }
@@ -240,7 +229,9 @@ test('desktop navigation, section discovery, dialogs, and runtime remain stable'
             const sectionButton = sectionButtons.nth(index);
             await sectionButton.scrollIntoViewIfNeeded();
             await sectionButton.click();
-            const content = (await page.getByRole('tabpanel').innerText()).trim();
+            const content = (
+                await page.locator('#health-data-panel').innerText()
+            ).trim();
             expect(
                 content.length,
                 `${areaName} section ${index + 1} rendered an empty patient-record panel`,
@@ -351,8 +342,6 @@ test('mobile navigation has usable touch targets and no page-level overflow', as
     await page.getByRole('button', { name: 'Toggle patient roster' }).click();
     await expect(page.getByText('Patient Roster', { exact: true })).toBeVisible();
     await capture(page, 'mobile-patient-roster');
-    await page.mouse.click(380, 420);
-    await expect(page.getByText('Patient Roster', { exact: true })).toBeHidden();
 
     await page.getByRole('button', { name: /New Context/i }).click();
     const addPatientDialog = page.getByRole('dialog', {
@@ -368,6 +357,10 @@ test('mobile navigation has usable touch targets and no page-level overflow', as
     await addPatientDialog.getByRole('button', {
         name: 'Close add patient dialog',
     }).click();
+    await expect(addPatientDialog).toBeHidden();
+
+    await page.mouse.click(380, 420);
+    await expect(page.getByText('Patient Roster', { exact: true })).toBeHidden();
 
     await expectNonOverlappingToolRail(page);
     await expectHealthyDocument(page);

@@ -135,7 +135,7 @@
  * primary navigation. Keep one reserved bottom rail instead, so the controls
  * remain visible without covering clinical content at any viewport width.
  */
-#root::after {
+#root:has(button[aria-label="Open FHIR and International Patient Summary tools"])::after {
     position: fixed;
     right: 0;
     bottom: 0;
@@ -150,7 +150,7 @@
     backdrop-filter: blur(14px);
 }
 
-.dark #root::after {
+.dark #root:has(button[aria-label="Open FHIR and International Patient Summary tools"])::after {
     border-top-color: rgba(51, 65, 85, 0.9);
     background: rgba(2, 6, 23, 0.94);
 }
@@ -158,6 +158,7 @@
 button[aria-label="Open FHIR and International Patient Summary tools"],
 button[aria-label="Open terminology review center"],
 button[aria-label="Open receiver-specific exchange validation"],
+button[aria-label="Open validated rules, evidence, and Phase 5 audit review"],
 button[aria-label="Open safety boundaries and capability status"] {
     top: auto !important;
     bottom: 0.625rem !important;
@@ -177,21 +178,29 @@ button[aria-label="Open receiver-specific exchange validation"] {
     left: 19rem !important;
 }
 
+button[aria-label="Open validated rules, evidence, and Phase 5 audit review"] {
+    left: 30rem !important;
+}
+
 button[aria-label="Open safety boundaries and capability status"] {
     right: 1rem !important;
     left: auto !important;
 }
 
-@media (max-width: 767px) {
+@media (max-width: 1023px) {
     button[aria-label="Open FHIR and International Patient Summary tools"],
     button[aria-label="Open terminology review center"],
     button[aria-label="Open receiver-specific exchange validation"],
+    button[aria-label="Open validated rules, evidence, and Phase 5 audit review"],
     button[aria-label="Open safety boundaries and capability status"] {
-        width: 2.75rem;
-        min-width: 2.75rem;
-        gap: 0.25rem !important;
-        padding-right: 0.5rem !important;
-        padding-left: 0.5rem !important;
+        width: 3.375rem;
+        min-width: 3.375rem;
+        height: 3.25rem;
+        min-height: 3.25rem;
+        flex-direction: column;
+        gap: 0 !important;
+        padding: 0.25rem !important;
+        line-height: 1;
     }
 
     button[aria-label="Open FHIR and International Patient Summary tools"] > span:first-of-type,
@@ -201,23 +210,66 @@ button[aria-label="Open safety boundaries and capability status"] {
         display: none !important;
     }
 
+    button[aria-label="Open FHIR and International Patient Summary tools"]::after,
+    button[aria-label="Open terminology review center"]::after,
+    button[aria-label="Open receiver-specific exchange validation"]::after,
+    button[aria-label="Open validated rules, evidence, and Phase 5 audit review"]::after,
+    button[aria-label="Open safety boundaries and capability status"]::after {
+        margin-top: 0.2rem;
+        font-size: 0.46rem;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        line-height: 1;
+        text-transform: uppercase;
+    }
+
+    button[aria-label="Open FHIR and International Patient Summary tools"]::after {
+        content: "FHIR";
+    }
+
+    button[aria-label="Open terminology review center"]::after {
+        content: "Terms";
+    }
+
+    button[aria-label="Open receiver-specific exchange validation"]::after {
+        content: "Receiver";
+    }
+
+    button[aria-label="Open validated rules, evidence, and Phase 5 audit review"]::after {
+        content: "Rules";
+    }
+
+    button[aria-label="Open safety boundaries and capability status"]::after {
+        content: "Safety";
+    }
+
+    button[aria-label="Open safety boundaries and capability status"] > span:last-of-type {
+        position: absolute;
+        top: 0.35rem;
+        right: 0.35rem;
+    }
+
     button[aria-label="Open FHIR and International Patient Summary tools"] {
-        left: calc(50% - 7rem) !important;
+        left: calc(50% - 9.125rem) !important;
     }
 
     button[aria-label="Open terminology review center"] {
-        left: calc(50% - 3.625rem) !important;
+        left: calc(50% - 5.5rem) !important;
     }
 
     button[aria-label="Open receiver-specific exchange validation"] {
-        left: calc(50% - 0.25rem) !important;
+        left: calc(50% - 1.875rem) !important;
+    }
+
+    button[aria-label="Open validated rules, evidence, and Phase 5 audit review"] {
+        left: calc(50% + 1.75rem) !important;
     }
 
     button[aria-label="Open safety boundaries and capability status"] {
         right: auto !important;
-        left: calc(50% + 3.125rem) !important;
-        width: 3.25rem;
-        min-width: 3.25rem;
+        left: calc(50% + 5.375rem) !important;
+        width: 3.75rem;
+        min-width: 3.75rem;
     }
 }
 
