@@ -57,7 +57,24 @@ P4 does not claim secure messaging, receiver delivery, or remote sharing.
 - [x] Explain the active area's purpose before the detailed module.
 - [x] Keep the active module content in a shrinkable full-height panel.
 
-## P4.4 Medical and data-safety boundary
+## P4.4 Attention-first Today dashboard
+
+- [x] Keep the existing candidate-review banner authoritative.
+- [x] Add a separate Review & follow-up panel above the general overview.
+- [x] Derive medication-reconciliation attention only from unreviewed
+  discrepancies and pending reconciliation actions.
+- [x] Derive reminder attention only from explicit recorded due dates.
+- [x] Derive task and appointment signals only from confirmed records in
+  existing non-terminal states.
+- [x] Keep record gaps separate from candidate-review counts.
+- [x] Do not create a synthetic priority score or combined item total.
+- [x] State that signals may overlap and do not indicate severity, triage, or
+  record completeness.
+- [x] Deep-link actions only to existing Health Record sections.
+- [x] Validate each deep-link target before selecting an area and module.
+- [x] Keep the navigation request in memory and clear it after consumption.
+
+## P4.5 Medical and data-safety boundary
 
 - [x] Do not change candidate, confirmed, rejected, or entered-in-error
   semantics.
@@ -73,7 +90,7 @@ P4 is an information-architecture and accessibility change. Counts mean only
 that an item requires review or explicit follow-up under existing deterministic
 logic; they do not indicate severity or clinical priority.
 
-## P4.5 Automated validation
+## P4.6 Automated validation
 
 - [x] Add source-contract tests for the six-area hierarchy.
 - [x] Verify every existing clinical module remains reachable.
@@ -82,11 +99,13 @@ logic; they do not indicate severity or clinical priority.
 - [x] Add Chromium acceptance for primary destinations, all six areas, section
   discovery, and keyboard navigation.
 - [x] Add a permanent P4 GitHub Actions workflow.
+- [x] Add deterministic Today attention view-model tests.
+- [x] Add Chromium acceptance for the safe attention boundary and record-manager deep link.
 - [ ] Pass application type-check on the final branch head.
 - [ ] Pass focused P4 and existing workspace regression tests.
 - [ ] Pass the full MediBrief clinical regression.
 - [ ] Pass the official FHIR R4 / IPS validation regression.
-- [ ] Pass P1.3, P1.4, P1.5, P2, and P3 regressions.
+- [ ] Pass P1.3, P1.4, P1.5, P1.6, P2, and P3 regressions.
 - [ ] Pass Chromium acceptance on the pull-request merge reference.
 - [ ] Review and merge through a pull request.
 - [ ] Pass post-merge validation on `main`.
