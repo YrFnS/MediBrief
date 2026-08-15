@@ -130,6 +130,97 @@
     }
 }
 
+/*
+ * Auxiliary record tools used to float over the patient header, roster, and
+ * primary navigation. Keep one reserved bottom rail instead, so the controls
+ * remain visible without covering clinical content at any viewport width.
+ */
+#root::after {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 54;
+    height: 4rem;
+    border-top: 1px solid rgba(203, 213, 225, 0.9);
+    background: rgba(255, 255, 255, 0.94);
+    box-shadow: 0 -10px 28px rgba(15, 23, 42, 0.08);
+    content: "";
+    pointer-events: none;
+    backdrop-filter: blur(14px);
+}
+
+.dark #root::after {
+    border-top-color: rgba(51, 65, 85, 0.9);
+    background: rgba(2, 6, 23, 0.94);
+}
+
+button[aria-label="Open FHIR and International Patient Summary tools"],
+button[aria-label="Open terminology review center"],
+button[aria-label="Open receiver-specific exchange validation"],
+button[aria-label="Open safety boundaries and capability status"] {
+    top: auto !important;
+    bottom: 0.625rem !important;
+    min-width: 2.75rem;
+    justify-content: center;
+}
+
+button[aria-label="Open FHIR and International Patient Summary tools"] {
+    left: 1rem !important;
+}
+
+button[aria-label="Open terminology review center"] {
+    left: 9rem !important;
+}
+
+button[aria-label="Open receiver-specific exchange validation"] {
+    left: 19rem !important;
+}
+
+button[aria-label="Open safety boundaries and capability status"] {
+    right: 1rem !important;
+    left: auto !important;
+}
+
+@media (max-width: 767px) {
+    button[aria-label="Open FHIR and International Patient Summary tools"],
+    button[aria-label="Open terminology review center"],
+    button[aria-label="Open receiver-specific exchange validation"],
+    button[aria-label="Open safety boundaries and capability status"] {
+        width: 2.75rem;
+        min-width: 2.75rem;
+        gap: 0.25rem !important;
+        padding-right: 0.5rem !important;
+        padding-left: 0.5rem !important;
+    }
+
+    button[aria-label="Open FHIR and International Patient Summary tools"] > span:first-of-type,
+    button[aria-label="Open terminology review center"] > span:first-of-type,
+    button[aria-label="Open receiver-specific exchange validation"] > span:first-of-type,
+    button[aria-label="Open safety boundaries and capability status"] > span:first-of-type {
+        display: none !important;
+    }
+
+    button[aria-label="Open FHIR and International Patient Summary tools"] {
+        left: calc(50% - 7rem) !important;
+    }
+
+    button[aria-label="Open terminology review center"] {
+        left: calc(50% - 3.625rem) !important;
+    }
+
+    button[aria-label="Open receiver-specific exchange validation"] {
+        left: calc(50% - 0.25rem) !important;
+    }
+
+    button[aria-label="Open safety boundaries and capability status"] {
+        right: auto !important;
+        left: calc(50% + 3.125rem) !important;
+        width: 3.25rem;
+        min-width: 3.25rem;
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
     *,
     *::before,

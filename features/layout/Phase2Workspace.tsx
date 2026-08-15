@@ -139,7 +139,7 @@ const Phase2Workspace: React.FC = () => {
     }
 
     return (
-        <div className="relative flex h-[100dvh] overflow-hidden bg-slate-50 font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+        <div className="relative flex h-[100dvh] overflow-hidden bg-slate-50 pb-16 font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
             <a
                 href="#patient-record-content"
                 className="sr-only fixed left-3 top-3 z-[100] rounded-lg bg-slate-950 px-4 py-3 text-sm font-bold text-white shadow-xl focus:not-sr-only"

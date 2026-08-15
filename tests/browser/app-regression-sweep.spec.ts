@@ -4,6 +4,15 @@ import { expect, test, type Page } from '@playwright/test';
 const PASSPHRASE = 'MediBrief browser regression sweep 2026!';
 const ARTIFACT_DIR = 'browser-artifacts';
 
+const TOOL_LAUNCHERS = [
+    'Open FHIR and International Patient Summary tools',
+    'Open terminology review center',
+    'Open receiver-specific exchange validation',
+    'Open safety boundaries and capability status',
+] as const;
+
+test.setTimeout(120_000);
+
 const safeFileName = (value: string): string => value
     .toLowerCase()
     .replace(/&/g, 'and')
@@ -98,11 +107,60 @@ const beginRuntimeProbe = (page: Page) => {
     return issues;
 };
 
+const expectNonOverlappingToolRail = async (page: Page): Promise<void> => {
+    const viewport = page.viewportSize();
+    expect(viewport).not.toBeNull();
+
+    const boxes: Array<{
+        name: string;
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+    }> = [];
+
+    for (const name of TOOL_LAUNCHERS) {
+        const launcher = page.getByRole('button', { name });
+        await expect(launcher).toBeVisible();
+        const box = await launcher.boundingBox();
+        expect(box, `${name} should have a measurable tool-rail target`)
+            .not.toBeNull();
+        expect(box!.width, `${name} width`).toBeGreaterThanOrEqual(44);
+        expect(box!.height, `${name} height`).toBeGreaterThanOrEqual(44);
+        expect(box!.y, `${name} should remain in the reserved bottom rail`)
+            .toBeGreaterThanOrEqual(viewport!.height - 66);
+        boxes.push({ name, ...box! });
+    }
+
+    const ordered = [...boxes].sort((left, right) => left.x - right.x);
+    for (let index = 1; index < ordered.length; index += 1) {
+        const previous = ordered[index - 1];
+        const current = ordered[index];
+        expect(
+            previous.x + previous.width,
+            `${previous.name} overlaps ${current.name}`,
+        ).toBeLessThanOrEqual(current.x + 1);
+    }
+
+    const rulesButton = page.getByRole('button', {
+        name: 'Open validated rules, evidence, and Phase 5 audit review',
+    });
+    if (await rulesButton.isVisible()) {
+        const rulesBox = await rulesButton.boundingBox();
+        expect(rulesBox).not.toBeNull();
+        expect(
+            rulesBox!.y + rulesBox!.height,
+            'Rules & audit should remain above the record-tool rail',
+        ).toBeLessThanOrEqual(Math.min(...boxes.map(box => box.y)));
+    }
+};
+
 test('desktop navigation, section discovery, dialogs, and runtime remain stable', async ({
     page,
 }) => {
     const runtimeIssues = beginRuntimeProbe(page);
     await createUnlockedRecord(page);
+    await expectNonOverlappingToolRail(page);
 
     const primary = page.getByRole('tablist', {
         name: 'Patient record navigation',
@@ -195,6 +253,10 @@ test('desktop navigation, section discovery, dialogs, and runtime remain stable'
 
     const dialogs = [
         {
+            open: 'Open settings',
+            name: 'MEDIBRIEF SETTINGS',
+        },
+        {
             open: 'Open safety boundaries and capability status',
             name: 'Safety boundaries and capability status',
         },
@@ -221,6 +283,28 @@ test('desktop navigation, section discovery, dialogs, and runtime remain stable'
         await expect(dialog).toBeHidden();
     }
 
+    await page.getByRole('button', { name: /New Context/i }).click();
+    const addPatientDialog = page.getByRole('dialog', {
+        name: 'Add patient record',
+    });
+    await expect(addPatientDialog).toBeVisible();
+    await expect(addPatientDialog.getByLabel('Patient name or local label *'))
+        .toBeVisible();
+    await addPatientDialog.getByLabel('Age snapshot (years)').fill('12');
+    await expect(addPatientDialog.getByText(
+        'MediBrief records this information for review only. It does not calculate pediatric doses, enforce black-box warnings, or verify medication safety.',
+    )).toBeVisible();
+    const closeAddPatient = addPatientDialog.getByRole('button', {
+        name: 'Close add patient dialog',
+    });
+    const closeBox = await closeAddPatient.boundingBox();
+    expect(closeBox).not.toBeNull();
+    expect(closeBox!.width).toBeGreaterThanOrEqual(44);
+    expect(closeBox!.height).toBeGreaterThanOrEqual(44);
+    await closeAddPatient.click();
+    await expect(addPatientDialog).toBeHidden();
+
+    await expectNonOverlappingToolRail(page);
     await expectHealthyDocument(page);
     expect(runtimeIssues).toEqual([]);
 });
@@ -241,6 +325,8 @@ test('mobile navigation has usable touch targets and no page-level overflow', as
         expect(box!.width, `${controlName} touch width`).toBeGreaterThanOrEqual(44);
         expect(box!.height, `${controlName} touch height`).toBeGreaterThanOrEqual(44);
     }
+
+    await expectNonOverlappingToolRail(page);
 
     const primary = page.getByRole('tablist', {
         name: 'Patient record navigation',
@@ -268,6 +354,22 @@ test('mobile navigation has usable touch targets and no page-level overflow', as
     await page.mouse.click(380, 420);
     await expect(page.getByText('Patient Roster', { exact: true })).toBeHidden();
 
+    await page.getByRole('button', { name: /New Context/i }).click();
+    const addPatientDialog = page.getByRole('dialog', {
+        name: 'Add patient record',
+    });
+    await expect(addPatientDialog).toBeVisible();
+    await addPatientDialog.getByLabel('Weight snapshot (kg)').fill('35');
+    await expect(addPatientDialog.getByText(
+        'It does not calculate pediatric doses, enforce black-box warnings, or verify medication safety.',
+        { exact: false },
+    )).toBeVisible();
+    await capture(page, 'mobile-add-patient-dialog');
+    await addPatientDialog.getByRole('button', {
+        name: 'Close add patient dialog',
+    }).click();
+
+    await expectNonOverlappingToolRail(page);
     await expectHealthyDocument(page);
     await capture(page, 'mobile-final-shell');
     expect(runtimeIssues).toEqual([]);

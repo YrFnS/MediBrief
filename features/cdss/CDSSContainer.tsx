@@ -169,7 +169,7 @@ const CDSSContainer: React.FC = () => {
             )}
 
             {standardAlerts.length > 0 && (
-                <div className="pointer-events-none absolute bottom-4 right-4 z-40 flex w-full max-w-sm flex-col items-end px-4 md:px-0">
+                <div className="pointer-events-none absolute bottom-20 right-4 z-40 flex w-full max-w-sm flex-col items-end px-4 md:px-0">
                     <div className="pointer-events-auto w-full">
                         {standardAlerts.length > 1 ? (
                             <CDSSAggregator
@@ -193,7 +193,7 @@ const CDSSContainer: React.FC = () => {
                     type="button"
                     onClick={() => setIsValidatedReviewOpen(true)}
                     aria-label="Open validated rules, evidence, and Phase 5 audit review"
-                    className="fixed bottom-4 left-4 z-40 inline-flex min-h-11 items-center gap-2 rounded-full border border-blue-200 bg-white/95 px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-blue-700 shadow-xl backdrop-blur-md transition-colors hover:bg-blue-50 dark:border-blue-900 dark:bg-slate-950/95 dark:text-blue-300 dark:hover:bg-blue-950/40"
+                    className="fixed bottom-20 left-4 z-40 inline-flex min-h-11 items-center gap-2 rounded-full border border-blue-200 bg-white/95 px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-blue-700 shadow-xl backdrop-blur-md transition-colors hover:bg-blue-50 dark:border-blue-900 dark:bg-slate-950/95 dark:text-blue-300 dark:hover:bg-blue-950/40"
                 >
                     <ShieldCheckIcon className="h-4 w-4" />
                     Rules & audit
