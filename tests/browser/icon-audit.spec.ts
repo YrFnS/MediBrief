@@ -14,7 +14,7 @@ test('every exported SVG icon renders without browser parser errors', async ({
         }
     });
 
-    await page.goto('/tests/browser/icon-audit.html');
+    await page.goto('/?__medibriefIconAudit=1');
 
     const audit = page.locator('[data-icon-audit-ready="true"]');
     await expect(audit).toBeVisible();
