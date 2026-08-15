@@ -1,0 +1,61 @@
+name: One-time malformed SVG icon repair
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/one-time-fix-malformed-icons.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  repair-icons:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Repair the two malformed SVG path commands
+        shell: bash
+        run: |
+          set -euo pipefail
+          python <<'PY'
+          from pathlib import Path
+
+          path = Path('components/icons.tsx')
+          source = path.read_text(encoding='utf-8')
+          replacements = {
+              '-.97.05 1.16.84 1.97 1.97 3.45V19':
+                  '-.97.05c1.16.84 1.97 1.97 1.97 3.45V19',
+              'M12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-8 8z':
+                  'M12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z',
+          }
+
+          for old, new in replacements.items():
+              count = source.count(old)
+              if count != 1:
+                  raise SystemExit(
+                      f'Expected exactly one malformed path fragment, found {count}: {old}'
+                  )
+              source = source.replace(old, new)
+
+          path.write_text(source, encoding='utf-8')
+          PY
+
+          git diff --check
+          git diff -- components/icons.tsx
+
+      - name: Commit repaired icons directly to main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'MediBrief browser repair'
+          git config user.email 'actions@users.noreply.github.com'
+          git add components/icons.tsx
+          git commit -m 'fix: repair malformed SVG icon paths'
+          git push origin HEAD:main
