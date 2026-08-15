@@ -12,7 +12,7 @@ on:
   push:
     branches:
       - main
-      - 'agent/p4-workspace-information-hierarchy'
+      - 'agent/p4-*'
   workflow_dispatch:
 
 permissions:
@@ -47,6 +47,7 @@ jobs:
         run: >-
           npx vitest run
           tests/p4WorkspaceHierarchy.test.ts
+          tests/todayAttention.test.ts
           tests/personalRecordWorkspace.test.ts
           tests/phase2AccessibilityResponsive.test.ts
 
