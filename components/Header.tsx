@@ -34,7 +34,7 @@ const Header: React.FC<HeaderProps> = ({
                 <button
                     type="button"
                     onClick={onToggleSidebar}
-                    className="-ml-1 flex-shrink-0 rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-blue-600 md:hidden dark:hover:bg-slate-800"
+                    className="-ml-1 flex min-h-11 min-w-11 flex-shrink-0 items-center justify-center rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-blue-600 md:hidden dark:hover:bg-slate-800"
                     aria-label="Toggle patient roster"
                 >
                     <MenuIcon className="h-5 w-5" />
@@ -73,7 +73,7 @@ const Header: React.FC<HeaderProps> = ({
                     <button
                         type="button"
                         onClick={onOpenSettings}
-                        className="rounded-lg p-1.5 text-slate-500 transition-all hover:bg-blue-50 hover:text-blue-600 md:p-2 dark:hover:bg-blue-950/40"
+                        className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg p-1.5 text-slate-500 transition-all hover:bg-blue-50 hover:text-blue-600 md:p-2 dark:hover:bg-blue-950/40"
                         title="Settings"
                         aria-label="Open settings"
                     >
@@ -84,7 +84,7 @@ const Header: React.FC<HeaderProps> = ({
                             <button
                                 type="button"
                                 onClick={onExportChat}
-                                className="rounded-lg p-1.5 text-slate-500 transition-all hover:bg-blue-50 hover:text-blue-600 md:p-2 dark:hover:bg-blue-950/40"
+                                className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg p-1.5 text-slate-500 transition-all hover:bg-blue-50 hover:text-blue-600 md:p-2 dark:hover:bg-blue-950/40"
                                 title="Export assistant briefing"
                                 aria-label="Export assistant briefing"
                             >
@@ -93,7 +93,7 @@ const Header: React.FC<HeaderProps> = ({
                             <button
                                 type="button"
                                 onClick={onClearChat}
-                                className="rounded-lg p-1.5 text-slate-500 transition-all hover:bg-red-50 hover:text-red-600 md:p-2 dark:hover:bg-red-950/40"
+                                className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg p-1.5 text-slate-500 transition-all hover:bg-red-50 hover:text-red-600 md:p-2 dark:hover:bg-red-950/40"
                                 title="Clear assistant conversation"
                                 aria-label="Clear assistant conversation"
                             >

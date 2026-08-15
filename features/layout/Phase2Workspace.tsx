@@ -68,8 +68,8 @@ const LockedView: React.FC<{ onUnlock: () => void }> = ({ onUnlock }) => (
 );
 
 const VIEW_TITLES: Record<PersonalRecordView, string> = {
-    overview: 'Overview',
-    'health-data': 'Health Data',
+    overview: 'Today',
+    'health-data': 'Health Record',
     timeline: 'Timeline',
     search: 'Search & Export',
     emergency: 'Emergency Summary',
